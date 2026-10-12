@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../Maps.Hello/Maps.Hello.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Maps.Arena/Maps.Arena.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="StageMaps" AfterTargets="Build">
+    <ItemGroup>
+      <HelloMapFiles Include="$(MSBuildThisFileDirectory)../Maps.Hello/bin/$(Configuration)/$(TargetFramework)/*" />
+      <ArenaMapFiles Include="$(MSBuildThisFileDirectory)../Maps.Arena/bin/$(Configuration)/$(TargetFramework)/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(HelloMapFiles)" DestinationFolder="$(TargetDir)maps/hello" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ArenaMapFiles)" DestinationFolder="$(TargetDir)maps/arena" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

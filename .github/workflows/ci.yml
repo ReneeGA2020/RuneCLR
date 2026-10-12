@@ -1,0 +1,30 @@
+name: Prototype checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: preview
+      - name: Build
+        run: dotnet build RuneCLR.slnx -c Release
+      - name: Integration tests
+        run: dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build
+      - name: Same-process map demo
+        run: dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --collect

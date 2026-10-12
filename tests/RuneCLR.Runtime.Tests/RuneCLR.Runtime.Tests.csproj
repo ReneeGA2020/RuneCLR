@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="StageFixtures" AfterTargets="Build">
+    <ItemGroup>
+      <FixtureFiles Include="$(MSBuildThisFileDirectory)../RuneCLR.TestMaps/bin/$(Configuration)/$(TargetFramework)/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FixtureFiles)" DestinationFolder="$(TargetDir)fixtures" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

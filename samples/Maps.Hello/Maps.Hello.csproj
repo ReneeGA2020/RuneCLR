@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
+    <None Update="map.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

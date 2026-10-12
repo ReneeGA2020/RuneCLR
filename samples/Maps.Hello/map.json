@@ -1,0 +1,5 @@
+{
+  "id": "hello",
+  "entryAssembly": "Maps.Hello.dll",
+  "entryType": "RuneCLR.Samples.HelloMap"
+}

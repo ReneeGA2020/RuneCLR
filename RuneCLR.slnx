@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Maps.Arena/Maps.Arena.csproj" />
+    <Project Path="samples/Maps.Hello/Maps.Hello.csproj" />
+    <Project Path="samples/RuneCLR.SampleHost/RuneCLR.SampleHost.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
+    <Project Path="src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RuneCLR.Runtime.Tests/RuneCLR.Runtime.Tests.csproj" />
+    <Project Path="tests/RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" />
+  </Folder>
+</Solution>

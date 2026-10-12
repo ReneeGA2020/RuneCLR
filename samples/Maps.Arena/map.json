@@ -1,0 +1,5 @@
+{
+  "id": "arena",
+  "entryAssembly": "Maps.Arena.dll",
+  "entryType": "RuneCLR.Samples.ArenaMap"
+}
