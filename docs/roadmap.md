@@ -1,5 +1,28 @@
 # Roadmap
 
+The active GitHub tracker is
+[Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11). Its ten sub-issues
+contain acceptance criteria and dependency links. Start with #1; independent
+work can proceed when its prerequisites allow. Phases are capability milestones,
+not release dates.
+
+| Phase | Issue | Deliverable |
+| --- | --- | --- |
+| 1 | [#1](https://github.com/ReneeGA2020/RuneCLR/issues/1) | Reproducible interpreter build and proven map lifecycle execution |
+| 1 | [#2](https://github.com/ReneeGA2020/RuneCLR/issues/2) | New map IL and repeated unloading on a real iOS device |
+| 1 | [#3](https://github.com/ReneeGA2020/RuneCLR/issues/3) | Startup, gameplay callback, and memory benchmarks |
+| 2 | [#4](https://github.com/ReneeGA2020/RuneCLR/issues/4) | Controlled C# compilation and versioned map packages |
+| 2 | [#5](https://github.com/ReneeGA2020/RuneCLR/issues/5) | Initial map capability and dependency restrictions |
+| 2 | [#6](https://github.com/ReneeGA2020/RuneCLR/issues/6) | Interpreter-enforced execution budgets and terminal interruption |
+| 2 | [#7](https://github.com/ReneeGA2020/RuneCLR/issues/7) | Allocation attribution and a practical memory-limit design |
+| 2 | [#8](https://github.com/ReneeGA2020/RuneCLR/issues/8) | Host-owned game-loop events, timers, and session resources |
+| 3 | [#9](https://github.com/ReneeGA2020/RuneCLR/issues/9) | One server-authoritative game pilot with internal authors |
+| 3 | [#10](https://github.com/ReneeGA2020/RuneCLR/issues/10) | Readiness gates for arbitrary public UGC |
+
+Keep the milestone checklist below aligned with verified results. Issue closure
+requires its stated evidence; creating a task or prototype does not establish
+interpreter execution, platform support, or isolation.
+
 ## Phase 0: lifecycle prototype
 
 - [x] Shared map contract and a small host capability API.

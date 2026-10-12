@@ -61,6 +61,14 @@ requested change; the handoff does not authorize additional work on its own.
 
 ## Recommended next experiment
 
+Track future work in [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11).
+The next implementation task is
+[#1: proven interpreter lifecycle execution](https://github.com/ReneeGA2020/RuneCLR/issues/1).
+See [the roadmap issue index](roadmap.md) for platform, tooling, enforcement, and
+pilot tasks with their acceptance criteria and dependencies. The handoff commit
+`615e832` also passed
+[its three-platform CI](https://github.com/ReneeGA2020/RuneCLR/actions/runs/38205851287).
+
 **Demonstrate the current lifecycle prototype on a verified CoreCLR interpreter
 build.** This should precede a large sandbox patch.
 
