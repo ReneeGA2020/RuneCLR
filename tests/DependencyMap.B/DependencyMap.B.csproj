@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>RuneCLR.DependencyMap</AssemblyName>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../DependencyMap/DependencyMap.cs" Link="DependencyMap.cs" />
+    <ProjectReference Include="../../src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
+    <ProjectReference Include="../PrivateDependency.B/PrivateDependency.B.csproj" />
+  </ItemGroup>
+</Project>

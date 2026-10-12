@@ -2,7 +2,8 @@
 
 The active GitHub tracker is
 [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11). Its ten sub-issues
-contain acceptance criteria and dependency links. Start with #1; independent
+contain acceptance criteria and dependency links. The #1 desktop acceptance
+criteria are [locally verified](interpreter-experiment.md); independent
 work can proceed when its prerequisites allow. Phases are capability milestones,
 not release dates.
 
@@ -35,10 +36,10 @@ interpreter execution, platform support, or isolation.
 
 ## Phase 1: interpreter and platform feasibility
 
-- [ ] Pin and build an upstream CoreCLR runtime separately from the host.
-- [ ] Establish interpreted execution through runtime diagnostics.
-- [ ] Run the lifecycle suite under the interpreter.
-- [ ] Load a map built after the host and verify private dependency isolation.
+- [x] Pin and build an upstream CoreCLR runtime separately from the host.
+- [x] Establish interpreted map execution through runtime diagnostics (mode 1; CoreLib may JIT).
+- [x] Run the lifecycle suite under the interpreter.
+- [x] Load a map built after the host and verify private dependency isolation.
 - [ ] Load and unload new IL on a real iOS device.
 - [ ] Measure startup, callback overhead, representative loops, and memory.
 

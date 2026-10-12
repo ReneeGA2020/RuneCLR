@@ -24,7 +24,9 @@ jobs:
           dotnet-quality: preview
       - name: Build
         run: dotnet build RuneCLR.slnx -c Release
+      - name: Compile a map after the host
+        run: dotnet build tests/RuneCLR.LateMap -c Release -t:Rebuild -p:BuildProjectReferences=false
       - name: Integration tests
-        run: dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build
+        run: dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build -- --late-map tests/RuneCLR.LateMap/bin/Release/net11.0/map.json
       - name: Same-process map demo
         run: dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --collect

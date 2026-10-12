@@ -1,0 +1,5 @@
+{
+  "id": "late-map",
+  "entryAssembly": "RuneCLR.LateMap.dll",
+  "entryType": "RuneCLR.LateMap.LateMap"
+}

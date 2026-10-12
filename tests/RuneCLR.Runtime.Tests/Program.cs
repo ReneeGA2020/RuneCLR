@@ -1,7 +1,7 @@
 using System.Text.Json;
 using RuneCLR.Runtime;
 
-var tests = new (string Name, Action Run)[]
+var tests = new List<(string Name, Action Run)>
 {
     ("Repeated sessions reset map statics and unload", RepeatedSessions),
     ("Map-defined exceptions do not retain the map", MapExceptions),
@@ -11,8 +11,21 @@ var tests = new (string Name, Action Run)[]
     ("Log quotas bound retained host messages", LogQuota),
     ("Invalid entry types fail without retaining the context", InvalidEntry),
     ("Manifest rejects entry paths outside the package", ManifestTraversal),
-    ("Invalid options are rejected before map execution", InvalidOptions)
+    ("Invalid options are rejected before map execution", InvalidOptions),
+    ("Private dependency versions and generic statics remain session-local", PrivateDependencies),
+    ("Generic collections and constrained calls execute and unload", Generics)
 };
+
+if (args.Length == 2 && args[0] == "--late-map")
+{
+    var manifest = Path.GetFullPath(args[1]);
+    tests.Add(("Map compiled after the host executes and unloads", () => LateMap(manifest)));
+}
+else if (args.Length != 0)
+{
+    Console.Error.WriteLine("Usage: RuneCLR.Runtime.Tests [--late-map <manifest>]");
+    return 2;
+}
 
 var failures = 0;
 foreach (var (name, run) in tests)
@@ -29,7 +42,7 @@ foreach (var (name, run) in tests)
     }
 }
 
-Console.WriteLine($"{tests.Length - failures}/{tests.Length} tests passed");
+Console.WriteLine($"{tests.Count - failures}/{tests.Count} tests passed");
 return failures == 0 ? 0 : 1;
 
 static MapPackage Package(string type) => new(
@@ -125,6 +138,55 @@ static void ManifestTraversal()
 
 static void InvalidOptions() => Expect<ArgumentOutOfRangeException>(() =>
     new MapRunner().Run(Package("CounterMap"), new MapRunOptions { OperationBudgetPerCallback = 0 }));
+
+static void PrivateDependencies()
+{
+    var runner = new MapRunner();
+    var results = new List<MapRunResult>();
+    // Keep retired contexts pending while resolving the next package's same-named assemblies.
+    foreach (var (directory, flavor, version) in new[]
+    {
+        ("dependency-a", "A", "1.0.0.0"),
+        ("dependency-b", "B", "2.0.0.0"),
+        ("dependency-a", "A", "1.0.0.0")
+    })
+    {
+        var package = new MapPackage(flavor,
+            Path.Combine(AppContext.BaseDirectory, directory, "RuneCLR.DependencyMap.dll"),
+            "RuneCLR.DependencyMap.DependencyMap");
+        var result = runner.Run(package);
+        Check(result.Report.Outcome == MapRunOutcome.Completed, result.Report.Error ?? "Dependency map failed.");
+        Check(result.Report.Logs.SequenceEqual(new[]
+        {
+            $"{flavor}:v{version}:starts=1:value=42",
+            $"{flavor}:v{version}:starts=1:value=map"
+        }), "Private dependency version or generic static state escaped its session.");
+        Check(result.Report.CreatedEntities == 1 && result.Report.ReleasedEntities == 1, "Dependency map leaked entities.");
+        results.Add(result);
+    }
+
+    foreach (var result in results) CheckReleased(result);
+    Check(!System.Runtime.Loader.AssemblyLoadContext.Default.Assemblies.Any(assembly =>
+        assembly.GetName().Name is "RuneCLR.PrivateDependency" or "RuneCLR.DependencyMap"),
+        "Map-private assemblies entered the default context.");
+}
+
+static void Generics()
+{
+    var result = new MapRunner().Run(Package("GenericMap"));
+    Check(result.Report.Outcome == MapRunOutcome.Completed, result.Report.Error ?? "Generic map failed.");
+    Check(result.Report.Logs.SequenceEqual(new[] { "generic=42:map:7" }), "Incorrect generic result.");
+    CheckReleased(result);
+}
+
+static void LateMap(string manifest)
+{
+    var result = new MapRunner().Run(MapPackage.FromManifest(manifest));
+    Check(result.Report.Outcome == MapRunOutcome.Completed, result.Report.Error ?? "Late map failed.");
+    Check(result.Report.Logs.SequenceEqual(new[] { "late-map=42" }), "Incorrect late map result.");
+    Check(result.Report.CreatedEntities == 1 && result.Report.ReleasedEntities == 1, "Late map leaked entities.");
+    CheckReleased(result);
+}
 
 static void CheckReleased(MapRunResult result)
 {

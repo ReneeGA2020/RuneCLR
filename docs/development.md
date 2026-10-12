@@ -62,15 +62,35 @@ requested change; the handoff does not authorize additional work on its own.
 ## Recommended next experiment
 
 Track future work in [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11).
-The next implementation task is
-[#1: proven interpreter lifecycle execution](https://github.com/ReneeGA2020/RuneCLR/issues/1).
+The desktop acceptance criteria of
+[#1: proven interpreter lifecycle execution](https://github.com/ReneeGA2020/RuneCLR/issues/1)
+were verified locally on 2026-10-12; see [the experiment record](interpreter-experiment.md).
+The next platform experiment is [#2: real-device iOS execution](https://github.com/ReneeGA2020/RuneCLR/issues/2).
 See [the roadmap issue index](roadmap.md) for platform, tooling, enforcement, and
 pilot tasks with their acceptance criteria and dependencies. The handoff commit
 `615e832` also passed
 [its three-platform CI](https://github.com/ReneeGA2020/RuneCLR/actions/runs/38205851287).
 
-**Demonstrate the current lifecycle prototype on a verified CoreCLR interpreter
-build.** This should precede a large sandbox patch.
+**Desktop map interpretation is verified with mode 1.** The private Checked
+runtime passed all 12 lifecycle cases and both sample runs, including private
+dependencies, generic static reset and a map built after the host. Successful
+interpreter bytecode dumps and absence of reported map JIT compilation provide
+execution evidence. CoreLib is JIT-enabled in this mode.
+
+The separate runtime remains unpatched at
+`0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de` on branch
+`runeclr/interpreter-baseline`. Its build produces a private dotnet host layout.
+Use `./eng/verify-interpreter.ps1 -RuntimeRepo <checkout>` to reproduce.
+Plain corerun lacks the initialized hostpolicy required by the current package
+resolver. The installed .NET installation is untouched.
+
+**Full-framework mode 3 currently fails a Checked object-reference assertion**
+during manifest serialization/reflection. Do not claim a JIT-free runtime or
+iOS readiness from the mode 1 result. The pinned CoreLib also marks the current
+`AssemblyDependencyResolver` API unsupported on iOS. These are concrete inputs
+to #2, alongside real-device dynamic loading and repeated retirement.
+
+For a different upstream base, repeat the desktop experiment:
 
 1. Inspect the separate runtime checkout, its build requirements, existing
    artifacts, interpreter feature gates, and mode definitions.

@@ -9,6 +9,10 @@
     <Project Path="src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/DependencyMap.A/DependencyMap.A.csproj" />
+    <Project Path="tests/DependencyMap.B/DependencyMap.B.csproj" />
+    <Project Path="tests/PrivateDependency.A/PrivateDependency.A.csproj" />
+    <Project Path="tests/PrivateDependency.B/PrivateDependency.B.csproj" />
     <Project Path="tests/RuneCLR.Runtime.Tests/RuneCLR.Runtime.Tests.csproj" />
     <Project Path="tests/RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" />
   </Folder>

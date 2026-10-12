@@ -5,11 +5,17 @@
   <ItemGroup>
     <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
     <ProjectReference Include="../RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../DependencyMap.A/DependencyMap.A.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../DependencyMap.B/DependencyMap.B.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <Target Name="StageFixtures" AfterTargets="Build">
     <ItemGroup>
       <FixtureFiles Include="$(MSBuildThisFileDirectory)../RuneCLR.TestMaps/bin/$(Configuration)/$(TargetFramework)/*" />
+      <DependencyA Include="$(MSBuildThisFileDirectory)../DependencyMap.A/bin/$(Configuration)/$(TargetFramework)/*" />
+      <DependencyB Include="$(MSBuildThisFileDirectory)../DependencyMap.B/bin/$(Configuration)/$(TargetFramework)/*" />
     </ItemGroup>
     <Copy SourceFiles="@(FixtureFiles)" DestinationFolder="$(TargetDir)fixtures" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(DependencyA)" DestinationFolder="$(TargetDir)dependency-a" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(DependencyB)" DestinationFolder="$(TargetDir)dependency-b" SkipUnchangedFiles="true" />
   </Target>
 </Project>

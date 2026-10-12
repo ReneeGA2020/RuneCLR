@@ -80,3 +80,25 @@ public sealed class LogLimitMap : IMapScript
     public void OnTick(MapTick tick) { }
     public void OnStop() { }
 }
+
+public sealed class GenericMap : IMapScript
+{
+    public void OnStart(IMapContext context)
+    {
+        var values = new Dictionary<string, List<int>> { ["answer"] = [40, 2] };
+        var number = Identity(values["answer"].Sum());
+        var text = Identity("map");
+        context.Log($"generic={number}:{text}:{Read(new MapValue(7))}");
+    }
+
+    private static T Identity<T>(T value) => value;
+    private static int Read<T>(T value) where T : struct, IValue => value.Read();
+    public void OnTick(MapTick tick) { }
+    public void OnStop() { }
+
+    private interface IValue { int Read(); }
+    private readonly record struct MapValue(int Value) : IValue
+    {
+        public int Read() => Value;
+    }
+}

@@ -29,18 +29,22 @@ Runtime execution traces, interpreter breakpoints, or equivalent diagnostics
 must establish which methods execute through the interpreter. The demo therefore
 reports its runtime version and makes no interpretation claim.
 
-## Next experiment
+## Verified desktop baseline and next platform experiment
 
-1. Pin a `dotnet/runtime` commit and build a separate runtime in an isolated
-   checkout using upstream instructions. Record its platform/build settings.
-2. Run the existing sample and lifecycle tests with that runtime. Establish
-   interpreted execution independently from the application logs.
-3. Verify interpreted map code in collectible contexts, including private
-   dependencies, generics, map-defined exceptions, and repeated unloading.
-4. Prove execution of a package compiled after the host was built.
-5. On a real iOS device, repeat dynamic loading and multi-session collection,
-   accounting for trimming, runtime packaging, missing precompiled methods, and
-   the available framework surface. Windows-only tests do not establish this.
+On 2026-10-12, a pinned unpatched Checked CoreCLR build passed all twelve
+lifecycle tests with interpreted maps, including private dependency versions,
+generics, failure cleanup and a map compiled after the host. Mode 1 permits
+CoreLib JIT; R2R and tiering were disabled, successful interpreter bytecode dumps
+were checked, and map JIT compilation was not observed. The build, mode
+definitions, launcher and raw evidence references are recorded in
+[the desktop experiment](interpreter-experiment.md).
+
+Full-framework mode 3 hits an object-reference assertion in the selected build.
+The current `AssemblyDependencyResolver` API is also marked unsupported on iOS.
+The next platform experiment must address these limits and verify dynamic
+loading and repeated collection on a real iOS device, accounting for trimming,
+runtime packaging, missing precompiled methods and framework APIs. Desktop
+success does not establish that capability.
 
 ## Runtime patch boundary
 

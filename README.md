@@ -2,7 +2,7 @@
 
 An embeddable C# runtime for player-created worlds.
 
-RuneCLR explores using the .NET 11 CoreCLR interpreter as the foundation for a
+RuneCLR explores using the CoreCLR interpreter as the foundation for a
 restricted UGC game scripting engine. Games keep authority over gameplay and
 resources; map authors implement C# lifecycle callbacks. The intended model is
 server-authoritative gameplay, with no cross-device deterministic or lockstep
@@ -11,8 +11,11 @@ simulation requirement.
 **Status: lifecycle prototype, not a security sandbox.** This repository does not
 yet fork CoreCLR or force interpreted execution. The initial host uses the
 installed .NET 11 runtime to validate loading, callbacks, resource cleanup, and
-collectible assembly contexts. Interpreter execution, runtime metering, and iOS
-are explicit next milestones, not capabilities established by this demo.
+collectible assembly contexts. A pinned private CoreCLR build has separately
+passed the expanded lifecycle suite with interpreted maps; see
+[the desktop interpreter experiment](docs/interpreter-experiment.md). Its mode 1
+allows CoreLib JIT. Full-framework mode 3 currently hits an upstream Checked
+assertion; runtime metering and iOS remain future milestones.
 
 ## Quick start
 
@@ -31,7 +34,8 @@ its entities. `--collect` forces GC for diagnostic unload checks; without it,
 `unload: pending` is normal until GC runs. Forced GC is not a gameplay scheduling
 strategy and can pause the process or wait on map finalizers.
 
-On PowerShell, `./eng/verify.ps1` performs all three steps. The tests are an
+On PowerShell, `./eng/verify.ps1` also compiles a separate map after the host
+build and includes its execution/unloading in the tests. The tests are an
 executable integration harness without third-party test packages; use the command
 above rather than `dotnet test`.
 
