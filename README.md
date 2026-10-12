@@ -125,6 +125,9 @@ verification are not implemented.
 
 Read [the architecture](docs/architecture.md), [CoreCLR integration plan](docs/coreclr.md),
 [roadmap](docs/roadmap.md), and [security model](SECURITY.md).
+For continuing development in a new agent session, start with
+[AGENTS.md](AGENTS.md) and [the development handoff](docs/development.md). The
+project Skill lives in `.agents/skills/runeclr-development/SKILL.md`.
 
 ## License
 
