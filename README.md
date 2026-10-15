@@ -4,31 +4,31 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-iOS cannot rely on conventional JIT compilation to execute newly downloaded code. Game teams often introduce another scripting language, maintain cross-language bindings, or adapt a separate C# interpreter's language and runtime coverage. RuneCLR builds on **one CLR object model for interpreted IL and independently precompiled R2R modules. Both updateable and non-updateable C# modules can have their own R2R builds and run together.** R2R (ReadyToRun) provides ahead-of-time native code; newly downloaded iOS IL uses the interpreter.
+iOS cannot rely on conventional JIT compilation to execute newly downloaded code. Game teams often introduce another scripting language, maintain cross-language bindings, or adapt a separate C# interpreter's language and runtime coverage. RuneCLR's first-party direction is **download and load independently precompiled C# R2R update modules alongside non-updateable R2R code, sharing one CLR object model.** R2R (ReadyToRun) provides ahead-of-time native code; the CoreCLR interpreter complements it for methods without usable precompiled implementations.
 
-> **Experimental.** iOS ARM64 simulator runs execute IL compiled after installation, with trusted R2R interaction, failure recovery and repeated collection. **Physical iOS device acceptance is still pending.** A production-ready mobile SDK is not yet available.
+> **Experimental.** iOS ARM64 simulator runs execute IL compiled after installation, with trusted R2R interaction, failure recovery and repeated collection. **Downloaded R2R hot-update execution on physical iOS still needs acceptance.** A production-ready mobile SDK is not yet available.
 
 ## Why This Route
 
 - **C# on both sides of the update boundary.** Keep one language, type system and API instead of rewriting logic in Lua or maintaining parallel implementations. The goal is to move code by changing build configuration, rather than rewriting business logic.
 - **Use host objects directly.** Interpreted and trusted R2R code share CLR types, objects and GC. Ordinary managed interactions do not require cross-language serialization, copying or proxy conversion. Calls still have execution overhead; cross-session references need explicit ownership.
-- **Compile either part with R2R/AOT.** Updateable and non-updateable modules can be compiled separately to R2R and run together in one runtime, retaining C# calls and shared objects. Interpretation is another execution choice, rather than an inherent limit on updateable code. Formal same-source and separately built R2R-module acceptance is on the roadmap.
+- **Compile either part with R2R/AOT.** The first-party goal is independently built R2R update modules loaded alongside non-updateable R2R modules, retaining C# calls and shared objects. The interpreter covers methods without usable precompiled bodies. Same-source builds, module composition and post-install R2R delivery are tracked acceptance work.
 - **Modern C# and engine-independent embedding.** Build on CoreCLR's type and execution model; the core projects have no Unity dependency. Source compilation follows the selected SDK compiler's latest stable C# version. Language/runtime/library compatibility is verified separately.
 - **Add UGC management on the same foundation.** Package validation, session lifetimes, execution budgets and resource cleanup serve player scripts. Trusted developer-owned hot-update integration can progress independently.
 
-## R2R/AOT Applies to Both Parts
+## First-Party: R2R Hot Updates With Interpreter Support
 
-**The update boundary and the execution mode are separate choices.** A game team's own hot-update modules are trusted code and can use R2R without adopting the restricted UGC policy. Separately built R2R modules can run together and interact with interpreted IL in the same CLR; a single composite image is not inherently required. Runtime, framework and target architecture must be compatible. Reproducible same-source builds and independent R2R module composition are tracked in [#13](https://github.com/ReneeGA2020/RuneCLR/issues/13).
+**First-party updates target R2R plus interpreter support.** A game team's own hot-update modules are trusted code. The direction is to download independently built R2R modules and load them into the existing application, using precompiled native implementations together with interpreted methods in the same CLR. Runtime, framework and target architecture must be compatible. Reproducible same-source builds and independent R2R module composition are tracked in [#13](https://github.com/ReneeGA2020/RuneCLR/issues/13).
 
 | Code | Execution direction |
 | --- | --- |
 | Trusted non-updateable modules | Independently built R2R |
-| Trusted updateable modules | Independently built R2R or interpreted IL, according to platform and delivery requirements |
+| Trusted updateable modules | Download/load independently built R2R; interpreter support for methods without usable precompiled bodies |
 | Current restricted UGC code and private dependencies | IL interpreted across target platforms |
 
 **UGC currently chooses interpretation for management reasons.** R2R contains machine code, which needs additional mechanisms for instruction accounting, terminal interruption and capability control. The current UGC policy therefore uses interpretation and rejects author-supplied native bodies. This policy does not mean updateable C# lacks R2R/AOT capability.
 
-On iOS, newly downloaded IL is interpreted; native R2R modules go through the application's native build/signing pipeline. A module's R2R build capability does not establish a downloaded native-code delivery route. R2R/AOT here means ReadyToRun precompilation, distinct from NativeAOT.
+CoreCLR's upstream direction combines R2R with partial interpretation ([maintainer explanation](https://github.com/dotnet/runtime/issues/112748#issuecomment-2681260591)). Our existing post-install IL experiments establish the interpreted path; they do not yet establish downloaded R2R native execution on iOS. Packaging, signing/loading, actual R2R method entry and interpreter fallback remain explicit acceptance items for that target. R2R/AOT here means ReadyToRun precompilation, distinct from NativeAOT.
 
 ## Comparing First-Party Game Hot-Update Routes
 
@@ -38,7 +38,7 @@ The comparison assumes a game team updates its own trusted C# gameplay code. The
 | --- | --- | --- |
 | Lua integrations such as xLua / ToLua | Move selected C# logic to Lua; maintain C#/Lua object bindings and cross-language debugging | Keep updateable and non-updateable logic in C#, sharing CLR types and objects |
 | Standalone C# IL interpreters such as ILRuntime | Adapt the separate interpreter to the native host; check language/library coverage and engine workflow for the chosen version | Reuse CoreCLR's type/runtime mechanisms; the same module can use interpreted IL or its own R2R build, with an engine-independent embedding goal |
-| Application code executed only through AOT | New IL has no native method body in the installed application; code changes need an additional execution/delivery mechanism | Build updateable and non-updateable modules independently to R2R and run them together; use interpretation for newly downloaded iOS IL |
+| Application code executed only through AOT | New IL has no native method body in the installed application; code changes need an additional execution/delivery mechanism | Target independently built, downloadable R2R updates that run with existing R2R modules; use the interpreter for methods without usable precompiled bodies |
 
 Same-source IL/R2R builds and independent R2R module composition remain planned RuneCLR acceptance work. Performance comparisons for this use should use trusted first-party configurations and measure startup, gameplay callbacks and host interaction. The existing [Windows kernel benchmark](docs/performance-experiment.md) is a separate reference; it does not establish an ILRuntime/xLua/ToLua ranking or physical iOS performance.
 
@@ -46,7 +46,7 @@ Same-source IL/R2R builds and independent R2R module composition remain planned 
 
 | Use | Audience | Focus |
 | --- | --- | --- |
-| **C# hot updates** | Teams updating their own trusted game code | Independent R2R/IL builds, new iOS IL, shared host objects, version switching/rollback and embedding |
+| **C# hot updates** | Teams updating their own trusted game code | Download/load independent R2R updates, interpreter support, shared host objects, version switching/rollback and embedding |
 | **C# UGC** | Games accepting player or external scripts | Add controlled compilation, capability policy, budgets, resource ownership and retirement |
 
 Hot update initially means obtaining and executing new logic after application publication, with version changes at module/session boundaries. Replacing active stack frames or automatically migrating live object state is not promised. Server-authoritative gameplay is a choice of the current game examples, not an embedding prerequisite.

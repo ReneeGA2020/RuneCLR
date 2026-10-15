@@ -3,11 +3,11 @@
 ## Shared foundation and trusted hot updates - clarified 2026-10-15
 
 RuneCLR first supports C# iOS hot-update scripting, then adds UGC management.
-See [product direction](product-direction.md). New iOS IL is interpreted while
-trusted host/framework code can be precompiled as R2R and use direct CLR calls
-and managed objects. Trusted R2R belongs to the application's build/signing
-pipeline; downloaded server-built native code is not assumed to be executable
-on iOS. No device-side JIT is needed for this goal.
+See [product direction](product-direction.md). The first-party direction is
+downloading and loading independent R2R update modules alongside existing R2R
+code, using direct CLR calls and managed objects. The interpreter supplements
+methods without usable precompiled bodies. This is a mixed R2R/interpreter
+direction; the restricted UGC profile separately chooses interpretation.
 
 Same-source IL/R2R builds, independently built R2R module composition,
 direct-object interoperability and an engine-independent trusted-update sample
@@ -22,8 +22,10 @@ builds and execute together; R2R is not restricted to the host. A first-party
 game's update module is trusted and does not need to inherit UGC's
 interpreter-only policy. Validate compatible runtime/framework/architecture
 inputs, module composition and the platform's update packaging/signing route.
-On iOS, newly downloaded IL is interpreted and native R2R follows the
-application's native build/signing pipeline. The current interpreted-only UGC
+On iOS, downloaded R2R native execution remains a delivery acceptance target: it
+needs packaging, signing/loading, actual R2R entry and physical-device evidence.
+Current post-install IL experiments do not establish that native path or limit
+the first-party goal to pure interpretation. The current interpreted-only UGC
 choice keeps machine-code accounting, termination and capability complexity out
 of the initial restricted profile; it is not a universal limitation on hot-update
 code.

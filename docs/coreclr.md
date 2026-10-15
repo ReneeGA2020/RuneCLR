@@ -3,13 +3,12 @@
 ## Why it matters
 
 The primary product goal is C# iOS hot-update scripting, with UGC management
-built on top. CoreCLR provides one managed type/object model for interpreted
-new IL and trusted R2R application code. Trusted updateable and non-updateable
-modules can each be precompiled to R2R and run together; restricted UGC currently
-uses interpretation for management control. Formal same-source builds, independent
-R2R module composition and object compatibility matrices remain separate
-milestones. On iOS, newly downloaded IL is interpreted and native R2R uses the
-application's native build/signing pipeline. See
+built on top. The first-party direction is downloading and loading independently
+built R2R update modules alongside non-updateable R2R code, with interpretation
+for methods without usable precompiled bodies. They share one managed
+type/object model. Restricted UGC currently chooses interpretation for management
+control. Formal same-source builds, independent R2R module composition, post-install
+delivery and object compatibility matrices remain separate milestones. See
 [product direction](product-direction.md).
 
 Desktop JIT runtimes can execute newly downloaded IL. A pure AOT runtime cannot
@@ -24,6 +23,27 @@ Upstream references:
 - [CoreCLR on WebAssembly](https://github.com/dotnet/runtime/issues/121511)
 - [.NET 11 runtime changes](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-11/runtime)
 - [CoreCLR build workflow](https://github.com/dotnet/runtime/blob/main/docs/workflow/building/coreclr/README.md)
+
+## R2R plus interpreter: design and delivery evidence
+
+The [upstream tracking issue](https://github.com/dotnet/runtime/issues/112748)
+explains that R2R still has cases that crossgen cannot precompile. The interpreter
+provides execution without requiring a JIT for those methods. The maintainer
+[clarified](https://github.com/dotnet/runtime/issues/112748#issuecomment-2681260591):
+
+> Running everything interpreted is not the end goal. We will have a combination
+> of precompiled managed code with only some of the code being interpreted.
+
+That explanation identifies R2R as the precompiled code, rather than NativeAOT.
+The [iOS workflow](https://github.com/dotnet/runtime/blob/main/docs/workflow/building/coreclr/ios.md)
+lists both interpreter and R2R execution modes. Neither statement alone proves
+execution of a downloaded R2R native body after application installation.
+
+RuneCLR's first-party delivery acceptance must bind the post-install downloaded
+image to actual native R2R method entries, separately observe expected interpreter
+fallback, and document the target's packaging/signing/loading route. Loading an
+R2R-marked file while interpreting all its methods is insufficient evidence of
+R2R native execution. Physical iOS results remain required for device claims.
 
 ## Baseline
 

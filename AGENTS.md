@@ -3,8 +3,10 @@
 ## Project intent
 
 RuneCLR first makes C# usable for iOS hot-update scripting, then adds the
-management needed for C# UGC. New IL executes through the CoreCLR interpreter
-and interacts with trusted R2R host code through shared CLR types and objects.
+management needed for C# UGC. The first-party direction is downloading and
+loading independently built R2R update modules alongside non-updateable R2R
+code, with the CoreCLR interpreter covering methods without usable precompiled
+bodies. They share CLR types and objects.
 Keep hot-update and non-hot-update logic in C# and aim for engine-independent
 embedding. Read docs/product-direction.md for the two uses and their boundaries.
 
@@ -18,8 +20,10 @@ interoperability need their own reproducible acceptance.
 Source compilation follows the selected SDK compiler's latest stable C#
 version. Do not impose an older source-language cap as a substitute for API
 capability policy or runtime compatibility checks.
-On iOS, newly downloaded IL is interpreted; trusted R2R belongs to the
-application's native build/signing pipeline.
+Do not turn the current post-install IL experiments into a pure-interpreter
+product direction. Downloaded R2R native execution on iOS needs its own
+packaging/signing/loading and physical-device acceptance; upstream mixed-mode
+support and existing IL results do not establish that delivery path.
 
 Successive script sessions/maps are one integration model. Initial version
 switches can happen at module/session boundaries; active-stack replacement and

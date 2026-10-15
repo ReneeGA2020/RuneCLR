@@ -24,7 +24,7 @@ are prototype terminology, not a restriction to maps.
 
 | Issue | Deliverable | Acceptance focus |
 | --- | --- | --- |
-| [#12](https://github.com/ReneeGA2020/RuneCLR/issues/12) | Engine-independent iOS hot-update integration | Post-build IL, pinned host/runtime build, approved version activation, rollback and recovery |
+| [#12](https://github.com/ReneeGA2020/RuneCLR/issues/12) | Engine-independent iOS hot-update integration | Download/load trusted R2R updates, interpreter support, approved activation, rollback and recovery; platform delivery evidence |
 | [#13](https://github.com/ReneeGA2020/RuneCLR/issues/13) | Same-source interpreted IL and trusted R2R builds | Identical business sources/shared APIs, separately built R2R module composition, actual execution evidence and matching behavior |
 | [#14](https://github.com/ReneeGA2020/RuneCLR/issues/14) | Direct-object interoperability and ownership contract | Reference identity, calls, generic/delegate cases, release and retirement |
 | [#15](https://github.com/ReneeGA2020/RuneCLR/issues/15) | C#/.NET compatibility matrix and useful diagnostics | Separate compiler, runtime, framework and UGC-policy support |
@@ -37,10 +37,12 @@ The [work sequence](work-sequence.md) gives the contribution order.
 
 Trusted integration does not depend on completing public-UGC isolation or hard
 CPU/memory limits. A first-party update module is trusted and can use its own
-R2R build alongside other R2R modules. #13 validates independent R2R builds and
-composition; #12 records platform packaging/signing requirements. On iOS, newly
-downloaded IL is interpreted and native R2R belongs to the application's native
-build/signing pipeline. These milestones do not expand restricted UGC execution.
+R2R build alongside other R2R modules. The first-party direction is downloadable
+R2R updates with interpreter support. #13 validates independent R2R builds,
+composition and actual method execution; #12 owns post-install delivery and
+platform packaging/signing/loading acceptance. Existing post-install IL evidence
+does not establish downloaded R2R native execution on iOS. These milestones do
+not expand restricted UGC execution.
 
 Gate: a developer can integrate C# updates, use supported host objects, change
 versions at declared boundaries and recover from ordinary update failures, with

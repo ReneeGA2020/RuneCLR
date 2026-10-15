@@ -10,14 +10,17 @@ not establish that an unperformed experiment has passed.
 
 1. Complete #2 physical iOS new-IL acceptance when a target is reachable.
    Independently document/build #12's minimal engine-independent trusted-update
-   host: load post-build C# IL, call shared host objects, retire and recover.
+   host: download/load independent R2R updates, call shared host objects, retire
+   and recover, with interpreter support for methods lacking usable R2R bodies.
+   Keep the existing post-build IL lane as a baseline.
 2. Validate #13's identical business sources in interpreted IL and trusted R2R builds,
    including independently built R2R updateable and non-updateable modules
    running together without requiring one composite image. Verify shared API
    identity, equivalent behavior and actual R2R execution of selected methods.
    First-party modules are trusted and do not inherit UGC's interpreter-only
-   policy. On iOS, newly downloaded IL is interpreted; native R2R follows the
-   application build/signing pipeline. This work does not depend on #5/#6/#7.
+   policy. #12 must separately validate post-install R2R delivery, signing/loading
+   and physical iOS execution; existing IL results do not establish that path.
+   This work does not depend on #5/#6/#7.
 3. Define #14's direct-object/ownership matrix and #15's separate compiler language,
    runtime feature, framework and UGC-policy compatibility. Publish diagnostics
    and an honest supported surface; source syntax follows the selected compiler's

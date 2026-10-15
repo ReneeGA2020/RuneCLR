@@ -2,11 +2,13 @@
 
 ## Goal
 
-Make C# usable for iOS hot-update scripting, then add managed UGC. Trusted
-updateable and non-updateable modules can each have independent R2R builds and
-run together, sharing CLR types and objects with interpreted IL. First-party
-modules do not inherit UGC's interpreter-only policy. On iOS, newly downloaded
-IL is interpreted; native R2R uses the application build/signing pipeline.
+Make C# usable for iOS hot-update scripting, then add managed UGC. The first-party
+direction is to download/load independent R2R updates alongside non-updateable
+R2R modules, sharing CLR types and objects with interpreted methods that lack
+usable precompiled bodies. First-party modules do not inherit UGC's
+interpreter-only policy. Downloaded R2R native execution on iOS needs separate
+delivery, signing/loading and physical-device acceptance; existing post-install
+IL experiments establish the interpreted path.
 See [product direction](product-direction.md).
 
 A host can retire one script module/session and load different C# code without

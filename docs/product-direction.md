@@ -7,9 +7,10 @@ management needed for C# UGC. This ordering was clarified by the project owner
 on 2026-10-15. It broadens the earlier UGC-first plan without invalidating its
 runtime experiments or weakening the restricted UGC contract.
 
-The core value is keeping gameplay in C#: trusted updateable and non-updateable
-modules can each use independent R2R builds and interact with interpreted IL,
-using CLR calls and shared objects instead of introducing a second language
+The core value is keeping gameplay in C#: download and load independently built
+trusted R2R update modules alongside non-updateable R2R code, with interpreter
+support for methods without usable precompiled bodies. They use CLR calls and
+shared objects instead of introducing a second language
 and its object bridge. The runtime should be embeddable independently of Unity
 or a specific game engine. Current project APIs and examples are early
 integration surfaces, not a finished general-purpose mobile SDK.
@@ -19,7 +20,7 @@ integration surfaces, not a finished general-purpose mobile SDK.
 | Concern | Developer-owned hot updates | Managed UGC |
 | --- | --- | --- |
 | Code source | The game's trusted development/build pipeline | Player/external source or IL, processed by controlled builds |
-| Execution direction | Trusted update modules may use independent R2R builds or interpreted IL, according to platform and delivery requirements | Author IL/private dependencies interpreted across target platforms |
+| Execution direction | Download/load independent trusted R2R updates; interpreter support for methods without usable precompiled bodies | Author IL/private dependencies interpreted across target platforms |
 | Objects and APIs | Direct managed interaction with supported host APIs | The same CLR mechanism, narrowed by capability and resource policy |
 | Recovery | Defined module/version boundaries, useful errors and reference ownership | Session retirement plus budget, capability and resource management |
 | Compatibility | Explicit language, framework and interop support matrix | An additional, deliberately narrower approved surface |
@@ -41,19 +42,23 @@ automatically migrating live object state is outside the initial scope. This
 does not make successive-module hot updates out of scope.
 
 For a first-party game, update modules are trusted by the game team and do not
-inherit the UGC profile's interpreter-only restriction. They may use independent
-R2R builds and execute with other R2R modules and the host. On iOS, newly
-downloaded IL is interpreted; native R2R modules belong to the application's
-native build/signing pipeline. R2R build capability does not establish a
-downloaded native-code route. No device-side JIT or native code generation is
-required by the hot-update goal. Technical execution evidence and
-app-distribution approval are separate facts.
+inherit the UGC profile's interpreter-only restriction. The direction is to
+download independently built R2R updates and load them with existing R2R
+modules and the host, using precompiled bodies and interpretation where needed.
+This follows CoreCLR's R2R-plus-interpreter architecture; see the
+[upstream explanation](https://github.com/dotnet/runtime/issues/112748#issuecomment-2681260591).
+The current post-install IL experiments establish a useful interpreted path,
+not the full first-party delivery target. Downloaded R2R native execution on
+iOS still needs explicit packaging, signing/loading, method-entry and physical
+device evidence. Upstream mixed-mode support does not by itself establish that
+post-publication delivery path. Technical execution evidence and distribution
+approval are separate facts.
 
 The same-source goal is to keep business logic and shared APIs stable when
 choosing interpreted IL or trusted R2R at build time. It does not promise equal
-performance, identical native artifacts, unrestricted library support or native
-execution of newly downloaded iOS code. Formal repository acceptance remains
-pending. The owner reports separate-session experiments; these are motivation,
+performance, identical native artifacts or unrestricted library support.
+Formal same-source and downloaded-R2R delivery acceptance remains pending.
+The owner reports separate-session experiments; these are motivation,
 not a replacement for reproducible evidence in this repository.
 
 The update boundary and execution mode are separate choices. Both trusted
@@ -88,7 +93,8 @@ records must remain free of such script references after retirement.
 1. Complete physical iOS new-IL execution evidence and maintain reproducible
    platform runtime builds. Device access must not block independent host work.
 2. Deliver a small engine-independent trusted hot-update example, same-source
-   IL/R2R builds, direct-object interoperability and a compatibility matrix.
+   IL/R2R builds, independent downloaded R2R module loading, direct-object
+   interoperability and a compatibility matrix.
 3. Validate version switching, rollback and author diagnostics in a real game.
 4. Extend the UGC layer with host-owned events/resources, practical memory
    observation and the remaining capability/budget boundaries. Public hostile

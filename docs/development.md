@@ -4,8 +4,10 @@
 
 RuneCLR first makes C# usable for iOS hot-update scripting, then adds UGC
 management on the same runtime foundation. Keep gameplay in C#: trusted
-updateable and non-updateable modules can each have independent R2R builds,
-compose in one CLR and interact directly with interpreted IL and shared objects.
+updateable and non-updateable modules can each have independent R2R builds. The
+first-party direction is downloadable R2R updates composing with the existing
+application, with interpreter support for methods without usable precompiled
+bodies, direct CLR calls and shared objects.
 Aim for engine-independent embedding. The [product direction](product-direction.md),
 clarified on 2026-10-15, distinguishes trusted developer-owned updates from
 restricted UGC. The custom-map analogy is one integration model.
@@ -14,8 +16,11 @@ restricted UGC. The custom-map analogy is one integration model.
   for every embedding host. Deterministic lockstep is not required.
 - Hot updates initially switch at host-controlled module/session boundaries.
   Active-stack replacement and automatic live-state migration are outside scope.
-- iOS execution of newly downloaded IL is a central platform requirement to
-  investigate. Native R2R uses the application's native build/signing pipeline.
+- First-party iOS hot updates target downloaded R2R modules plus interpreter
+  support. Current post-install IL experiments establish the interpreted path;
+  downloaded R2R native execution needs separate packaging, signing/loading,
+  method-entry and physical-device acceptance. Pure interpretation remains the
+  current restricted UGC strategy, not the first-party product direction.
 - First-party update modules are trusted game-team code and do not inherit
   UGC's interpreter-only policy. Reproducible same-source IL/R2R builds and
   independent R2R module composition remain acceptance work under #13.
@@ -44,7 +49,7 @@ passed on that same commit. This is desktop regression evidence.
 
 Next work should establish trusted hot-update integration: a minimal
 engine-independent host, same-source interpreted IL/trusted R2R builds with
-independent R2R update/non-update module composition,
+independent R2R update/non-update module composition and post-install delivery,
 direct-object and reference-lifetime coverage, and a language/library support
 matrix. Complete physical iOS acceptance when a target is available. These
 increments do not depend on completing the UGC budget/security/memory profile.
