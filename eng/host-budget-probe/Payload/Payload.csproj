@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><AssemblyName>HostBudgetProbe.Payload</AssemblyName></PropertyGroup><ItemGroup><ProjectReference Include="../../../src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" /><ProjectReference Include="../Private/Private.csproj" /></ItemGroup></Project>

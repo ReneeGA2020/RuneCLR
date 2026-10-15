@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Separate from the host graph: loaded through the real collectible runner. -->
+  <PropertyGroup>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
+    <None Update="map.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="empty-map.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

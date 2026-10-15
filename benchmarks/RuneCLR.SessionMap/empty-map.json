@@ -1,0 +1,5 @@
+{
+  "id": "session-empty",
+  "entryAssembly": "RuneCLR.SessionMap.dll",
+  "entryType": "RuneCLR.SessionMap.EmptyMap"
+}

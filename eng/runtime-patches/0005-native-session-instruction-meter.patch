@@ -1,0 +1,466 @@
+diff --git a/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml b/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
+index 35eeb73f6e3..c1930dfeea9 100644
+--- a/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
++++ b/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
+@@ -5,6 +5,11 @@
+       <method name="RuneCLR_CreateInterpreterRequired" />
+       <method name="RuneCLR_GetExecutionPolicyVersion" />
+       <method name="RuneCLR_GetExecutionPolicy" />
++      <method name="RuneCLR_CreateInstructionMetered" />
++      <method name="RuneCLR_GetInstructionMeterVersion" />
++      <method name="RuneCLR_GetInstructionMeterRemaining" />
++      <method name="RuneCLR_GetInstructionMeterExecuted" />
++      <method name="RuneCLR_GetInstructionMeterExhausted" />
+     </type>
+     <type fullname="System.GC">
+       <!-- Methods are used to register and unregister frozen segments. They are private and experimental. -->
+diff --git a/src/coreclr/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.CoreCLR.cs b/src/coreclr/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.CoreCLR.cs
+index b3907a8eab6..9deac22d508 100644
+--- a/src/coreclr/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.CoreCLR.cs
++++ b/src/coreclr/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.CoreCLR.cs
+@@ -24,6 +24,44 @@ public partial class AssemblyLoadContext
+ 
+         private static int RuneCLR_GetExecutionPolicyVersion() => RuneCLR_GetExecutionPolicyVersionNative();
+ 
++        // Diagnostic accounting only: exhaustion does not interrupt interpreted execution.
++        private static AssemblyLoadContext RuneCLR_CreateInstructionMetered(
++            string name, Func<AssemblyLoadContext, AssemblyName, Assembly?> managedResolver, long limit)
++        {
++            ArgumentNullException.ThrowIfNull(name);
++            ArgumentNullException.ThrowIfNull(managedResolver);
++            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
++            if (RuneCLR_GetInstructionMeterVersion() != 1)
++                throw new PlatformNotSupportedException("The runtime cannot create an instruction-metered load context.");
++            return new RuneCLRInterpreterLoadContext(name, managedResolver, limit);
++        }
++
++        private static int RuneCLR_GetInstructionMeterVersion() => RuneCLR_GetInstructionMeterVersionNative();
++
++        private long RuneCLR_GetInstructionMeterRemaining()
++        {
++            lock (_unloadLock)
++            {
++                VerifyIsAlive();
++                long value = RuneCLR_GetInstructionMeterRemainingNative(_nativeAssemblyLoadContext);
++                GC.KeepAlive(this);
++                return value;
++            }
++        }
++
++        private long RuneCLR_GetInstructionMeterExecuted()
++        {
++            lock (_unloadLock)
++            {
++                VerifyIsAlive();
++                long value = RuneCLR_GetInstructionMeterExecutedNative(_nativeAssemblyLoadContext);
++                GC.KeepAlive(this);
++                return value;
++            }
++        }
++
++        private bool RuneCLR_GetInstructionMeterExhausted() => RuneCLR_GetInstructionMeterRemaining() == 0;
++
+         private int RuneCLR_GetExecutionPolicy()
+         {
+             lock (_unloadLock)
+@@ -46,6 +84,13 @@ private sealed class RuneCLRInterpreterLoadContext : AssemblyLoadContext
+                 _managedResolver = managedResolver;
+             }
+ 
++            internal RuneCLRInterpreterLoadContext(
++                string name, Func<AssemblyLoadContext, AssemblyName, Assembly?> managedResolver, long instructionLimit)
++                : base(false, true, name, requiresInterpreter: true, instructionLimit)
++            {
++                _managedResolver = managedResolver;
++            }
++
+             protected override Assembly? Load(AssemblyName assemblyName) => _managedResolver(this, assemblyName);
+ 
+             protected override IntPtr LoadUnmanagedDll(string unmanagedDllName) =>
+@@ -56,6 +101,22 @@ private sealed class RuneCLRInterpreterLoadContext : AssemblyLoadContext
+         [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_InitializeInterpreterRequiredLoadContext")]
+         private static partial IntPtr InitializeInterpreterRequiredLoadContext(IntPtr ptrAssemblyLoadContext);
+ 
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_InitializeInstructionMeteredLoadContext")]
++        private static partial IntPtr InitializeInstructionMeteredLoadContext(IntPtr ptrAssemblyLoadContext, long instructionLimit);
++
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetInstructionMeterVersion")]
++        private static partial int RuneCLR_GetInstructionMeterVersionNative();
++
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetInstructionMeterRemaining")]
++        private static partial long RuneCLR_GetInstructionMeterRemainingNative(IntPtr ptrNativeAssemblyBinder);
++
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetInstructionMeterExecuted")]
++        private static partial long RuneCLR_GetInstructionMeterExecutedNative(IntPtr ptrNativeAssemblyBinder);
++
+         [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
+         [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetExecutionPolicyVersion")]
+         private static partial int RuneCLR_GetExecutionPolicyVersionNative();
+diff --git a/src/coreclr/binder/customassemblybinder.cpp b/src/coreclr/binder/customassemblybinder.cpp
+index 6533d36ad02..fc02fd11727 100644
+--- a/src/coreclr/binder/customassemblybinder.cpp
++++ b/src/coreclr/binder/customassemblybinder.cpp
+@@ -165,6 +165,7 @@ HRESULT CustomAssemblyBinder::SetupContext(DefaultAssemblyBinder *pDefaultBinder
+                                            void* loaderAllocatorHandle,
+                                            UINT_PTR ptrAssemblyLoadContext,
+                                            bool interpreterRequired,
++                                           INT64 instructionLimit,
+                                            CustomAssemblyBinder **ppBindContext)
+ {
+     HRESULT hr = E_FAIL;
+@@ -174,7 +175,7 @@ HRESULT CustomAssemblyBinder::SetupContext(DefaultAssemblyBinder *pDefaultBinder
+         {
+             NewHolder<CustomAssemblyBinder> pBinder;
+ 
+-            SAFE_NEW_CONSTR(pBinder, CustomAssemblyBinder(interpreterRequired));
++            SAFE_NEW_CONSTR(pBinder, CustomAssemblyBinder(interpreterRequired, instructionLimit));
+             hr = pBinder->GetAppContext()->Init();
+             if(SUCCEEDED(hr))
+             {
+@@ -245,8 +246,8 @@ void CustomAssemblyBinder::PrepareForLoadContextRelease(INT_PTR ptrManagedStrong
+     m_loaderAllocatorHandle = NULL;
+ }
+ 
+-CustomAssemblyBinder::CustomAssemblyBinder(bool interpreterRequired)
+-    : AssemblyBinder(interpreterRequired)
++CustomAssemblyBinder::CustomAssemblyBinder(bool interpreterRequired, INT64 instructionLimit)
++    : AssemblyBinder(interpreterRequired), m_runeCLRInstructionMeter(instructionLimit)
+ {
+     m_pDefaultBinder = NULL;
+     m_ptrManagedStrongAssemblyLoadContext = (INT_PTR)NULL;
+diff --git a/src/coreclr/binder/inc/customassemblybinder.h b/src/coreclr/binder/inc/customassemblybinder.h
+index a1f98225839..249a2415256 100644
+--- a/src/coreclr/binder/inc/customassemblybinder.h
++++ b/src/coreclr/binder/inc/customassemblybinder.h
+@@ -10,6 +10,8 @@
+ 
+ #if !defined(DACCESS_COMPILE)
+ 
++#include "runeclrinstructionmeter.h"
++
+ class AssemblyLoaderAllocator;
+ class PEImage;
+ 
+@@ -26,6 +28,10 @@ public:
+         BINDER_SPACE::Assembly** ppAssembly, SString* pDiagnosticInfo = NULL) override;
+ 
+     AssemblyLoaderAllocator* GetLoaderAllocator() override;
++    RuneCLRInstructionMeter* GetRuneCLRInstructionMeter() override
++    {
++        return m_runeCLRInstructionMeter.Enabled() ? &m_runeCLRInstructionMeter : nullptr;
++    }
+ 
+     bool IsDefault() override
+     {
+@@ -37,13 +43,14 @@ public:
+     // Class functions
+     //-------------------------------------------------------------------------
+ 
+-    explicit CustomAssemblyBinder(bool interpreterRequired = false);
++    explicit CustomAssemblyBinder(bool interpreterRequired = false, INT64 instructionLimit = 0);
+ 
+     static HRESULT SetupContext(DefaultAssemblyBinder *pDefaultBinder,
+                                 AssemblyLoaderAllocator* pLoaderAllocator,
+                                 void* loaderAllocatorHandle,
+                                 UINT_PTR ptrAssemblyLoadContext,
+                                 bool interpreterRequired,
++                                INT64 instructionLimit,
+                                 CustomAssemblyBinder **ppBindContext);
+ 
+     void PrepareForLoadContextRelease(INT_PTR ptrManagedStrongAssemblyLoadContext);
+@@ -62,6 +69,7 @@ private:
+ 
+     AssemblyLoaderAllocator* m_pAssemblyLoaderAllocator;
+     void* m_loaderAllocatorHandle;
++    RuneCLRInstructionMeter m_runeCLRInstructionMeter;
+ };
+ 
+ #endif // !defined(DACCESS_COMPILE)
+diff --git a/src/coreclr/vm/assemblybinder.h b/src/coreclr/vm/assemblybinder.h
+index 8cda9468ea1..259f72bc27d 100644
+--- a/src/coreclr/vm/assemblybinder.h
++++ b/src/coreclr/vm/assemblybinder.h
+@@ -13,6 +13,7 @@ class Assembly;
+ class Module;
+ class AssemblyLoaderAllocator;
+ class AssemblySpec;
++class RuneCLRInstructionMeter;
+ 
+ class AssemblyBinder
+ {
+@@ -35,6 +36,7 @@ public:
+     // Private RuneCLR experiment: assigned before the binder can load any module.
+     // No setter and no process-wide metadata registry.
+     bool RuneCLRRequiresInterpreter() const { return m_runeCLRInterpreterRequired; }
++    virtual RuneCLRInstructionMeter* GetRuneCLRInstructionMeter() { return nullptr; }
+ 
+     inline BINDER_SPACE::ApplicationContext* GetAppContext()
+     {
+diff --git a/src/coreclr/vm/assemblynative.cpp b/src/coreclr/vm/assemblynative.cpp
+index 57f617cada1..74d731be845 100644
+--- a/src/coreclr/vm/assemblynative.cpp
++++ b/src/coreclr/vm/assemblynative.cpp
+@@ -1190,7 +1190,7 @@ extern "C" void QCALLTYPE AssemblyNative_GetImageRuntimeVersion(QCall::AssemblyH
+ /*static*/
+ 
+ static INT_PTR InitializeAssemblyLoadContextWorker(INT_PTR ptrAssemblyLoadContext, BOOL fRepresentsTPALoadContext,
+-                                                  BOOL fIsCollectible, bool interpreterRequired)
++                                                  BOOL fIsCollectible, bool interpreterRequired, INT64 instructionLimit = 0)
+ {
+     STANDARD_VM_CONTRACT;
+     INT_PTR ptrNativeAssemblyBinder = 0;
+@@ -1239,7 +1239,7 @@ static INT_PTR InitializeAssemblyLoadContextWorker(INT_PTR ptrAssemblyLoadContex
+             loaderAllocator->ActivateManagedTracking();
+         }
+ 
+-        IfFailThrow(CustomAssemblyBinder::SetupContext(pDefaultBinder, loaderAllocator, loaderAllocatorHandle, ptrAssemblyLoadContext, interpreterRequired, &pCustomBinder));
++        IfFailThrow(CustomAssemblyBinder::SetupContext(pDefaultBinder, loaderAllocator, loaderAllocatorHandle, ptrAssemblyLoadContext, interpreterRequired, instructionLimit, &pCustomBinder));
+         ptrNativeAssemblyBinder = reinterpret_cast<INT_PTR>(pCustomBinder);
+     }
+     else
+@@ -1281,6 +1281,66 @@ extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeInterpreterRequiredLoadCon
+     return result;
+ }
+ 
++extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeInstructionMeteredLoadContext(INT_PTR ptrAssemblyLoadContext, INT64 instructionLimit, QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT_PTR result = 0;
++    BEGIN_QCALL;
++    if (instructionLimit <= 0)
++        COMPlusThrow(kArgumentOutOfRangeException);
++#ifndef FEATURE_INTERPRETER
++    COMPlusThrowNonLocalized(kPlatformNotSupportedException, W("Instruction-metered load contexts are not supported by this runtime build."));
++#else
++    result = InitializeAssemblyLoadContextWorker(ptrAssemblyLoadContext, FALSE, TRUE, true, instructionLimit);
++#endif
++    END_QCALL;
++    return result;
++}
++
++extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterVersion(QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT32 version = 0;
++    BEGIN_QCALL;
++#ifdef FEATURE_INTERPRETER
++    version = 1;
++#endif
++    END_QCALL;
++    return version;
++}
++
++extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterRemaining(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT64 remaining = 0;
++    BEGIN_QCALL;
++    if (ptrNativeAssemblyBinder == 0)
++        COMPlusThrow(kInvalidOperationException);
++    AssemblyBinder* binder = reinterpret_cast<AssemblyBinder*>(ptrNativeAssemblyBinder);
++    RuneCLRInstructionMeter* meter = binder->GetRuneCLRInstructionMeter();
++    if (meter == nullptr)
++        COMPlusThrow(kInvalidOperationException);
++    remaining = meter->Remaining();
++    END_QCALL;
++    return remaining;
++}
++
++extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterExecuted(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT64 executed = 0;
++    BEGIN_QCALL;
++    if (ptrNativeAssemblyBinder == 0)
++        COMPlusThrow(kInvalidOperationException);
++    AssemblyBinder* binder = reinterpret_cast<AssemblyBinder*>(ptrNativeAssemblyBinder);
++    RuneCLRInstructionMeter* meter = binder->GetRuneCLRInstructionMeter();
++    if (meter == nullptr)
++        COMPlusThrow(kInvalidOperationException);
++    executed = meter->Executed();
++    END_QCALL;
++    return executed;
++}
++
+ extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetExecutionPolicyVersion(QCallExceptionStatus* qcallError)
+ {
+     QCALL_CONTRACT;
+diff --git a/src/coreclr/vm/assemblynative.hpp b/src/coreclr/vm/assemblynative.hpp
+index 7b4f272ceb1..71227833d46 100644
+--- a/src/coreclr/vm/assemblynative.hpp
++++ b/src/coreclr/vm/assemblynative.hpp
+@@ -111,6 +111,10 @@ extern "C" void QCALLTYPE AssemblyNative_GetImageRuntimeVersion(QCall::AssemblyH
+ 
+ extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeAssemblyLoadContext(INT_PTR ptrAssemblyLoadContext, BOOL fRepresentsTPALoadContext, BOOL fIsCollectible, QCallExceptionStatus* qcallError);
+ extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeInterpreterRequiredLoadContext(INT_PTR ptrAssemblyLoadContext, QCallExceptionStatus* qcallError);
++extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeInstructionMeteredLoadContext(INT_PTR ptrAssemblyLoadContext, INT64 instructionLimit, QCallExceptionStatus* qcallError);
++extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterVersion(QCallExceptionStatus* qcallError);
++extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterRemaining(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
++extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterExecuted(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
+ extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetExecutionPolicyVersion(QCallExceptionStatus* qcallError);
+ extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetExecutionPolicy(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
+ 
+diff --git a/src/coreclr/vm/interpexec.cpp b/src/coreclr/vm/interpexec.cpp
+index 3f35734f6a0..2399ef3980f 100644
+--- a/src/coreclr/vm/interpexec.cpp
++++ b/src/coreclr/vm/interpexec.cpp
+@@ -14,6 +14,8 @@
+ #include "comdelegate.h"
+ #include "gchelpers.inl"
+ #include "arraynative.inl"
++#include "assemblybinder.h"
++#include "runeclrinstructionmeter.h"
+ 
+ #ifdef TARGET_WASM
+ extern "C" void SamplingProfiler_OnSamplepoint();
+@@ -898,6 +900,23 @@ NOINLINE static void InterpThrow(InterpMethodContextFrame* pFrame, const int32_t
+ #define NULL_CHECK(o) do { if ((o) == NULL) { INTERP_THROW(kNullReferenceException); } } while (0)
+ #define INTERP_THROW(exType) InterpThrow(pFrame, ip, exType)
+ 
++// Private RuneCLR diagnostic accounting. This does not throw or terminate code.
++// Resolve the current definition owner at every actual dispatch rather than
++// retaining the preceding frame's owner across child/tail calls, EH or returns.
++// No managed roots, allocation, loader-allocator lookup or GC-triggering work.
++static FORCEINLINE void RuneCLRChargeCurrentInstruction(InterpMethodContextFrame* frame)
++{
++    LIMITED_METHOD_CONTRACT;
++    MethodDesc* method = frame->startIp->Method->methodHnd;
++    AssemblyBinder* binder = method->GetModule()->GetPEAssembly()->GetAssemblyBinder();
++    if (binder != nullptr)
++    {
++        RuneCLRInstructionMeter* meter = binder->GetRuneCLRInstructionMeter();
++        if (meter != nullptr)
++            meter->Charge();
++    }
++}
++
+ // When enabled, each opcode dispatches directly to the next one via an indirect goto,
+ // avoiding the overhead of the central switch dispatch.
+ #if !defined(TARGET_WINDOWS) && !defined(TARGET_WASM) && !defined(DEBUG)
+@@ -906,7 +925,7 @@ NOINLINE static void InterpThrow(InterpMethodContextFrame* pFrame, const int32_t
+ 
+ #if USE_COMPUTED_GOTO
+ #define INTOP_CASE(x) LABEL_ ## x:
+-#define INTOP_DISPATCH(op) opcode = (uint32_t)(op); goto *s_dispatchTable[opcode]
++#define INTOP_DISPATCH(op) do { opcode = (uint32_t)(op); RuneCLRChargeCurrentInstruction(pFrame); goto *s_dispatchTable[opcode]; } while (0)
+ #define INTOP_NEXT INTOP_DISPATCH(ip[0])
+ #else
+ #define INTOP_CASE(x) case x:
+@@ -1534,6 +1553,8 @@ MAIN_LOOP:
+ #else
+             opcode = ip[0];
+ SWITCH_OPCODE:
++            // Also covers debugger bypass dispatches that jump to this label.
++            RuneCLRChargeCurrentInstruction(pFrame);
+             switch (opcode)
+             {
+ #endif // !USE_COMPUTED_GOTO
+diff --git a/src/coreclr/vm/qcallentrypoints.cpp b/src/coreclr/vm/qcallentrypoints.cpp
+index 174ae1cceba..bd60ba1d102 100644
+--- a/src/coreclr/vm/qcallentrypoints.cpp
++++ b/src/coreclr/vm/qcallentrypoints.cpp
+@@ -271,6 +271,10 @@ static const Entry s_QCall[] =
+     DllImportEntry(AssemblyNative_IsApplyUpdateSupported)
+     DllImportEntry(AssemblyNative_InitializeAssemblyLoadContext)
+     DllImportEntry(AssemblyNative_InitializeInterpreterRequiredLoadContext)
++    DllImportEntry(AssemblyNative_InitializeInstructionMeteredLoadContext)
++    DllImportEntry(AssemblyNative_RuneCLRGetInstructionMeterVersion)
++    DllImportEntry(AssemblyNative_RuneCLRGetInstructionMeterRemaining)
++    DllImportEntry(AssemblyNative_RuneCLRGetInstructionMeterExecuted)
+     DllImportEntry(AssemblyNative_RuneCLRGetExecutionPolicyVersion)
+     DllImportEntry(AssemblyNative_RuneCLRGetExecutionPolicy)
+     DllImportEntry(AssemblyNative_PrepareForAssemblyLoadContextRelease)
+diff --git a/src/coreclr/vm/runeclrinstructionmeter.h b/src/coreclr/vm/runeclrinstructionmeter.h
+new file mode 100644
+index 00000000000..09583050763
+--- /dev/null
++++ b/src/coreclr/vm/runeclrinstructionmeter.h
+@@ -0,0 +1,57 @@
++// Licensed to the .NET Foundation under one or more agreements.
++// The .NET Foundation licenses this file to you under the MIT license.
++
++#ifndef _RUNECLR_INSTRUCTION_METER_H
++#define _RUNECLR_INSTRUCTION_METER_H
++
++// Private diagnostic accounting only. Exhaustion does not throw or stop execution.
++// The owning CustomAssemblyBinder outlives all active frames for its definitions.
++class RuneCLRInstructionMeter
++{
++public:
++    explicit RuneCLRInstructionMeter(INT64 limit)
++        : m_enabled(limit > 0), m_remaining(limit), m_executed(0)
++    {
++    }
++
++    bool Enabled() const { return m_enabled; }
++
++    INT64 Remaining() const noexcept
++    {
++        return InterlockedCompareExchange64(&m_remaining, 0, 0);
++    }
++
++    INT64 Executed() const noexcept
++    {
++        return InterlockedCompareExchange64(&m_executed, 0, 0);
++    }
++
++    FORCEINLINE void Charge() noexcept
++    {
++        // Independent saturating counters; snapshots are not a two-field transaction.
++        LONGLONG previous = Executed();
++        while (previous < INT64_MAX)
++        {
++            LONGLONG observed = InterlockedCompareExchange64(&m_executed, previous + 1, previous);
++            if (observed == previous)
++                break;
++            previous = observed;
++        }
++
++        previous = Remaining();
++        while (previous > 0)
++        {
++            LONGLONG observed = InterlockedCompareExchange64(&m_remaining, previous - 1, previous);
++            if (observed == previous)
++                break;
++            previous = observed;
++        }
++    }
++
++private:
++    const bool m_enabled;
++    alignas(8) mutable volatile LONGLONG m_remaining;
++    alignas(8) mutable volatile LONGLONG m_executed;
++};
++
++#endif // _RUNECLR_INSTRUCTION_METER_H
+diff --git a/src/libraries/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.cs b/src/libraries/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.cs
+index 4b75a84c844..1aaff7707a7 100644
+--- a/src/libraries/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.cs
++++ b/src/libraries/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.cs
+@@ -86,6 +86,11 @@ private protected AssemblyLoadContext(bool representsTPALoadContext, bool isColl
+         }
+ 
+         private AssemblyLoadContext(bool representsTPALoadContext, bool isCollectible, string? name, bool requiresInterpreter)
++            : this(representsTPALoadContext, isCollectible, name, requiresInterpreter, instructionLimit: 0)
++        {
++        }
++
++        private AssemblyLoadContext(bool representsTPALoadContext, bool isCollectible, string? name, bool requiresInterpreter, long instructionLimit)
+         {
+             // Initialize the VM side of AssemblyLoadContext if not already done.
+             _isCollectible = isCollectible;
+@@ -111,7 +116,9 @@ private AssemblyLoadContext(bool representsTPALoadContext, bool isCollectible, s
+             {
+                 try
+                 {
+-                    _nativeAssemblyLoadContext = InitializeInterpreterRequiredLoadContext(thisHandlePtr);
++                    _nativeAssemblyLoadContext = instructionLimit > 0
++                        ? InitializeInstructionMeteredLoadContext(thisHandlePtr, instructionLimit)
++                        : InitializeInterpreterRequiredLoadContext(thisHandlePtr);
+                 }
+                 catch
+                 {

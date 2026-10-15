@@ -1,0 +1,268 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
+
+namespace RuneCLR.Runtime;
+
+/// <summary>A synchronous script session pumped by the host's game loop.</summary>
+/// <remarks>Dispose or Stop every session. Callbacks are serialized; reentrant lifecycle calls are rejected.</remarks>
+public sealed class MapSession : IDisposable
+{
+    private const string TerminationError = "The native prototype instruction budget terminated author execution.";
+    private readonly object _gate = new();
+    private readonly string _mapId;
+    private readonly MapRunOptions _options;
+    private readonly int _policyVersion;
+    private readonly UnloadTicket _unload;
+    private AssemblyLoadContext? _loadContext;
+    private TerminalPrototypeBridge? _terminal;
+    private MapContext? _context;
+    private IMapScript? _script;
+    private MapRunResult? _result;
+    private string? _error;
+    private int _completedTicks;
+    private bool _invoking;
+
+    private MapSession(MapPackage package, MapRunOptions options)
+    {
+        _mapId = package.Id;
+        _options = options;
+        // Capability failure is a host configuration error, before opening author files.
+        var required = options.ExecutionPolicy == MapExecutionPolicy.RequireInterpreter
+            ? RequiredInterpreterBridge.Bind() : null;
+        _terminal = options.PrototypeInstructionBudget is not null ? TerminalPrototypeBridge.Bind(required!) : null;
+        _policyVersion = required is null ? 0 : 1;
+        var resolver = new MapDependencyResolver(package);
+        _loadContext = MapLoadContext.Create(package, resolver, required, _terminal, options);
+        try
+        {
+            _unload = new UnloadTicket(new WeakReference(_loadContext, trackResurrection: true));
+            _context = new MapContext(package.Id, options);
+        }
+        catch
+        {
+            _loadContext.Unload();
+            _loadContext = null;
+            throw;
+        }
+
+        Initialize(resolver.EntryPath, package.EntryType);
+    }
+
+    internal static MapSession Start(MapPackage package, MapRunOptions? options)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentException.ThrowIfNullOrWhiteSpace(package.Id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(package.AssemblyPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(package.EntryType);
+        options ??= new MapRunOptions();
+        options.Validate();
+        return new MapSession(package, options);
+    }
+
+    public bool IsRunning { get { lock (_gate) return _result is null; } }
+    public int CompletedTicks { get { lock (_gate) return _completedTicks; } }
+
+    /// <summary>The final host-owned result, or null until the session stops.</summary>
+    public MapRunResult? Result { get { lock (_gate) return _result; } }
+
+    /// <summary>Runs one tick with the configured delta. TickCount does not limit a pumped session.</summary>
+    public bool Tick() => Tick(_options.TickDuration);
+
+    /// <summary>Runs one host-scheduled tick; on script failure, stops the session and returns false.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public bool Tick(TimeSpan delta)
+    {
+        lock (_gate)
+        {
+            CheckReentry();
+            if (_result is not null) throw new InvalidOperationException("The session has stopped.");
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(delta, TimeSpan.Zero);
+            if (_completedTicks == int.MaxValue) throw new InvalidOperationException("The session tick index is exhausted.");
+            _invoking = true;
+            var completed = false;
+            try
+            {
+                CheckPrototypeState();
+                _context!.BeginCallback();
+                _script!.OnTick(new MapTick(_completedTicks, delta));
+                CheckPrototypeState();
+                _context.CheckViolation();
+                _completedTicks++;
+                completed = true;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                _error = DescribeFailure(exception);
+                return false;
+            }
+            finally
+            {
+                try
+                {
+                    if (!completed) StopCore();
+                }
+                finally { _invoking = false; }
+            }
+        }
+    }
+
+    /// <summary>Stops once and returns the same result on subsequent calls.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public MapRunResult Stop()
+    {
+        lock (_gate)
+        {
+            CheckReentry();
+            if (_result is not null) return _result;
+            _invoking = true;
+            try { return StopCore(); }
+            finally { _invoking = false; }
+        }
+    }
+
+    public void Dispose() => Stop();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void Initialize(string entryPath, string entryTypeName)
+    {
+        _invoking = true;
+        var started = false;
+        try
+        {
+            var assembly = _loadContext!.LoadFromAssemblyPath(entryPath);
+            var entryType = assembly.GetType(entryTypeName, throwOnError: true)!;
+            if (!typeof(IMapScript).IsAssignableFrom(entryType) || entryType.IsAbstract)
+                throw new InvalidDataException("The entry type must implement IMapScript and be concrete.");
+
+            CheckPrototypeState();
+            _script = (IMapScript)Activator.CreateInstance(entryType)!;
+            CheckPrototypeState();
+            _context!.BeginCallback();
+            _script.OnStart(_context);
+            CheckPrototypeState();
+            _context.CheckViolation();
+            started = true;
+        }
+        catch (Exception exception)
+        {
+            _error = DescribeFailure(exception);
+        }
+        finally
+        {
+            try
+            {
+                if (!started) StopCore();
+            }
+            finally { _invoking = false; }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private MapRunResult StopCore()
+    {
+        var loadContext = _loadContext!;
+        var context = _context!;
+        var terminal = _terminal;
+        PrototypeBudgetSnapshot? prototypeBudget = null;
+        try
+        {
+            try
+            {
+                if (_script is not null)
+                {
+                    // A failed native query also prevents this extra author callback.
+                    var beforeStop = terminal?.Snapshot(loadContext);
+                    if (beforeStop?.IsTerminated != true)
+                    {
+                        context.BeginCallback();
+                        _script.OnStop();
+                        CheckPrototypeState();
+                        context.CheckViolation();
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                _error = Append(_error, $"OnStop: {DescribeFailure(exception)}");
+            }
+        }
+        finally
+        {
+            try { context.Dispose(); }
+            finally
+            {
+                // A retained, stopped session must not keep its author context alive.
+                _script = null;
+                _loadContext = null;
+                _context = null;
+                _terminal = null;
+                try
+                {
+                    if (terminal is not null)
+                    {
+                        prototypeBudget = terminal.Snapshot(loadContext);
+                        if (prototypeBudget.IsTerminated) _error = Append(_error, TerminationError);
+                    }
+                }
+                catch (Exception)
+                {
+                    _error = Append(_error, "The prototype instruction-budget snapshot could not be read.");
+                }
+                finally { loadContext.Unload(); }
+            }
+        }
+
+        var report = new MapRunReport(_mapId,
+            _error is null ? MapRunOutcome.Completed : MapRunOutcome.Failed,
+            _completedTicks, context.CreatedEntities, context.ReleasedEntities,
+            context.RemainingEntities, context.Logs, _error)
+        {
+            ExecutionPolicy = _options.ExecutionPolicy,
+            ExecutionPolicyVersion = _policyVersion,
+            PrototypeBudget = prototypeBudget
+        };
+        return _result = new MapRunResult(report, _unload);
+    }
+
+    private void CheckReentry()
+    {
+        if (_invoking) throw new InvalidOperationException("A session lifecycle callback is already running.");
+    }
+
+    private void CheckPrototypeState()
+    {
+        if (_terminal?.IsTerminated(_loadContext!) == true)
+            throw new InvalidOperationException(TerminationError);
+    }
+
+    private string DescribeFailure(Exception exception)
+    {
+        if (_terminal is not null)
+        {
+            try
+            {
+                if (_terminal.IsTerminated(_loadContext!)) return TerminationError;
+            }
+            catch (Exception)
+            {
+                return "The native prototype instruction-budget state could not be queried.";
+            }
+        }
+
+        if (exception is TargetInvocationException { InnerException: { } inner }) exception = inner;
+        var typeName = exception.GetType().FullName ?? "Exception";
+        if (_terminal is not null)
+        {
+            // Message/ToString may invoke author code even before native termination.
+            return typeName.Length <= 512 ? typeName : typeName[..512];
+        }
+
+        try { return $"{typeName}: {exception.Message}"; }
+        catch (Exception) { return $"{typeName}: The exception message could not be read."; }
+    }
+
+    private static string Append(string? previous, string next) =>
+        previous is null || previous == next ? next : $"{previous}; {next}";
+}

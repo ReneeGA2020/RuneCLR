@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
+    <ProjectReference Include="../RuneCLR.Packages/RuneCLR.Packages.csproj" />
   </ItemGroup>
 </Project>

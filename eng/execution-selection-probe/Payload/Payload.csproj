@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>SelectionProbe.Payload</AssemblyName></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Contract/Contract.csproj" /><ProjectReference Include="../Private/Private.csproj" /></ItemGroup>
+</Project>

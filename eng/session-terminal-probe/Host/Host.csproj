@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>TerminalProbe.Host</AssemblyName></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Contract/Contract.csproj" /></ItemGroup>
+  <ItemGroup><Compile Include="../../windows-entry-observation/WindowsEntryObservation.cs" Link="WindowsEntryObservation.cs" /></ItemGroup>
+</Project>

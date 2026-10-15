@@ -1,1 +1,11 @@
 * text=auto eol=lf
+
+# Experiment controllers and managed inputs are bound by raw SHA-256 hashes.
+eng/** -text
+benchmarks/** -text
+src/** -text
+tests/** -text
+tools/** -text
+samples/** -text
+# Unified patches deliberately contain space-only context lines.
+*.patch -text -whitespace

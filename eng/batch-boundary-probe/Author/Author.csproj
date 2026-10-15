@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>BatchBoundary.Author</AssemblyName></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Contract/Contract.csproj" /></ItemGroup>
+</Project>

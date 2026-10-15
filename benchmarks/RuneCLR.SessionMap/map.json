@@ -1,0 +1,5 @@
+{
+  "id": "session-gameplay",
+  "entryAssembly": "RuneCLR.SessionMap.dll",
+  "entryType": "RuneCLR.SessionMap.GameplayMap"
+}

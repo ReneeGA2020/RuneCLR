@@ -28,5 +28,15 @@ jobs:
         run: dotnet build tests/RuneCLR.LateMap -c Release -t:Rebuild -p:BuildProjectReferences=false
       - name: Integration tests
         run: dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build -- --late-map tests/RuneCLR.LateMap/bin/Release/net11.0/map.json
+      - name: Controlled packaging tests
+        run: dotnet run --project tests/RuneCLR.Packaging.Tests -c Release --no-build
+      - name: Generate controlled package acceptance fixtures
+        run: dotnet run --project tools/RuneCLR.PackageFixtures -c Release --no-build -- --framework-refs tools/RuneCLR.PackageFixtures/bin/Release/net11.0/refs --contract src/RuneCLR.Abstractions/bin/Release/net11.0/RuneCLR.Abstractions.dll --output artifacts/ci-controlled-packages --include-pumped
+      - name: Player package execution tests
+        run: dotnet run --project tests/RuneCLR.PackageExecution.Tests -c Release --no-build -- --packages artifacts/ci-controlled-packages
       - name: Same-process map demo
         run: dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --collect
+      - name: Host-pumped package execution tests
+        run: dotnet run --project tests/RuneCLR.PackageExecution.Tests -c Release --no-build -- --packages artifacts/ci-controlled-packages --pump
+      - name: Host-pumped map demo
+        run: dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --pump --collect

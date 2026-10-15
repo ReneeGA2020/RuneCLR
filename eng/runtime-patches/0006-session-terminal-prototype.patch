@@ -1,0 +1,795 @@
+diff --git a/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml b/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
+index c1930dfeea9..32c0f3c109e 100644
+--- a/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
++++ b/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
+@@ -10,6 +10,13 @@
+       <method name="RuneCLR_GetInstructionMeterRemaining" />
+       <method name="RuneCLR_GetInstructionMeterExecuted" />
+       <method name="RuneCLR_GetInstructionMeterExhausted" />
++      <method name="RuneCLR_CreateTerminalPrototype" />
++      <method name="RuneCLR_GetTerminalPrototypeVersion" />
++      <method name="RuneCLR_GetTerminalPrototypeIsTerminated" />
++      <method name="RuneCLR_GetTerminalPrototypeReason" />
++      <method name="RuneCLR_GetTerminalPrototypePhase" />
++      <method name="RuneCLR_GetTerminalPrototypeCleanupRemaining" />
++      <method name="RuneCLR_GetTerminalPrototypeCleanupExecuted" />
+     </type>
+     <type fullname="System.GC">
+       <!-- Methods are used to register and unregister frozen segments. They are private and experimental. -->
+diff --git a/src/coreclr/System.Private.CoreLib/src/System/Runtime/ExceptionServices/InternalCalls.cs b/src/coreclr/System.Private.CoreLib/src/System/Runtime/ExceptionServices/InternalCalls.cs
+index c295689780a..4bf055d1105 100644
+--- a/src/coreclr/System.Private.CoreLib/src/System/Runtime/ExceptionServices/InternalCalls.cs
++++ b/src/coreclr/System.Private.CoreLib/src/System/Runtime/ExceptionServices/InternalCalls.cs
+@@ -49,6 +49,13 @@ internal static partial class InternalCalls
+         [return: MarshalAs(UnmanagedType.U1)]
+         internal static unsafe partial bool RhpEHEnumInitFromStackFrameIterator(ref StackFrameIterator pFrameIter, out EH.MethodRegionInfo pMethodRegionInfo, void* pEHEnum);
+ 
++        [StackTraceHidden]
++        [DebuggerHidden]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "RuneCLRIsTerminatedFrameOwner")]
++        [SuppressGCTransition]
++        [return: MarshalAs(UnmanagedType.U1)]
++        internal static partial bool RuneCLRIsTerminatedFrameOwner(ref StackFrameIterator pFrameIter);
++
+         [StackTraceHidden]
+         [DebuggerHidden]
+         [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
+diff --git a/src/coreclr/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.CoreCLR.cs b/src/coreclr/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.CoreCLR.cs
+index 9deac22d508..fd93df08d88 100644
+--- a/src/coreclr/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.CoreCLR.cs
++++ b/src/coreclr/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.CoreCLR.cs
+@@ -38,6 +38,66 @@ public partial class AssemblyLoadContext
+ 
+         private static int RuneCLR_GetInstructionMeterVersion() => RuneCLR_GetInstructionMeterVersionNative();
+ 
++        // Private opt-in prototype only; this version is not a production termination capability.
++        private static AssemblyLoadContext RuneCLR_CreateTerminalPrototype(
++            string name, Func<AssemblyLoadContext, AssemblyName, Assembly?> managedResolver, long executionLimit, long cleanupLimit)
++        {
++            ArgumentNullException.ThrowIfNull(name);
++            ArgumentNullException.ThrowIfNull(managedResolver);
++            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(executionLimit);
++            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cleanupLimit);
++            if (RuneCLR_GetTerminalPrototypeVersion() != 1)
++                throw new PlatformNotSupportedException("The runtime cannot create a terminal prototype load context.");
++            return new RuneCLRInterpreterLoadContext(name, managedResolver, executionLimit, cleanupLimit);
++        }
++
++        private static int RuneCLR_GetTerminalPrototypeVersion() => RuneCLR_GetTerminalPrototypeVersionNative();
++        private bool RuneCLR_GetTerminalPrototypeIsTerminated() => RuneCLR_GetTerminalPrototypeReason() != 0;
++
++        private int RuneCLR_GetTerminalPrototypeReason()
++        {
++            lock (_unloadLock)
++            {
++                VerifyIsAlive();
++                int value = RuneCLR_GetTerminalPrototypeReasonNative(_nativeAssemblyLoadContext);
++                GC.KeepAlive(this);
++                return value;
++            }
++        }
++
++        private int RuneCLR_GetTerminalPrototypePhase()
++        {
++            lock (_unloadLock)
++            {
++                VerifyIsAlive();
++                int value = RuneCLR_GetTerminalPrototypePhaseNative(_nativeAssemblyLoadContext);
++                GC.KeepAlive(this);
++                return value;
++            }
++        }
++
++        private long RuneCLR_GetTerminalPrototypeCleanupRemaining()
++        {
++            lock (_unloadLock)
++            {
++                VerifyIsAlive();
++                long value = RuneCLR_GetTerminalPrototypeCleanupRemainingNative(_nativeAssemblyLoadContext);
++                GC.KeepAlive(this);
++                return value;
++            }
++        }
++
++        private long RuneCLR_GetTerminalPrototypeCleanupExecuted()
++        {
++            lock (_unloadLock)
++            {
++                VerifyIsAlive();
++                long value = RuneCLR_GetTerminalPrototypeCleanupExecutedNative(_nativeAssemblyLoadContext);
++                GC.KeepAlive(this);
++                return value;
++            }
++        }
++
+         private long RuneCLR_GetInstructionMeterRemaining()
+         {
+             lock (_unloadLock)
+@@ -91,6 +151,13 @@ private sealed class RuneCLRInterpreterLoadContext : AssemblyLoadContext
+                 _managedResolver = managedResolver;
+             }
+ 
++            internal RuneCLRInterpreterLoadContext(
++                string name, Func<AssemblyLoadContext, AssemblyName, Assembly?> managedResolver, long executionLimit, long cleanupLimit)
++                : base(false, true, name, requiresInterpreter: true, executionLimit, terminalPrototype: true, cleanupLimit)
++            {
++                _managedResolver = managedResolver;
++            }
++
+             protected override Assembly? Load(AssemblyName assemblyName) => _managedResolver(this, assemblyName);
+ 
+             protected override IntPtr LoadUnmanagedDll(string unmanagedDllName) =>
+@@ -105,6 +172,30 @@ private sealed class RuneCLRInterpreterLoadContext : AssemblyLoadContext
+         [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_InitializeInstructionMeteredLoadContext")]
+         private static partial IntPtr InitializeInstructionMeteredLoadContext(IntPtr ptrAssemblyLoadContext, long instructionLimit);
+ 
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_InitializeTerminalPrototypeLoadContext")]
++        private static partial IntPtr InitializeTerminalPrototypeLoadContext(IntPtr ptrAssemblyLoadContext, long executionLimit, long cleanupLimit);
++
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetTerminalPrototypeVersion")]
++        private static partial int RuneCLR_GetTerminalPrototypeVersionNative();
++
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetTerminalPrototypeReason")]
++        private static partial int RuneCLR_GetTerminalPrototypeReasonNative(IntPtr ptrNativeAssemblyBinder);
++
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetTerminalPrototypePhase")]
++        private static partial int RuneCLR_GetTerminalPrototypePhaseNative(IntPtr ptrNativeAssemblyBinder);
++
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetTerminalPrototypeCleanupRemaining")]
++        private static partial long RuneCLR_GetTerminalPrototypeCleanupRemainingNative(IntPtr ptrNativeAssemblyBinder);
++
++        [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetTerminalPrototypeCleanupExecuted")]
++        private static partial long RuneCLR_GetTerminalPrototypeCleanupExecutedNative(IntPtr ptrNativeAssemblyBinder);
++
+         [ErrorHandler(typeof(QCallExceptionStatusMarshaller), ErrorLocation.HiddenLastParameter)]
+         [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "AssemblyNative_RuneCLRGetInstructionMeterVersion")]
+         private static partial int RuneCLR_GetInstructionMeterVersionNative();
+diff --git a/src/coreclr/binder/customassemblybinder.cpp b/src/coreclr/binder/customassemblybinder.cpp
+index fc02fd11727..602b72304ed 100644
+--- a/src/coreclr/binder/customassemblybinder.cpp
++++ b/src/coreclr/binder/customassemblybinder.cpp
+@@ -166,6 +166,8 @@ HRESULT CustomAssemblyBinder::SetupContext(DefaultAssemblyBinder *pDefaultBinder
+                                            UINT_PTR ptrAssemblyLoadContext,
+                                            bool interpreterRequired,
+                                            INT64 instructionLimit,
++                                           bool terminalPrototype,
++                                           INT64 cleanupLimit,
+                                            CustomAssemblyBinder **ppBindContext)
+ {
+     HRESULT hr = E_FAIL;
+@@ -175,7 +177,7 @@ HRESULT CustomAssemblyBinder::SetupContext(DefaultAssemblyBinder *pDefaultBinder
+         {
+             NewHolder<CustomAssemblyBinder> pBinder;
+ 
+-            SAFE_NEW_CONSTR(pBinder, CustomAssemblyBinder(interpreterRequired, instructionLimit));
++            SAFE_NEW_CONSTR(pBinder, CustomAssemblyBinder(interpreterRequired, instructionLimit, terminalPrototype, cleanupLimit));
+             hr = pBinder->GetAppContext()->Init();
+             if(SUCCEEDED(hr))
+             {
+@@ -246,8 +248,8 @@ void CustomAssemblyBinder::PrepareForLoadContextRelease(INT_PTR ptrManagedStrong
+     m_loaderAllocatorHandle = NULL;
+ }
+ 
+-CustomAssemblyBinder::CustomAssemblyBinder(bool interpreterRequired, INT64 instructionLimit)
+-    : AssemblyBinder(interpreterRequired), m_runeCLRInstructionMeter(instructionLimit)
++CustomAssemblyBinder::CustomAssemblyBinder(bool interpreterRequired, INT64 instructionLimit, bool terminalPrototype, INT64 cleanupLimit)
++    : AssemblyBinder(interpreterRequired), m_runeCLRInstructionMeter(instructionLimit, terminalPrototype, cleanupLimit)
+ {
+     m_pDefaultBinder = NULL;
+     m_ptrManagedStrongAssemblyLoadContext = (INT_PTR)NULL;
+diff --git a/src/coreclr/binder/inc/customassemblybinder.h b/src/coreclr/binder/inc/customassemblybinder.h
+index 249a2415256..6ee9998c71f 100644
+--- a/src/coreclr/binder/inc/customassemblybinder.h
++++ b/src/coreclr/binder/inc/customassemblybinder.h
+@@ -43,7 +43,8 @@ public:
+     // Class functions
+     //-------------------------------------------------------------------------
+ 
+-    explicit CustomAssemblyBinder(bool interpreterRequired = false, INT64 instructionLimit = 0);
++    explicit CustomAssemblyBinder(bool interpreterRequired = false, INT64 instructionLimit = 0,
++                                  bool terminalPrototype = false, INT64 cleanupLimit = 0);
+ 
+     static HRESULT SetupContext(DefaultAssemblyBinder *pDefaultBinder,
+                                 AssemblyLoaderAllocator* pLoaderAllocator,
+@@ -51,6 +52,8 @@ public:
+                                 UINT_PTR ptrAssemblyLoadContext,
+                                 bool interpreterRequired,
+                                 INT64 instructionLimit,
++                                bool terminalPrototype,
++                                INT64 cleanupLimit,
+                                 CustomAssemblyBinder **ppBindContext);
+ 
+     void PrepareForLoadContextRelease(INT_PTR ptrManagedStrongAssemblyLoadContext);
+diff --git a/src/coreclr/nativeaot/Runtime.Base/src/System/Runtime/ExceptionHandling.cs b/src/coreclr/nativeaot/Runtime.Base/src/System/Runtime/ExceptionHandling.cs
+index 7b1d9ac8118..cc0667c42c5 100644
+--- a/src/coreclr/nativeaot/Runtime.Base/src/System/Runtime/ExceptionHandling.cs
++++ b/src/coreclr/nativeaot/Runtime.Base/src/System/Runtime/ExceptionHandling.cs
+@@ -1025,6 +1025,13 @@ private static uint CalculateCodeOffset(byte* pbControlPC, in MethodRegionInfo m
+             pHandler = null;
+             tryRegionIdx = MaxTryRegionIdx;
+ 
++#if !NATIVEAOT
++            // A terminal definition owner cannot select an author catch/filter.
++            // Keep the original EH entries and indices for second-pass cleanup.
++            if (InternalCalls.RuneCLRIsTerminatedFrameOwner(ref frameIter))
++                return false;
++#endif
++
+             EHEnum ehEnum;
+             MethodRegionInfo methodRegionInfo;
+             if (!InternalCalls.RhpEHEnumInitFromStackFrameIterator(ref frameIter, out methodRegionInfo, &ehEnum))
+@@ -1077,6 +1084,11 @@ private static uint CalculateCodeOffset(byte* pbControlPC, in MethodRegionInfo m
+ 
+                 // Found a containing clause. Because of the order of the clauses, we know this is the
+                 // most containing.
++#if !NATIVEAOT
++                if (InternalCalls.RuneCLRIsTerminatedFrameOwner(ref frameIter))
++                    return false;
++#endif
++
+                 if (clauseKind == RhEHClauseKind.RH_EH_CLAUSE_TYPED)
+                 {
+                     if (ShouldTypedClauseCatchThisException(exception, (MethodTable*)ehClause._pTargetType, !frameIter.IsRuntimeWrappedExceptions))
+@@ -1104,6 +1116,10 @@ private static uint CalculateCodeOffset(byte* pbControlPC, in MethodRegionInfo m
+ #else // NATIVEAOT
+                     shouldInvokeHandler =
+                         InternalCalls.RhpCallFilterFunclet(ObjectHandleOnStack.Create(ref exception), pFilterFunclet, frameIter.RegisterSet);
++                    // The filter itself can spend the last author instruction.
++                    // A true result must not revive a now-terminal context.
++                    if (InternalCalls.RuneCLRIsTerminatedFrameOwner(ref frameIter))
++                        return false;
+ #endif // NATIVEAOT
+ 
+                     if (shouldInvokeHandler)
+diff --git a/src/coreclr/vm/assemblynative.cpp b/src/coreclr/vm/assemblynative.cpp
+index 74d731be845..afaa60e0f2b 100644
+--- a/src/coreclr/vm/assemblynative.cpp
++++ b/src/coreclr/vm/assemblynative.cpp
+@@ -1190,7 +1190,8 @@ extern "C" void QCALLTYPE AssemblyNative_GetImageRuntimeVersion(QCall::AssemblyH
+ /*static*/
+ 
+ static INT_PTR InitializeAssemblyLoadContextWorker(INT_PTR ptrAssemblyLoadContext, BOOL fRepresentsTPALoadContext,
+-                                                  BOOL fIsCollectible, bool interpreterRequired, INT64 instructionLimit = 0)
++                                                  BOOL fIsCollectible, bool interpreterRequired, INT64 instructionLimit = 0,
++                                                  bool terminalPrototype = false, INT64 cleanupLimit = 0)
+ {
+     STANDARD_VM_CONTRACT;
+     INT_PTR ptrNativeAssemblyBinder = 0;
+@@ -1239,7 +1240,7 @@ static INT_PTR InitializeAssemblyLoadContextWorker(INT_PTR ptrAssemblyLoadContex
+             loaderAllocator->ActivateManagedTracking();
+         }
+ 
+-        IfFailThrow(CustomAssemblyBinder::SetupContext(pDefaultBinder, loaderAllocator, loaderAllocatorHandle, ptrAssemblyLoadContext, interpreterRequired, instructionLimit, &pCustomBinder));
++        IfFailThrow(CustomAssemblyBinder::SetupContext(pDefaultBinder, loaderAllocator, loaderAllocatorHandle, ptrAssemblyLoadContext, interpreterRequired, instructionLimit, terminalPrototype, cleanupLimit, &pCustomBinder));
+         ptrNativeAssemblyBinder = reinterpret_cast<INT_PTR>(pCustomBinder);
+     }
+     else
+@@ -1297,6 +1298,86 @@ extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeInstructionMeteredLoadCont
+     return result;
+ }
+ 
++extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeTerminalPrototypeLoadContext(INT_PTR ptrAssemblyLoadContext, INT64 executionLimit, INT64 cleanupLimit, QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT_PTR result = 0;
++    BEGIN_QCALL;
++    if (executionLimit <= 0 || cleanupLimit <= 0)
++        COMPlusThrow(kArgumentOutOfRangeException);
++#ifndef FEATURE_INTERPRETER
++    COMPlusThrowNonLocalized(kPlatformNotSupportedException, W("Terminal prototype load contexts are not supported by this runtime build."));
++#else
++    result = InitializeAssemblyLoadContextWorker(ptrAssemblyLoadContext, FALSE, TRUE, true, executionLimit, true, cleanupLimit);
++#endif
++    END_QCALL;
++    return result;
++}
++
++extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypeVersion(QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT32 version = 0;
++    BEGIN_QCALL;
++#ifdef FEATURE_INTERPRETER
++    version = 1;
++#endif
++    END_QCALL;
++    return version;
++}
++
++static RuneCLRInstructionMeter* GetTerminalPrototypeMeterForQuery(INT_PTR ptrNativeAssemblyBinder)
++{
++    STANDARD_VM_CONTRACT;
++    if (ptrNativeAssemblyBinder == 0)
++        COMPlusThrow(kInvalidOperationException);
++    AssemblyBinder* binder = reinterpret_cast<AssemblyBinder*>(ptrNativeAssemblyBinder);
++    RuneCLRInstructionMeter* meter = binder->GetRuneCLRInstructionMeter();
++    if (meter == nullptr || !meter->IsTerminalPrototype())
++        COMPlusThrow(kInvalidOperationException);
++    return meter;
++}
++
++extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypeReason(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT32 reason = 0;
++    BEGIN_QCALL;
++    reason = GetTerminalPrototypeMeterForQuery(ptrNativeAssemblyBinder)->Reason();
++    END_QCALL;
++    return reason;
++}
++
++extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypePhase(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT32 phase = 0;
++    BEGIN_QCALL;
++    phase = GetTerminalPrototypeMeterForQuery(ptrNativeAssemblyBinder)->Phase();
++    END_QCALL;
++    return phase;
++}
++
++extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypeCleanupRemaining(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT64 remaining = 0;
++    BEGIN_QCALL;
++    remaining = GetTerminalPrototypeMeterForQuery(ptrNativeAssemblyBinder)->CleanupRemaining();
++    END_QCALL;
++    return remaining;
++}
++
++extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypeCleanupExecuted(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError)
++{
++    QCALL_CONTRACT;
++    INT64 executed = 0;
++    BEGIN_QCALL;
++    executed = GetTerminalPrototypeMeterForQuery(ptrNativeAssemblyBinder)->CleanupExecuted();
++    END_QCALL;
++    return executed;
++}
++
+ extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterVersion(QCallExceptionStatus* qcallError)
+ {
+     QCALL_CONTRACT;
+diff --git a/src/coreclr/vm/assemblynative.hpp b/src/coreclr/vm/assemblynative.hpp
+index 71227833d46..e8f16021e39 100644
+--- a/src/coreclr/vm/assemblynative.hpp
++++ b/src/coreclr/vm/assemblynative.hpp
+@@ -112,6 +112,12 @@ extern "C" void QCALLTYPE AssemblyNative_GetImageRuntimeVersion(QCall::AssemblyH
+ extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeAssemblyLoadContext(INT_PTR ptrAssemblyLoadContext, BOOL fRepresentsTPALoadContext, BOOL fIsCollectible, QCallExceptionStatus* qcallError);
+ extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeInterpreterRequiredLoadContext(INT_PTR ptrAssemblyLoadContext, QCallExceptionStatus* qcallError);
+ extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeInstructionMeteredLoadContext(INT_PTR ptrAssemblyLoadContext, INT64 instructionLimit, QCallExceptionStatus* qcallError);
++extern "C" INT_PTR QCALLTYPE AssemblyNative_InitializeTerminalPrototypeLoadContext(INT_PTR ptrAssemblyLoadContext, INT64 executionLimit, INT64 cleanupLimit, QCallExceptionStatus* qcallError);
++extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypeVersion(QCallExceptionStatus* qcallError);
++extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypeReason(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
++extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypePhase(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
++extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypeCleanupRemaining(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
++extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetTerminalPrototypeCleanupExecuted(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
+ extern "C" INT32 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterVersion(QCallExceptionStatus* qcallError);
+ extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterRemaining(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
+ extern "C" INT64 QCALLTYPE AssemblyNative_RuneCLRGetInstructionMeterExecuted(INT_PTR ptrNativeAssemblyBinder, QCallExceptionStatus* qcallError);
+diff --git a/src/coreclr/vm/eetwain.cpp b/src/coreclr/vm/eetwain.cpp
+index 6cbd2b5ff7e..7fddc7248e7 100644
+--- a/src/coreclr/vm/eetwain.cpp
++++ b/src/coreclr/vm/eetwain.cpp
+@@ -18,6 +18,8 @@
+ 
+ #ifdef FEATURE_INTERPRETER
+ #include "interpexec.h"
++#include "assemblybinder.h"
++#include "runeclrinstructionmeter.h"
+ #endif // FEATURE_INTERPRETER
+ 
+ #include "exinfo.h"
+@@ -1903,7 +1905,7 @@ extern "C" DWORD_PTR STDCALL CallInterpreterFuncletWorker(OBJECTREF throwable, v
+ 
+     InterpMethodContextFrame *pOriginalFrame = (InterpMethodContextFrame*)GetRegdisplaySP(pRD);
+ 
+-    StackVal retVal;
++    StackVal retVal = {};
+ 
+     frames.interpMethodContextFrame.startIp = pOriginalFrame->startIp;
+     frames.interpMethodContextFrame.pStack = isFilter ? sp : pOriginalFrame->pStack;
+@@ -1913,8 +1915,28 @@ extern "C" DWORD_PTR STDCALL CallInterpreterFuncletWorker(OBJECTREF throwable, v
+     exceptionClauseArgs.ip = (const int32_t *)pHandler;
+     exceptionClauseArgs.pFrame = pOriginalFrame;
+     exceptionClauseArgs.isFilter = isFilter;
++    exceptionClauseArgs.isCleanup = !isFilter && IsFaultOrFinally(&pExInfo->m_CurrentClause);
+     exceptionClauseArgs.throwable = throwable;
+ 
++    struct RuneCLRCleanupScope
++    {
++        InterpThreadContext* context;
++        RuneCLRInstructionMeter* previous;
++        RuneCLRCleanupScope(InterpThreadContext* context, InterpMethodContextFrame* frame, bool isCleanup)
++            : context(context), previous(context->runeclrCleanupOwner)
++        {
++            if (isCleanup)
++            {
++                MethodDesc* method = frame->startIp->Method->methodHnd;
++                AssemblyBinder* binder = method->GetModule()->GetPEAssembly()->GetAssemblyBinder();
++                RuneCLRInstructionMeter* meter = binder == nullptr ? nullptr : binder->GetRuneCLRInstructionMeter();
++                if (meter != nullptr && meter->IsTerminalPrototype())
++                    context->runeclrCleanupOwner = meter;
++            }
++        }
++        ~RuneCLRCleanupScope() { context->runeclrCleanupOwner = previous; }
++    } cleanupScope(threadContext, pOriginalFrame, exceptionClauseArgs.isCleanup);
++
+     GCPROTECT_BEGIN(exceptionClauseArgs.throwable);
+     InterpExecMethod(&frames.interpreterFrame, &frames.interpMethodContextFrame, threadContext, &exceptionClauseArgs);
+     GCPROTECT_END();
+diff --git a/src/coreclr/vm/exceptionhandling.cpp b/src/coreclr/vm/exceptionhandling.cpp
+index 5d2375206c2..50ea0020291 100644
+--- a/src/coreclr/vm/exceptionhandling.cpp
++++ b/src/coreclr/vm/exceptionhandling.cpp
+@@ -17,6 +17,10 @@
+ #include "exceptionhandlingqcalls.h"
+ #include "exinfo.h"
+ #include "configuration.h"
++#ifdef FEATURE_INTERPRETER
++#include "assemblybinder.h"
++#include "runeclrinstructionmeter.h"
++#endif
+ 
+ extern MethodDesc* g_pThreadStartCallbackMethodDesc;
+ extern MethodDesc* g_pGCRunFinalizersMethodDesc;
+@@ -3420,6 +3424,30 @@ struct ExtendedEHClauseEnumerator : EH_CLAUSE_ENUMERATOR
+     unsigned EHCount;
+ };
+ 
++// Query the currently enumerated definition, not the throwing object's type or
++// a thread-local owner. A terminal author frame cannot recover by catching a
++// different exception raised during cleanup. EH clause enumeration is unchanged.
++extern "C" CLR_BOOL QCALLTYPE RuneCLRIsTerminatedFrameOwner(StackFrameIterator *pFrameIter)
++{
++    QCALL_CONTRACT_NO_GC_TRANSITION;
++
++#ifdef FEATURE_INTERPRETER
++    MethodDesc* method = pFrameIter->m_crawl.GetFunction();
++    if (method != nullptr)
++    {
++        AssemblyBinder* binder = method->GetModule()->GetPEAssembly()->GetAssemblyBinder();
++        if (binder != nullptr)
++        {
++            RuneCLRInstructionMeter* meter = binder->GetRuneCLRInstructionMeter();
++            if (meter != nullptr && meter->IsTerminated())
++                return TRUE;
++        }
++    }
++#endif
++
++    return FALSE;
++}
++
+ extern "C" CLR_BOOL QCALLTYPE EHEnumInitFromStackFrameIterator(StackFrameIterator *pFrameIter, IJitManager::MethodRegionInfo* pMethodRegionInfo, EH_CLAUSE_ENUMERATOR * pEHEnum)
+ {
+     QCALL_CONTRACT_NO_GC_TRANSITION;
+diff --git a/src/coreclr/vm/exceptionhandlingqcalls.h b/src/coreclr/vm/exceptionhandlingqcalls.h
+index ddb20be42aa..2ba3a1ab198 100644
+--- a/src/coreclr/vm/exceptionhandlingqcalls.h
++++ b/src/coreclr/vm/exceptionhandlingqcalls.h
+@@ -12,6 +12,7 @@ struct ExInfo;
+ extern "C" CLR_BOOL QCALLTYPE CallFilterFunclet(QCall::ObjectHandleOnStack exceptionObj, BYTE* pFilterP, REGDISPLAY* pvRegDisplay, QCallExceptionStatus* qcallError);
+ extern "C" void QCALLTYPE AppendExceptionStackFrame(QCall::ObjectHandleOnStack exceptionObj, SIZE_T ip, SIZE_T sp, int flags, ExInfo *pExInfo, QCallExceptionStatus* qcallError);
+ extern "C" CLR_BOOL QCALLTYPE EHEnumInitFromStackFrameIterator(StackFrameIterator *pFrameIter, IJitManager::MethodRegionInfo *pMethodRegionInfo, EH_CLAUSE_ENUMERATOR * pEHEnum);
++extern "C" CLR_BOOL QCALLTYPE RuneCLRIsTerminatedFrameOwner(StackFrameIterator *pFrameIter);
+ extern "C" CLR_BOOL QCALLTYPE EHEnumNext(EH_CLAUSE_ENUMERATOR* pEHEnum, RhEHClause* pEHClause, QCallExceptionStatus* qcallError);
+ extern "C" CLR_BOOL QCALLTYPE SfiInit(StackFrameIterator* pThis, CONTEXT* pStackwalkCtx, CLR_BOOL instructionFault, CLR_BOOL* pIsExceptionIntercepted, QCallExceptionStatus* qcallError);
+ extern "C" CLR_BOOL QCALLTYPE SfiNext(StackFrameIterator* pThis, unsigned int* uExCollideClauseIdx, CLR_BOOL* fUnwoundReversePInvoke, CLR_BOOL* pIsExceptionIntercepted, QCallExceptionStatus* qcallError);
+diff --git a/src/coreclr/vm/interpexec.cpp b/src/coreclr/vm/interpexec.cpp
+index 2399ef3980f..8e5c39c9d61 100644
+--- a/src/coreclr/vm/interpexec.cpp
++++ b/src/coreclr/vm/interpexec.cpp
+@@ -772,6 +772,7 @@ typedef void (*HELPER_FTN_V_PP)(void*, void*);
+ 
+ InterpThreadContext::InterpThreadContext()
+ {
++    runeclrCleanupOwner = nullptr;
+     pStackStart = pStackPointer = (int8_t*)VMToOSInterface::AlignedAllocate(INTERP_STACK_SIZE, INTERP_STACK_SIZE);
+     pStackEnd = pStackStart + INTERP_STACK_SIZE;
+ #ifdef DEBUGGING_SUPPORTED
+@@ -900,11 +901,12 @@ NOINLINE static void InterpThrow(InterpMethodContextFrame* pFrame, const int32_t
+ #define NULL_CHECK(o) do { if ((o) == NULL) { INTERP_THROW(kNullReferenceException); } } while (0)
+ #define INTERP_THROW(exType) InterpThrow(pFrame, ip, exType)
+ 
+-// Private RuneCLR diagnostic accounting. This does not throw or terminate code.
++// Private opt-in accounting and terminal prototype. The original diagnostic
++// factory retains its non-throwing semantics.
+ // Resolve the current definition owner at every actual dispatch rather than
+ // retaining the preceding frame's owner across child/tail calls, EH or returns.
+ // No managed roots, allocation, loader-allocator lookup or GC-triggering work.
+-static FORCEINLINE void RuneCLRChargeCurrentInstruction(InterpMethodContextFrame* frame)
++static FORCEINLINE bool RuneCLRChargeCurrentInstruction(InterpMethodContextFrame* frame, InterpThreadContext* threadContext)
+ {
+     LIMITED_METHOD_CONTRACT;
+     MethodDesc* method = frame->startIp->Method->methodHnd;
+@@ -913,10 +915,30 @@ static FORCEINLINE void RuneCLRChargeCurrentInstruction(InterpMethodContextFrame
+     {
+         RuneCLRInstructionMeter* meter = binder->GetRuneCLRInstructionMeter();
+         if (meter != nullptr)
+-            meter->Charge();
++        {
++            if (!meter->IsTerminalPrototype())
++                meter->Charge();
++            else if (meter->IsTerminated() && threadContext->runeclrCleanupOwner == meter)
++                return meter->TryChargeCleanup();
++            else
++                return meter->ChargeExecution();
++        }
+     }
++    return true;
+ }
+ 
++// A denied ordinary body throws under the existing managed-dispatch handlers.
++// Only an actual EH finally/fault invocation may abandon its remaining author
++// cleanup using the normal native funclet return; callbacks do not gain that exit.
++#define RUNECLR_CHARGE_DISPATCH() do { \
++    if (!RuneCLRChargeCurrentInstruction(pFrame, pThreadContext)) { \
++        pFrame->ip = ip; \
++        if (pExceptionClauseArgs != nullptr && pExceptionClauseArgs->isCleanup) \
++            goto RUNECLR_ABANDON_CLEANUP; \
++        INTERP_THROW(kOperationCanceledException); \
++    } \
++} while (0)
++
+ // When enabled, each opcode dispatches directly to the next one via an indirect goto,
+ // avoiding the overhead of the central switch dispatch.
+ #if !defined(TARGET_WINDOWS) && !defined(TARGET_WASM) && !defined(DEBUG)
+@@ -925,7 +947,7 @@ static FORCEINLINE void RuneCLRChargeCurrentInstruction(InterpMethodContextFrame
+ 
+ #if USE_COMPUTED_GOTO
+ #define INTOP_CASE(x) LABEL_ ## x:
+-#define INTOP_DISPATCH(op) do { opcode = (uint32_t)(op); RuneCLRChargeCurrentInstruction(pFrame); goto *s_dispatchTable[opcode]; } while (0)
++#define INTOP_DISPATCH(op) do { opcode = (uint32_t)(op); RUNECLR_CHARGE_DISPATCH(); goto *s_dispatchTable[opcode]; } while (0)
+ #define INTOP_NEXT INTOP_DISPATCH(ip[0])
+ #else
+ #define INTOP_CASE(x) case x:
+@@ -1482,6 +1504,7 @@ void InterpExecMethod(InterpreterFrame *pInterpreterFrame, InterpMethodContextFr
+ 
+     TADDR resumeSP = 0;
+     TADDR resumeIP = 0;
++    InterpMethodContextFrame* const runeclrInvocationFrame = pFrame;
+ 
+ #if defined(HOST_AMD64) && defined(HOST_WINDOWS)
+     pInterpreterFrame->SetInterpExecMethodSSP((TADDR)_rdsspq());
+@@ -1554,7 +1577,7 @@ MAIN_LOOP:
+             opcode = ip[0];
+ SWITCH_OPCODE:
+             // Also covers debugger bypass dispatches that jump to this label.
+-            RuneCLRChargeCurrentInstruction(pFrame);
++            RUNECLR_CHARGE_DISPATCH();
+             switch (opcode)
+             {
+ #endif // !USE_COMPUTED_GOTO
+@@ -5016,6 +5039,23 @@ do                                                                      \
+         goto MAIN_LOOP;
+     }
+ 
++RUNECLR_ABANDON_CLEANUP:
++    // No native/trusted frame is skipped. This invocation is the real EH
++    // finally/fault funclet; its worker still performs GCPROTECT_END and Pop.
++    // Drop only the interpreter children allocated in this invocation. No GC
++    // may occur between dropping their roots and the existing exit path.
++    _ASSERTE(pExceptionClauseArgs != nullptr && pExceptionClauseArgs->isCleanup);
++    while (pFrame != runeclrInvocationFrame)
++    {
++        _ASSERTE(pFrame != nullptr);
++        pThreadContext->frameDataAllocator.PopInfo(pFrame);
++        pFrame->ip = nullptr;
++        pFrame = pFrame->pParent;
++    }
++    pThreadContext->frameDataAllocator.PopInfo(pFrame);
++    pFrame->ip = nullptr;
++    _ASSERTE(pFrame->pParent == nullptr);
++
+ EXIT_FRAME:
+     // Exit the current frame, MAKE CERTAIN not to trigger any GC between here and the return, since the interpreter
+     // async resumption logic depends on not triggering a GC here for correctness.
+diff --git a/src/coreclr/vm/interpexec.h b/src/coreclr/vm/interpexec.h
+index 7300cda7a14..2a3f7957825 100644
+--- a/src/coreclr/vm/interpexec.h
++++ b/src/coreclr/vm/interpexec.h
+@@ -26,6 +26,7 @@ struct StackVal
+ 
+ typedef DPTR(struct InterpMethodContextFrame) PTR_InterpMethodContextFrame;
+ class InterpreterFrame;
++class RuneCLRInstructionMeter;
+ 
+ struct InterpMethodContextFrame
+ {
+@@ -94,6 +95,11 @@ struct InterpThreadContext
+     }
+ #endif // DEBUGGING_SUPPORTED
+ 
++    // Append after all existing fields: assembly stubs use fixed offsets for
++    // pStackPointer. Native-only identity scoped by an active EH cleanup funclet;
++    // the owning binder remains alive with that active definition frame.
++    RuneCLRInstructionMeter* runeclrCleanupOwner;
++
+     InterpThreadContext();
+     ~InterpThreadContext();
+ };
+@@ -106,6 +112,8 @@ struct ExceptionClauseArgs
+     InterpMethodContextFrame *pFrame;
+     // Set to true if the exception clause is a filter
+     bool isFilter;
++    // Finally/fault, distinct from an author catch and from a filter.
++    bool isCleanup;
+     // The exception object passed to the filter or catch clause
+     OBJECTREF throwable;
+ };
+diff --git a/src/coreclr/vm/qcallentrypoints.cpp b/src/coreclr/vm/qcallentrypoints.cpp
+index bd60ba1d102..89a00ff4d32 100644
+--- a/src/coreclr/vm/qcallentrypoints.cpp
++++ b/src/coreclr/vm/qcallentrypoints.cpp
+@@ -272,6 +272,12 @@ static const Entry s_QCall[] =
+     DllImportEntry(AssemblyNative_InitializeAssemblyLoadContext)
+     DllImportEntry(AssemblyNative_InitializeInterpreterRequiredLoadContext)
+     DllImportEntry(AssemblyNative_InitializeInstructionMeteredLoadContext)
++    DllImportEntry(AssemblyNative_InitializeTerminalPrototypeLoadContext)
++    DllImportEntry(AssemblyNative_RuneCLRGetTerminalPrototypeVersion)
++    DllImportEntry(AssemblyNative_RuneCLRGetTerminalPrototypeReason)
++    DllImportEntry(AssemblyNative_RuneCLRGetTerminalPrototypePhase)
++    DllImportEntry(AssemblyNative_RuneCLRGetTerminalPrototypeCleanupRemaining)
++    DllImportEntry(AssemblyNative_RuneCLRGetTerminalPrototypeCleanupExecuted)
+     DllImportEntry(AssemblyNative_RuneCLRGetInstructionMeterVersion)
+     DllImportEntry(AssemblyNative_RuneCLRGetInstructionMeterRemaining)
+     DllImportEntry(AssemblyNative_RuneCLRGetInstructionMeterExecuted)
+@@ -537,6 +543,7 @@ static const Entry s_QCall[] =
+     DllImportEntry(SfiNext)
+     DllImportEntry(CallFilterFunclet)
+     DllImportEntry(EHEnumInitFromStackFrameIterator)
++    DllImportEntry(RuneCLRIsTerminatedFrameOwner)
+     DllImportEntry(EHEnumNext)
+     DllImportEntry(AppendExceptionStackFrame)
+     DllImportEntry(InitClassHelper)
+diff --git a/src/coreclr/vm/runeclrinstructionmeter.h b/src/coreclr/vm/runeclrinstructionmeter.h
+index 09583050763..8cb33bcb810 100644
+--- a/src/coreclr/vm/runeclrinstructionmeter.h
++++ b/src/coreclr/vm/runeclrinstructionmeter.h
+@@ -4,17 +4,64 @@
+ #ifndef _RUNECLR_INSTRUCTION_METER_H
+ #define _RUNECLR_INSTRUCTION_METER_H
+ 
+-// Private diagnostic accounting only. Exhaustion does not throw or stop execution.
++// Private diagnostic accounting plus an opt-in terminal prototype.
++// Charge() preserves diagnostic v1 behavior; terminal dispatch uses ChargeExecution().
+ // The owning CustomAssemblyBinder outlives all active frames for its definitions.
+ class RuneCLRInstructionMeter
+ {
+ public:
+-    explicit RuneCLRInstructionMeter(INT64 limit)
+-        : m_enabled(limit > 0), m_remaining(limit), m_executed(0)
++    explicit RuneCLRInstructionMeter(INT64 limit, bool terminalPrototype = false, INT64 cleanupLimit = 0)
++        : m_enabled(limit > 0), m_terminalPrototype(terminalPrototype), m_remaining(limit), m_executed(0),
++          m_cleanupRemaining(cleanupLimit), m_cleanupExecuted(0), m_phase(0)
+     {
+     }
+ 
+     bool Enabled() const { return m_enabled; }
++    bool IsTerminalPrototype() const { return m_terminalPrototype; }
++    bool IsTerminated() const noexcept { return Phase() != 0; }
++    LONG Reason() const noexcept { return IsTerminated() ? 1 : 0; }
++    LONG Phase() const noexcept { return InterlockedCompareExchange(&m_phase, 0, 0); }
++
++    INT64 CleanupRemaining() const noexcept
++    {
++        return InterlockedCompareExchange64(&m_cleanupRemaining, 0, 0);
++    }
++
++    INT64 CleanupExecuted() const noexcept
++    {
++        return InterlockedCompareExchange64(&m_cleanupExecuted, 0, 0);
++    }
++
++    FORCEINLINE bool ChargeExecution() noexcept
++    {
++        if (!m_terminalPrototype)
++        {
++            Charge();
++            return true;
++        }
++        if (IsTerminated())
++            return false;
++        if (!TryConsume(m_remaining, m_executed))
++        {
++            // The first rejected opcode latches the cause; no managed exception is needed here.
++            InterlockedCompareExchange(&m_phase, 1, 0);
++            return false;
++        }
++        return true;
++    }
++
++    FORCEINLINE bool TryChargeCleanup() noexcept
++    {
++        // Normal finally blocks remain in execution phase and use ChargeExecution().
++        if (!m_terminalPrototype || !IsTerminated() || Phase() != 1)
++            return false;
++        if (!TryConsume(m_cleanupRemaining, m_cleanupExecuted))
++        {
++            InterlockedCompareExchange(&m_phase, 2, 1);
++            return false;
++        }
++        return true;
++    }
+ 
+     INT64 Remaining() const noexcept
+     {
+@@ -49,9 +96,38 @@ public:
+     }
+ 
+ private:
++    // Count only allowed terminal opcodes. At quiescence, remaining = limit - executed.
++    static FORCEINLINE bool TryConsume(volatile LONGLONG& remaining, volatile LONGLONG& executed) noexcept
++    {
++        LONGLONG previous = InterlockedCompareExchange64(&remaining, 0, 0);
++        while (previous > 0)
++        {
++            LONGLONG observed = InterlockedCompareExchange64(&remaining, previous - 1, previous);
++            if (observed == previous)
++            {
++                // The immutable positive limit is at most INT64_MAX, so admitted charges cannot overflow.
++                previous = InterlockedCompareExchange64(&executed, 0, 0);
++                while (true)
++                {
++                    observed = InterlockedCompareExchange64(&executed, previous + 1, previous);
++                    if (observed == previous)
++                        return true;
++                    previous = observed;
++                }
++            }
++            previous = observed;
++        }
++        return false;
++    }
++
+     const bool m_enabled;
++    const bool m_terminalPrototype;
+     alignas(8) mutable volatile LONGLONG m_remaining;
+     alignas(8) mutable volatile LONGLONG m_executed;
++    alignas(8) mutable volatile LONGLONG m_cleanupRemaining;
++    alignas(8) mutable volatile LONGLONG m_cleanupExecuted;
++    // One atomic latch: reason is derived as phase != 0 ? execution-limit : none.
++    mutable volatile LONG m_phase; // 0 execution; 1 terminated cleanup; 2 cleanup exhausted.
+ };
+ 
+ #endif // _RUNECLR_INSTRUCTION_METER_H
+diff --git a/src/libraries/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.cs b/src/libraries/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.cs
+index 1aaff7707a7..268c46f24b6 100644
+--- a/src/libraries/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.cs
++++ b/src/libraries/System.Private.CoreLib/src/System/Runtime/Loader/AssemblyLoadContext.cs
+@@ -91,6 +91,12 @@ private AssemblyLoadContext(bool representsTPALoadContext, bool isCollectible, s
+         }
+ 
+         private AssemblyLoadContext(bool representsTPALoadContext, bool isCollectible, string? name, bool requiresInterpreter, long instructionLimit)
++            : this(representsTPALoadContext, isCollectible, name, requiresInterpreter, instructionLimit, terminalPrototype: false, cleanupLimit: 0)
++        {
++        }
++
++        private AssemblyLoadContext(bool representsTPALoadContext, bool isCollectible, string? name, bool requiresInterpreter,
++                                    long instructionLimit, bool terminalPrototype, long cleanupLimit)
+         {
+             // Initialize the VM side of AssemblyLoadContext if not already done.
+             _isCollectible = isCollectible;
+@@ -116,9 +122,11 @@ private AssemblyLoadContext(bool representsTPALoadContext, bool isCollectible, s
+             {
+                 try
+                 {
+-                    _nativeAssemblyLoadContext = instructionLimit > 0
+-                        ? InitializeInstructionMeteredLoadContext(thisHandlePtr, instructionLimit)
+-                        : InitializeInterpreterRequiredLoadContext(thisHandlePtr);
++                    _nativeAssemblyLoadContext = terminalPrototype
++                        ? InitializeTerminalPrototypeLoadContext(thisHandlePtr, instructionLimit, cleanupLimit)
++                        : instructionLimit > 0
++                            ? InitializeInstructionMeteredLoadContext(thisHandlePtr, instructionLimit)
++                            : InitializeInterpreterRequiredLoadContext(thisHandlePtr);
+                 }
+                 catch
+                 {

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>MobileHostBudgetProbe</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../host-budget-probe/Host/Program.cs" Link="FrozenWindowsHost.cs" />
+    <Compile Include="../windows-entry-observation/WindowsEntryObservation.cs" Link="WindowsEntryObservation.cs" />
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+  </ItemGroup>
+</Project>

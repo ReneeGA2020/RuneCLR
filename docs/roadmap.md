@@ -7,6 +7,24 @@ criteria are [locally verified](interpreter-experiment.md); independent
 work can proceed when its prerequisites allow. Phases are capability milestones,
 not release dates.
 
+The [accepted execution strategy](execution-strategy.md) starts with interpreted
+UGC on all target platforms, while trusted host/framework code can remain native.
+UGC JIT is a later, separately validated exploration driven by a real pilot;
+it is not required for the initial restricted profile. #5/#6 track the execution
+boundary and interpreter enforcement, and #3 retains JIT performance comparisons.
+Authors provide source/IL as inputs to controlled server builds; future native
+execution does not permit author-supplied machine-code packages. #4 owns that
+build/package trust boundary.
+
+The [contribution sequence](work-sequence.md) gives the concrete next order:
+extend #3 with session/host-boundary measurements, then build the minimal #4
+controlled source/IL package pipeline and mobile-compatible dependency resolver.
+Prepare #2 device environments in parallel; missing tooling does not block
+independent desktop work or establish mobile support. Follow with #5's supported
+execution surface and #6's terminal interpreter budgets, then #7/#8 and the game
+pilot according to their dependencies. The
+[platform audit](platform-validation.md) records the current environment gaps.
+
 | Phase | Issue | Deliverable |
 | --- | --- | --- |
 | 1 | [#1](https://github.com/ReneeGA2020/RuneCLR/issues/1) | Reproducible interpreter build and proven map lifecycle execution |
@@ -47,12 +65,32 @@ Gate: downloaded C# maps execute and retire reliably on the target platforms.
 
 ## Phase 2: restricted game scripting
 
-- [ ] Controlled source compilation and explicit language/library support.
+- [x] Initial controlled source compilation and explicit language/library support.
+- [x] Initial static gameplay API/dependency gate for versioned packages.
 - [ ] Dependency, reflection, dynamic loading, and native interop restrictions.
 - [ ] Interpreter-enforced execution budgets and safe terminal cancellation.
 - [ ] Allocation telemetry, then a design for meaningful memory limits.
 - [ ] Host-owned events, timers, and resource handles with lifecycle cleanup.
 - [ ] Game-loop integration and package/API versioning.
+
+The initial [host-pumped session API](host-pumped-sessions.md) now passes Windows
+ordinary and required-interpreter lifecycle suites plus cross-tick native budget
+recovery. Controlled-package pumping also passes 22/22 on both Windows lanes.
+Its [native-budget combination](controlled-package-native-budget.md) now passes
+33/33 Windows cases with twenty-five native-budget context collections.
+The broader integration item stays open for game-facing events/resources,
+API versioning and matching mobile/real-device
+acceptance.
+
+The completed initial gates are documented in [controlled packaging](controlled-packaging.md)
+and [capability policy](capability-policy.md). The
+[portable player acceptance suite](package-execution-tests.md) adds private
+version/generic state, author-failure retirement and invalid-package recovery
+coverage without shipping operator compilation tooling. It passes 15/15 on
+stock desktop, the pinned desktop interpreter and
+[the pinned iOS simulator](ios-controlled-packages.md), alongside the existing suites.
+The broader restriction milestone
+remains open until runtime execution-selection and platform evidence are complete.
 
 Gate: common author mistakes cannot leave the host stuck or leaking between games.
 

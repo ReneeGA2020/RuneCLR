@@ -159,8 +159,10 @@ This failure is retained as an upstream investigation item before relying on
 full-framework interpretation. Mode 2 has not been validated in this experiment.
 
 Also, the pinned CoreLib source marks `AssemblyDependencyResolver` unsupported
-on iOS. Issue #2 must investigate a platform-appropriate package resolution and
-hosting path in addition to dynamic IL execution and repeated unloading.
+on iOS. This was the resolver used by the original experiment. The later
+[explicit resolver increment](package-resolution.md) removes that API and
+passes the expanded 22-case suite on the same mode 1 layout. Issue #2 still
+requires mobile hosting, dynamic IL execution and repeated unloading evidence.
 
 This experiment does not establish iOS support, terminal CPU interruption,
 allocation isolation, or a comprehensive security sandbox.

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>ConcurrencyProbe.Host</AssemblyName></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Contract/Contract.csproj" />
+    <Compile Include="../../windows-entry-observation/WindowsEntryObservation.cs" Link="WindowsEntryObservation.cs" />
+  </ItemGroup>
+</Project>

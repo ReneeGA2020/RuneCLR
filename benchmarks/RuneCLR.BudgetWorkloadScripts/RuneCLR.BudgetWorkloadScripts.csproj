@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
+    <Compile Include="../RuneCLR.Performance.Kernels/Workloads.cs" Link="ExistingWorkloads.cs" />
+  </ItemGroup>
+</Project>

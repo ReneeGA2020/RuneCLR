@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>ConcurrencyProbe.Payload</AssemblyName></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Contract/Contract.csproj" /></ItemGroup>
+</Project>

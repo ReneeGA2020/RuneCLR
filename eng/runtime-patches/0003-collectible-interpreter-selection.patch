@@ -1,0 +1,422 @@
+diff --git a/src/coreclr/inc/clrconfigvalues.h b/src/coreclr/inc/clrconfigvalues.h
+index 42c47d61516..8e0f72acaae 100644
+--- a/src/coreclr/inc/clrconfigvalues.h
++++ b/src/coreclr/inc/clrconfigvalues.h
+@@ -294,6 +294,9 @@ RETAIL_CONFIG_STRING_INFO(EXTERNAL_AltJitOs, W("AltJitOS"), "Sets target OS for
+ RETAIL_CONFIG_STRING_INFO(EXTERNAL_AltJitExcludeAssemblies, W("AltJitExcludeAssemblies"), "Do not use AltJit on this semicolon-delimited list of assemblies.")
+ #endif // defined(ALLOW_SXS_JIT)
+ 
++// This request is recognized even when interpreter support is not built in.
++// EEConfig rejects an enabled request on that build instead of silently ignoring it.
++RETAIL_CONFIG_DWORD_INFO(EXTERNAL_RuneCLRInterpretCollectible, W("RuneCLRInterpretCollectible"), 0, "Diagnostic: require interpretation of collectible-module IL bodies.")
+ #ifdef FEATURE_INTERPRETER
+ RETAIL_CONFIG_STRING_INFO(EXTERNAL_InterpreterName, W("InterpreterName"), "Primary interpreter to use")
+ CONFIG_STRING_INFO(INTERNAL_InterpreterPath, W("InterpreterPath"), "Full path to the interpreter to use")
+diff --git a/src/coreclr/inc/corjitflags.h b/src/coreclr/inc/corjitflags.h
+index d898fcda5a2..95a934a4748 100644
+--- a/src/coreclr/inc/corjitflags.h
++++ b/src/coreclr/inc/corjitflags.h
+@@ -65,6 +65,7 @@ public:
+ #endif
+         CORJIT_FLAG_USE_DISPATCH_HELPERS    = 31, // The JIT should use helpers for interface dispatch instead of virtual stub dispatch
+         CORJIT_FLAG_VERIFY_GC_MODE_TRANSITIONS = 32, // The JIT should emit the diagnostic helpers that verify GC mode transitions are legal
++        CORJIT_FLAG_INTERPRET_REQUIRED       = 33, // VM requires this IL body to be interpreted; skipping must not fall back to native compilation
+     };
+ 
+     CORJIT_FLAGS()
+diff --git a/src/coreclr/inc/jiteeversionguid.h b/src/coreclr/inc/jiteeversionguid.h
+index fb33de9eaa0..d4537b853f3 100644
+--- a/src/coreclr/inc/jiteeversionguid.h
++++ b/src/coreclr/inc/jiteeversionguid.h
+@@ -37,11 +37,11 @@
+ 
+ #include <minipal/guid.h>
+ 
+-constexpr GUID JITEEVersionIdentifier = { /* fa0c6a6f-b219-4b60-b928-042c72667eb3 */
+-    0xfa0c6a6f,
+-    0xb219,
+-    0x4b60,
+-    {0xb9, 0x28, 0x04, 0x2c, 0x72, 0x66, 0x7e, 0xb3}
++constexpr GUID JITEEVersionIdentifier = { /* 7c844228-f051-4b9b-9b8f-4e221230806f */
++    0x7c844228,
++    0xf051,
++    0x4b9b,
++    {0x9b, 0x8f, 0x4e, 0x22, 0x12, 0x30, 0x80, 0x6f}
+   };
+ 
+ #endif // JIT_EE_VERSIONING_GUID_H
+diff --git a/src/coreclr/interpreter/eeinterp.cpp b/src/coreclr/interpreter/eeinterp.cpp
+index e485b50f59f..ae115762b8b 100644
+--- a/src/coreclr/interpreter/eeinterp.cpp
++++ b/src/coreclr/interpreter/eeinterp.cpp
+@@ -73,13 +73,16 @@ CorJitResult CILInterp::compileMethod(ICorJitInfo*         compHnd,
+ {
+ 
+     ArenaAllocatorWithDestructorT<InterpMemKindTraits> arenaAllocator;
+-
+ #if defined(FEATURE_DYNAMIC_CODE_COMPILED)
+-    bool doInterpret = false;
++    CORJIT_FLAGS jitFlags;
++    compHnd->getJitFlags(&jitFlags, sizeof(jitFlags));
++    bool requiresInterpreter = jitFlags.IsSet(CORJIT_FLAGS::CORJIT_FLAG_INTERPRET_REQUIRED);
++    bool doInterpret = requiresInterpreter;
+ 
+     if ((g_interpModule != NULL) && (methodInfo->scope == g_interpModule))
+         doInterpret = true;
+ 
++    if (!requiresInterpreter)
+     {
+         switch (InterpConfig.InterpMode())
+         {
+@@ -127,6 +130,27 @@ CorJitResult CILInterp::compileMethod(ICorJitInfo*         compHnd,
+     }
+ #endif // FEATURE_DYNAMIC_CODE_COMPILED
+ 
++    // Scoped regression injection. Even a broad operator method-set cannot
++    // refuse arbitrary production methods: only this named fixture is allowed.
++    // An unmarked mode-1 control exercises genuine SKIPPED-to-JIT fallback.
++    if (InterpConfig.RuneCLRInterpretCollectible() != 0 &&
++        !InterpConfig.RuneCLRInterpreterRefuseMethods().isEmpty())
++    {
++        const char* className = nullptr;
++        const char* namespaceName = nullptr;
++        const char* methodName = compHnd->getMethodNameFromMetadata(methodInfo->ftn, &className, &namespaceName, nullptr, 0);
++        const char* assemblyName = compHnd->getClassAssemblyName(compHnd->getMethodClass(methodInfo->ftn));
++        if (methodName && className && namespaceName && assemblyName &&
++            !strcmp(methodName, "Reject") && !strcmp(className, "Entry") &&
++            !strcmp(namespaceName, "SelectionUGC.Refusal") &&
++            !strcmp(assemblyName, "SelectionProbe.Refusal") &&
++            InterpConfig.RuneCLRInterpreterRefuseMethods().contains(compHnd, methodInfo->ftn, compHnd->getMethodClass(methodInfo->ftn), &methodInfo->args))
++        {
++            printf("RuneCLRInterpreterRefusal: SelectionUGC.Refusal.Entry:Reject CORJIT_SKIPPED\n");
++            return CORJIT_SKIPPED;
++        }
++    }
++
+     try
+     {
+         InterpreterRetryData retryData(&arenaAllocator);
+diff --git a/src/coreclr/interpreter/interpconfigvalues.h b/src/coreclr/interpreter/interpconfigvalues.h
+index 0ddde0b990b..db94a66f864 100644
+--- a/src/coreclr/interpreter/interpconfigvalues.h
++++ b/src/coreclr/interpreter/interpconfigvalues.h
+@@ -20,6 +20,9 @@
+ #endif
+ 
+ RELEASE_CONFIG_METHODSET(Interpreter, "Interpreter")
++// Retail diagnostic, test fixture only: no effect without the startup policy switch.
++RELEASE_CONFIG_INTEGER(RuneCLRInterpretCollectible, "RuneCLRInterpretCollectible", 0);
++RELEASE_CONFIG_METHODSET(RuneCLRInterpreterRefuseMethods, "RuneCLRInterpreterRefuseMethods")
+ CONFIG_METHODSET(InterpHaltOnCall, "InterpHaltOnCall"); // Assert in the compiler when compiling a call to these method(s)
+ CONFIG_METHODSET(InterpHalt, "InterpHalt");
+ CONFIG_METHODSET(InterpBreak, "InterpBreak"); // Break into the debugger when compiling this method
+diff --git a/src/coreclr/jit/jitee.h b/src/coreclr/jit/jitee.h
+index 488d012f77b..dd37f758947 100644
+--- a/src/coreclr/jit/jitee.h
++++ b/src/coreclr/jit/jitee.h
+@@ -45,6 +45,7 @@ public:
+ 
+         JIT_FLAG_USE_DISPATCH_HELPERS    = 31, // The JIT should use helpers for interface dispatch instead of virtual stub dispatch
+         JIT_FLAG_VERIFY_GC_MODE_TRANSITIONS = 32, // The JIT should emit the diagnostic helpers that verify GC mode transitions are legal
++        JIT_FLAG_INTERPRET_REQUIRED       = 33, // VM requires interpretation of this IL body
+ 
+         // Note: the mcs tool uses the currently unused upper flags bits when outputting SuperPMI MC file flags.
+         // See EXTRA_JIT_FLAGS and spmidumphelper.cpp. Currently, these are bits 56 through 63. If they overlap,
+@@ -146,6 +147,7 @@ public:
+         FLAGS_EQUAL(CORJIT_FLAGS::CORJIT_FLAG_ASYNC, JIT_FLAG_ASYNC);
+         FLAGS_EQUAL(CORJIT_FLAGS::CORJIT_FLAG_USE_DISPATCH_HELPERS, JIT_FLAG_USE_DISPATCH_HELPERS);
+         FLAGS_EQUAL(CORJIT_FLAGS::CORJIT_FLAG_VERIFY_GC_MODE_TRANSITIONS, JIT_FLAG_VERIFY_GC_MODE_TRANSITIONS);
++        FLAGS_EQUAL(CORJIT_FLAGS::CORJIT_FLAG_INTERPRET_REQUIRED, JIT_FLAG_INTERPRET_REQUIRED);
+ 
+ #undef FLAGS_EQUAL
+     }
+diff --git a/src/coreclr/tools/Common/JitInterface/CorInfoTypes.cs b/src/coreclr/tools/Common/JitInterface/CorInfoTypes.cs
+index e3dee652327..915af071333 100644
+--- a/src/coreclr/tools/Common/JitInterface/CorInfoTypes.cs
++++ b/src/coreclr/tools/Common/JitInterface/CorInfoTypes.cs
+@@ -1560,6 +1560,7 @@ public enum CorJitFlag : uint
+ 
+         CORJIT_FLAG_USE_DISPATCH_HELPERS    = 31, // The JIT should use helpers for interface dispatch instead of virtual stub dispatch
+         CORJIT_FLAG_VERIFY_GC_MODE_TRANSITIONS = 32, // The JIT should emit the diagnostic helpers that verify GC mode transitions are legal
++        CORJIT_FLAG_INTERPRET_REQUIRED       = 33, // VM requires interpretation of this IL body
+     }
+ 
+     public struct CORJIT_FLAGS
+diff --git a/src/coreclr/tools/superpmi/superpmi-shared/methodcontext.cpp b/src/coreclr/tools/superpmi/superpmi-shared/methodcontext.cpp
+index 637723abd06..5864af9d130 100644
+--- a/src/coreclr/tools/superpmi/superpmi-shared/methodcontext.cpp
++++ b/src/coreclr/tools/superpmi/superpmi-shared/methodcontext.cpp
+@@ -1244,6 +1244,8 @@ const char* CorJitFlagToString(CORJIT_FLAGS::CorJitFlag flag)
+         return "CORJIT_FLAG_ASYNC";
+     case CORJIT_FLAGS::CorJitFlag::CORJIT_FLAG_USE_DISPATCH_HELPERS:
+         return "CORJIT_FLAG_USE_DISPATCH_HELPERS";
++    case CORJIT_FLAGS::CorJitFlag::CORJIT_FLAG_INTERPRET_REQUIRED:
++        return "CORJIT_FLAG_INTERPRET_REQUIRED";
+ 
+     default:
+         return "<unknown>";
+diff --git a/src/coreclr/tools/superpmi/superpmi-shared/spmidumphelper.cpp b/src/coreclr/tools/superpmi/superpmi-shared/spmidumphelper.cpp
+index 965bcaf2cd1..6cf664a61b9 100644
+--- a/src/coreclr/tools/superpmi/superpmi-shared/spmidumphelper.cpp
++++ b/src/coreclr/tools/superpmi/superpmi-shared/spmidumphelper.cpp
+@@ -258,6 +258,7 @@ std::string SpmiDumpHelper::DumpJitFlags(unsigned long long flags)
+     AddFlagNumeric(SOFTFP_ABI, 30);
+ 
+     AddFlag(USE_DISPATCH_HELPERS);
++    AddFlag(INTERPRET_REQUIRED);
+ 
+     // "Extra jit flag" support
+     //
+diff --git a/src/coreclr/vm/eeconfig.cpp b/src/coreclr/vm/eeconfig.cpp
+index e6d21d6e9b1..828338fa522 100644
+--- a/src/coreclr/vm/eeconfig.cpp
++++ b/src/coreclr/vm/eeconfig.cpp
+@@ -80,6 +80,7 @@ HRESULT EEConfig::Init()
+     STANDARD_VM_CONTRACT;
+ 
+     fInited = false;
++    runeCLRInterpretCollectible = false;
+ 
+ #ifdef VERIFY_HEAP
+     iGCHeapVerify = 0;          // Heap Verification OFF by default
+@@ -297,6 +298,12 @@ HRESULT EEConfig::sync()
+ 
+     HRESULT hr = S_OK;
+ 
++    runeCLRInterpretCollectible = CLRConfig::GetConfigValue(CLRConfig::EXTERNAL_RuneCLRInterpretCollectible) != 0;
++#ifndef FEATURE_INTERPRETER
++    if (runeCLRInterpretCollectible)
++        return COR_E_PLATFORMNOTSUPPORTED;
++#endif
++
+     // Note the global variable is not updated directly by the GetRegKey function
+     // so we only update it once (to avoid reentrancy windows)
+ 
+diff --git a/src/coreclr/vm/eeconfig.h b/src/coreclr/vm/eeconfig.h
+index b310f9b618d..a1e9bfd38a6 100644
+--- a/src/coreclr/vm/eeconfig.h
++++ b/src/coreclr/vm/eeconfig.h
+@@ -437,6 +437,7 @@ public:
+ 
+ #endif
+ 
++    bool RuneCLRInterpretCollectible() const { LIMITED_METHOD_CONTRACT; return runeCLRInterpretCollectible; }
+ #ifdef FEATURE_INTERPRETER
+     bool    EnableInterpreter()            const { LIMITED_METHOD_CONTRACT; return enableInterpreter; }
+ #endif
+@@ -602,6 +603,7 @@ private: //----------------------------------------------------------------
+ #endif
+ 
+     bool enableHWIntrinsic;
++    bool runeCLRInterpretCollectible;
+ 
+ #ifdef FEATURE_INTERPRETER
+     bool enableInterpreter;
+diff --git a/src/coreclr/vm/interpexec.cpp b/src/coreclr/vm/interpexec.cpp
+index 0e21a28c23b..3f35734f6a0 100644
+--- a/src/coreclr/vm/interpexec.cpp
++++ b/src/coreclr/vm/interpexec.cpp
+@@ -1430,6 +1430,11 @@ static InterpByteCodeStart* PrepareInterpreterCode(MethodDesc* targetMethod, Int
+ 
+     if (targetIp == NULL)
+     {
++        // Do not poison a required body into the native-call path. This is a
++        // release-build rejection, not an assertion-only diagnostic.
++        if (targetMethod->RequiresInterpreterBody())
++            COMPlusThrowNonLocalized(kNotSupportedException, W("Required interpreted body has no interpreter bytecode."));
++
+         // The prestub wasn't able to setup an interpreter code, so it will never be able to.
+         targetMethod->PoisonInterpreterCode();
+ #ifdef FEATURE_PORTABLE_ENTRYPOINTS
+diff --git a/src/coreclr/vm/jitinterface.cpp b/src/coreclr/vm/jitinterface.cpp
+index 336caf56147..becd68b7b25 100644
+--- a/src/coreclr/vm/jitinterface.cpp
++++ b/src/coreclr/vm/jitinterface.cpp
+@@ -6639,7 +6639,7 @@ DWORD CEEInfo::getMethodAttribsInternal (CORINFO_METHOD_HANDLE ftn)
+     }
+ 
+     // Check for an inlining directive.
+-    if (pMD->IsNotInline())
++    if (pMD->HasRequiredInterpreterPolicy() || pMD->IsNotInline())
+     {
+         /* Function marked as not inlineable */
+         result |= CORINFO_FLG_DONT_INLINE;
+@@ -7937,6 +7937,13 @@ CorInfoInline CEEInfo::canInline (CORINFO_METHOD_HANDLE hCaller,
+     MethodDesc* pCaller = GetMethod(hCaller);
+     MethodDesc* pCallee = GetMethod(hCallee);
+ 
++    if (pCallee->HasRequiredInterpreterPolicy())
++    {
++        result = INLINE_NEVER;
++        szFailReason = "Collectible IL body requires interpretation";
++        goto exit;
++    }
++
+     if (pCallee->IsNoMetadata())
+     {
+         result = INLINE_FAIL;
+@@ -11800,6 +11807,23 @@ LPVOID CEEInfo::GetCookieForInterpreterCalliSig(CORINFO_SIG_INFO* szMetaSig)
+ 
+ #ifdef FEATURE_INTERPRETER
+ 
++// Define this out of line: VM/DAC precompiled headers can include
++// jitinterface.h while MethodDesc is only forward declared.
++CInterpreterJitInfo::CInterpreterJitInfo(PrepareCodeConfig* config, MethodDesc* fd,
++                                       COR_ILMETHOD_DECODER* header, EECodeGenManager* jm)
++    : CEECodeGenInfo(config, fd, header, jm)
++{
++    CONTRACTL
++    {
++        NOTHROW;
++        GC_NOTRIGGER;
++        MODE_ANY;
++    } CONTRACTL_END;
++    // Base construction has already computed the normal compilation flags.
++    if (fd->RequiresInterpreterBody())
++        getJitFlagsInternal()->Set(CORJIT_FLAGS::CORJIT_FLAG_INTERPRET_REQUIRED);
++}
++
+ // Forward declare the function for mapping MetaSig to a cookie.
+ InterpreterCalliCookie GetCookieForCalliSig(MetaSig metaSig, MethodDesc *pContextMD);
+ 
+@@ -13962,6 +13986,11 @@ PCODE UnsafeJitFunction(PrepareCodeConfig* config,
+ 
+     NativeCodeVersion nativeCodeVersion = config->GetCodeVersion();
+     MethodDesc* ftn = nativeCodeVersion.GetMethodDesc();
++    bool requiresInterpreter = ftn->RequiresInterpreterBody();
++#ifdef FEATURE_TIERED_COMPILATION
++    if (requiresInterpreter && nativeCodeVersion.GetOptimizationTier() == NativeCodeVersion::OptimizationTier1OSR)
++        COMPlusThrowNonLocalized(kNotSupportedException, W("Required interpreted body cannot use OSR."));
++#endif
+ 
+     // If it's generic then we can only enter through an instantiated MethodDesc
+     _ASSERTE(!ftn->IsGenericMethodDefinition());
+@@ -13980,7 +14009,7 @@ PCODE UnsafeJitFunction(PrepareCodeConfig* config,
+ 
+ #ifdef FEATURE_INTERPRETER
+     InterpreterJitManager* interpreterMgr = ExecutionManager::GetInterpreterJitManager();
+-    if (!interpreterMgr->IsInterpreterLoaded() && g_pConfig->EnableInterpreter())
++    if (!interpreterMgr->IsInterpreterLoaded() && (requiresInterpreter || g_pConfig->EnableInterpreter()))
+     {
+         if (
+             !interpreterMgr->LoadInterpreter())
+@@ -14042,6 +14071,11 @@ PCODE UnsafeJitFunction(PrepareCodeConfig* config,
+     }
+ #endif // FEATURE_INTERPRETER
+ 
++    // A compiler skip is a recoverable rejection for required bodies, never a
++    // request to weaken their execution policy by invoking the native JIT.
++    if (requiresInterpreter && !ret)
++        COMPlusThrowNonLocalized(kNotSupportedException, W("Required interpreted body was declined by the interpreter."));
++
+ #ifndef FEATURE_DYNAMIC_CODE_COMPILED
+     if (!ret)
+     {
+diff --git a/src/coreclr/vm/jitinterface.h b/src/coreclr/vm/jitinterface.h
+index c8f22d71990..0dc3d9c19ab 100644
+--- a/src/coreclr/vm/jitinterface.h
++++ b/src/coreclr/vm/jitinterface.h
+@@ -905,16 +905,7 @@ public:
+     // ICorJitInfo stuff
+ 
+     CInterpreterJitInfo(PrepareCodeConfig* config, MethodDesc* fd, COR_ILMETHOD_DECODER* header,
+-                        EECodeGenManager* jm)
+-        : CEECodeGenInfo(config, fd, header, jm)
+-    {
+-        CONTRACTL
+-        {
+-            NOTHROW;
+-            GC_NOTRIGGER;
+-            MODE_ANY;
+-        } CONTRACTL_END;
+-    }
++                        EECodeGenManager* jm);
+ 
+     void allocMem(AllocMemArgs *pArgs) override;
+     void * allocGCInfo(size_t  size) override;
+diff --git a/src/coreclr/vm/method.cpp b/src/coreclr/vm/method.cpp
+index 53b94e2a120..2993986e4ef 100644
+--- a/src/coreclr/vm/method.cpp
++++ b/src/coreclr/vm/method.cpp
+@@ -1617,6 +1617,25 @@ Module* MethodDesc::GetLoaderModule()
+ }
+ 
+ //*******************************************************************************
++bool MethodDesc::HasRequiredInterpreterPolicy()
++{
++    LIMITED_METHOD_CONTRACT;
++#ifdef FEATURE_INTERPRETER
++    return g_pConfig->RuneCLRInterpretCollectible() && IsIL() && GetModule()->IsCollectible();
++#else
++    return false;
++#endif
++}
++
++bool MethodDesc::RequiresInterpreterBody()
++{
++    WRAPPER_NO_CONTRACT;
++    // Runtime-created ABI bridges may remain native; their underlying author
++    // IL body must independently pass this predicate. Native lookup/inlining
++    // guards use the broader policy predicate, including wrappers.
++    return HasRequiredInterpreterPolicy() && !IsWrapperStub();
++}
++
+ Module *MethodDesc::GetModule() const
+ {
+     STATIC_CONTRACT_NOTHROW;
+@@ -3211,6 +3230,7 @@ bool MethodDesc::DetermineIsEligibleForTieredCompilationInvariantForAllMethodsIn
+     return
+         // Policy
+         g_pConfig->TieredCompilation() &&
++        !HasRequiredInterpreterPolicy() &&
+ 
+         // Functional requirement
+         CodeVersionManager::IsMethodSupported(this) &&
+diff --git a/src/coreclr/vm/method.hpp b/src/coreclr/vm/method.hpp
+index 1f860e4c8cd..292ca4e2b94 100644
+--- a/src/coreclr/vm/method.hpp
++++ b/src/coreclr/vm/method.hpp
+@@ -1144,6 +1144,11 @@ public:
+ 
+     Module *GetModule() const;
+ 
++    // Diagnostic startup policy for the defining IL module, not the allocator
++    // owning an instantiation of a trusted framework generic.
++    bool HasRequiredInterpreterPolicy();
++    bool RequiresInterpreterBody();
++
+     Assembly *GetAssembly() const
+     {
+         WRAPPER_NO_CONTRACT;
+diff --git a/src/coreclr/vm/prestub.cpp b/src/coreclr/vm/prestub.cpp
+index 9ff3fce4190..4c91c17a3f7 100644
+--- a/src/coreclr/vm/prestub.cpp
++++ b/src/coreclr/vm/prestub.cpp
+@@ -373,7 +373,7 @@ PCODE MethodDesc::PrepareCode(PrepareCodeConfig* pConfig)
+     }
+ #endif // FEATURE_CODE_VERSIONING
+ 
+-    if (pConfig->MayUsePrecompiledCode() && (!IsPInvoke() || MayUsePrecompiledILStub()) && !IsCLRToCOMCall())
++    if (!HasRequiredInterpreterPolicy() && pConfig->MayUsePrecompiledCode() && (!IsPInvoke() || MayUsePrecompiledILStub()) && !IsCLRToCOMCall())
+     {
+         _ASSERTE(!IsPInvoke() || (!GetModule()->IsReadyToRun() || GetModule()->GetReadyToRunInfo()->HasNonShareablePInvokeStubs()));
+         if (pCode == (PCODE)NULL)
+@@ -487,6 +487,9 @@ PCODE MethodDesc::PublishPrecompiledCode(PrepareCodeConfig* pConfig, PCODE pCode
+ PCODE MethodDesc::GetPrecompiledR2RCode(PrepareCodeConfig* pConfig)
+ {
+     STANDARD_VM_CONTRACT;
++    // Cover direct callers and the entire alternate/unrelated generic search.
++    if (HasRequiredInterpreterPolicy())
++        return (PCODE)NULL;
+ 
+     PCODE pCode = (PCODE)NULL;
+ #ifdef FEATURE_READYTORUN
+@@ -683,7 +686,7 @@ PCODE MethodDesc::JitCompileCode(PrepareCodeConfig* pConfig)
+             // Multi-core-jitted code is generated for the default code version at the initial optimization tier, and so is only
+             // applicable to the default code version
+             NativeCodeVersion codeVersion = pConfig->GetCodeVersion();
+-            if (codeVersion.IsDefaultVersion())
++            if (codeVersion.IsDefaultVersion() && !HasRequiredInterpreterPolicy())
+             {
+                 bool wasTier0 = false;
+                 pCode = GetMulticoreJitCode(pConfig, &wasTier0);

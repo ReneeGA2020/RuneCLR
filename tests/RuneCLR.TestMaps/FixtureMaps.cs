@@ -32,6 +32,83 @@ public sealed class ThrowingMap : IMapScript
 
 public sealed class MapDefinedException() : Exception("map-defined failure");
 
+public sealed class ConstructorThrowingMap : IMapScript
+{
+    public ConstructorThrowingMap() => throw new MapDefinedException();
+    public void OnStart(IMapContext context) { }
+    public void OnTick(MapTick tick) { }
+    public void OnStop() { }
+}
+
+public sealed class ThrowingMessageException : Exception
+{
+    public override string Message => throw new MapDefinedException();
+}
+
+public sealed class ThrowingMessageMap : IMapScript
+{
+    public void OnStart(IMapContext context) => context.SpawnEntity("before-message-error");
+    public void OnTick(MapTick tick) => throw new ThrowingMessageException();
+    public void OnStop() => throw new ThrowingMessageException();
+}
+
+public sealed class ManualTickMap : IMapScript
+{
+    private IMapContext _context = null!;
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.SpawnEntity("manual");
+        context.Log("started");
+    }
+    public void OnTick(MapTick tick) => _context.Log($"tick={tick.Index}:delta={tick.Delta.Ticks}");
+    public void OnStop() => _context.Log("stopped");
+}
+
+public sealed class StartThrowingMap : IMapScript
+{
+    private IMapContext _context = null!;
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.SpawnEntity("before-start-error");
+        throw new MapDefinedException();
+    }
+    public void OnTick(MapTick tick) { }
+    public void OnStop() => _context.Log("stopped-after-start-error");
+}
+
+public sealed class ThrowAfterFirstTickMap : IMapScript
+{
+    private IMapContext _context = null!;
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.SpawnEntity("before-tick-error");
+    }
+    public void OnTick(MapTick tick)
+    {
+        if (tick.Index == 1) throw new MapDefinedException();
+    }
+    public void OnStop() => _context.Log("stopped-after-tick-error");
+}
+
+public sealed class TickCatchingBudgetMap : IMapScript
+{
+    private IMapContext _context = null!;
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.SpawnEntity("before-caught-budget");
+    }
+    public void OnTick(MapTick tick)
+    {
+        try { _context.Charge(int.MaxValue); }
+        catch (Exception) { }
+    }
+    public void OnStop() { }
+}
+
 public sealed class CatchingBudgetMap : IMapScript
 {
     public void OnStart(IMapContext context)

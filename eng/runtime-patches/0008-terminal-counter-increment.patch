@@ -1,0 +1,34 @@
+From 20405f7ae23e183e038703aa5e356b3310fef427 Mon Sep 17 00:00:00 2001
+From: lulan <49630018+ReneeGA2020@users.noreply.github.com>
+Date: Wed, 14 Oct 2026 15:38:32 +0800
+Subject: [PATCH] Use one atomic increment for admitted terminal dispatch
+ counts
+
+---
+ src/coreclr/vm/runeclrinstructionmeter.h | 10 ++--------
+ 1 file changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/src/coreclr/vm/runeclrinstructionmeter.h b/src/coreclr/vm/runeclrinstructionmeter.h
+index 8cb33bcb810..767800500d2 100644
+--- a/src/coreclr/vm/runeclrinstructionmeter.h
++++ b/src/coreclr/vm/runeclrinstructionmeter.h
+@@ -106,14 +106,8 @@ private:
+             if (observed == previous)
+             {
+                 // The immutable positive limit is at most INT64_MAX, so admitted charges cannot overflow.
+-                previous = InterlockedCompareExchange64(&executed, 0, 0);
+-                while (true)
+-                {
+-                    observed = InterlockedCompareExchange64(&executed, previous + 1, previous);
+-                    if (observed == previous)
+-                        return true;
+-                    previous = observed;
+-                }
++                InterlockedIncrement64(&executed);
++                return true;
+             }
+             previous = observed;
+         }
+-- 
+2.33.0.windows.2
+

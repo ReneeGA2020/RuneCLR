@@ -1,0 +1,134 @@
+diff --git a/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml b/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
+index 32c0f3c109eebe543c0765a6226feef823674d98..83e198e77b8c5f58efd043f328ee9e2aa44c2c83 100644
+--- a/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
++++ b/src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml
+@@ -19,6 +19,8 @@
+       <method name="RuneCLR_GetTerminalPrototypeCleanupExecuted" />
+     </type>
+     <type fullname="System.GC">
++      <!-- Private finalizer boundary discovery for the opt-in terminal prototype. -->
++      <method name="RuneCLR_GetTerminalFinalizerBoundaryVersion" />
+       <!-- Methods are used to register and unregister frozen segments. They are private and experimental. -->
+       <method name="_RegisterFrozenSegment" />
+       <method name="_UnregisterFrozenSegment" />
+diff --git a/src/coreclr/System.Private.CoreLib/src/System/GC.CoreCLR.cs b/src/coreclr/System.Private.CoreLib/src/System/GC.CoreCLR.cs
+index fa43541492e3724d00ea66e41fc1fb4a8d2b58e5..307e9df0de67467ca783755bf4d0a250dee2cf0c 100644
+--- a/src/coreclr/System.Private.CoreLib/src/System/GC.CoreCLR.cs
++++ b/src/coreclr/System.Private.CoreLib/src/System/GC.CoreCLR.cs
+@@ -338,6 +338,18 @@ public static int GetGeneration(WeakReference wo)
+         [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "GCInterface_GetNextFinalizableObject")]
+         private static unsafe partial void* GetNextFinalizeableObject(ObjectHandleOnStack target);
+ 
++        // Private terminal-prototype boundary discovery; not a production termination capability.
++        private static int RuneCLR_GetTerminalFinalizerBoundaryVersion() => RuneCLR_GetTerminalFinalizerBoundaryVersionNative();
++
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "GCInterface_RuneCLRGetTerminalFinalizerBoundaryVersion")]
++        [SuppressGCTransition]
++        private static partial int RuneCLR_GetTerminalFinalizerBoundaryVersionNative();
++
++        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "GCInterface_RuneCLRIsTerminatedFinalizerOwner")]
++        [SuppressGCTransition]
++        [return: MarshalAs(UnmanagedType.U1)]
++        private static partial bool RuneCLR_IsTerminatedFinalizerOwner(ObjectHandleOnStack target);
++
+         [UnmanagedCallersOnly]
+         private static unsafe uint RunFinalizers()
+         {
+@@ -353,15 +365,18 @@ private static unsafe uint RunFinalizers()
+ 
+                 try
+                 {
+-                    ((delegate*<object, void>)fptr)(target!);
++                    if (!RuneCLR_IsTerminatedFinalizerOwner(ObjectHandleOnStack.Create(ref target)))
++                        ((delegate*<object, void>)fptr)(target!);
+                 }
+-                catch (Exception ex) when (ExceptionHandling.IsHandledByGlobalHandler(ex))
++                catch (Exception ex) when (RuneCLR_IsTerminatedFinalizerOwner(ObjectHandleOnStack.Create(ref target)) ||
++                                          ExceptionHandling.IsHandledByGlobalHandler(ex))
+                 {
+-                    // the handler returned "true" means the exception is now "handled" and we should continue.
++                    // Handle only an irrevocably terminated definition owner, or the existing global handler.
+                 }
+ 
+                 currentThread.ResetFinalizerThread();
+                 count++;
++                KeepAlive(target);
+             }
+ 
+             return count;
+diff --git a/src/coreclr/vm/comutilnative.cpp b/src/coreclr/vm/comutilnative.cpp
+index c88ce7a47dd585df1f3ec177a38d335cdb2b8c84..26b5bc4c9fc7f6fd69d25348ef4ff68946c3ecc8 100644
+--- a/src/coreclr/vm/comutilnative.cpp
++++ b/src/coreclr/vm/comutilnative.cpp
+@@ -13,6 +13,8 @@
+ #include "excep.h"
+ #include "vars.hpp"
+ #include "comutilnative.h"
++#include "assemblybinder.h"
++#include "runeclrinstructionmeter.h"
+ 
+ #include "utilcode.h"
+ #include "frames.h"
+@@ -797,6 +799,36 @@ extern "C" void* QCALLTYPE GCInterface_GetNextFinalizableObject(QCall::ObjectHan
+     return (void*)funcPtr;
+ }
+ 
++extern "C" INT32 QCALLTYPE GCInterface_RuneCLRGetTerminalFinalizerBoundaryVersion()
++{
++    QCALL_CONTRACT_NO_GC_TRANSITION;
++#ifdef FEATURE_INTERPRETER
++    return 1;
++#else
++    return 0;
++#endif
++}
++
++extern "C" CLR_BOOL QCALLTYPE GCInterface_RuneCLRIsTerminatedFinalizerOwner(QCall::ObjectHandleOnStack target)
++{
++    QCALL_CONTRACT_NO_GC_TRANSITION;
++#ifdef FEATURE_INTERPRETER
++    OBJECTREF object = target.Get();
++    if (object == NULL)
++        return FALSE;
++    // GetNextFinalizableObject has restored the slot. Resolve its actual implementation
++    // rather than the receiver's type: an inherited trusted finalizer retains its own policy.
++    MethodDesc* finalizer = object->GetMethodTable()->GetMethodDescForSlot_NoThrow(g_pObjectFinalizerMD->GetSlot());
++    if (finalizer == nullptr)
++        return FALSE;
++    AssemblyBinder* binder = finalizer->GetModule()->GetPEAssembly()->GetAssemblyBinder();
++    RuneCLRInstructionMeter* meter = binder == nullptr ? nullptr : binder->GetRuneCLRInstructionMeter();
++    return meter != nullptr && meter->IsTerminalPrototype() && meter->IsTerminated();
++#else
++    return FALSE;
++#endif
++}
++
+ /*==========================WaitForPendingFinalizers============================
+ **Action: Run all Finalizers that haven't been run.
+ **Arguments: None
+diff --git a/src/coreclr/vm/comutilnative.h b/src/coreclr/vm/comutilnative.h
+index 5abcfc6a3e8f9ca94870fe6d23a258ddfa47bfc5..265093cb9693aa3e43e2810c2a44a6a425c57010 100644
+--- a/src/coreclr/vm/comutilnative.h
++++ b/src/coreclr/vm/comutilnative.h
+@@ -195,6 +195,8 @@ extern "C" INT64 QCALLTYPE GCInterface_GetTotalMemory(QCallExceptionStatus* qcal
+ extern "C" void QCALLTYPE GCInterface_Collect(INT32 generation, INT32 mode, CLR_BOOL lowMemoryPressure, QCallExceptionStatus* qcallError);
+ 
+ extern "C" void* QCALLTYPE GCInterface_GetNextFinalizableObject(QCall::ObjectHandleOnStack pObj, QCallExceptionStatus* qcallError);
++extern "C" INT32 QCALLTYPE GCInterface_RuneCLRGetTerminalFinalizerBoundaryVersion();
++extern "C" CLR_BOOL QCALLTYPE GCInterface_RuneCLRIsTerminatedFinalizerOwner(QCall::ObjectHandleOnStack target);
+ 
+ extern "C" void QCALLTYPE GCInterface_WaitForPendingFinalizers(QCallExceptionStatus* qcallError);
+ extern "C" void* QCALLTYPE GCInterface_RegisterFrozenSegment(void *pSection, SIZE_T sizeSection, QCallExceptionStatus* qcallError);
+diff --git a/src/coreclr/vm/qcallentrypoints.cpp b/src/coreclr/vm/qcallentrypoints.cpp
+index 89a00ff4d32059cea8b5b59bde5e31a5b3cbc85e..fe0c9aed80b5d4bded46cda6889e2c76f794d900 100644
+--- a/src/coreclr/vm/qcallentrypoints.cpp
++++ b/src/coreclr/vm/qcallentrypoints.cpp
+@@ -357,6 +357,8 @@ static const Entry s_QCall[] =
+     DllImportEntry(GCInterface_Collect)
+     DllImportEntry(GCInterface_ReRegisterForFinalize)
+     DllImportEntry(GCInterface_GetNextFinalizableObject)
++    DllImportEntry(GCInterface_RuneCLRGetTerminalFinalizerBoundaryVersion)
++    DllImportEntry(GCInterface_RuneCLRIsTerminatedFinalizerOwner)
+     DllImportEntry(GCInterface_WaitForPendingFinalizers)
+     DllImportEntry(GCInterface_AddMemoryPressure)
+     DllImportEntry(GCInterface_RemoveMemoryPressure)

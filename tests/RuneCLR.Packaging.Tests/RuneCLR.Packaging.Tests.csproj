@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Compiler/RuneCLR.Compiler.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="StagePackagingFixtures" AfterTargets="Build">
+    <ItemGroup>
+      <FixtureFiles Include="$(MSBuildThisFileDirectory)../RuneCLR.TestMaps/bin/$(Configuration)/$(TargetFramework)/RuneCLR.TestMaps.dll" />
+      <ApprovedFrameworkReference Include="@(ReferencePath)" Condition="'%(ReferencePath.Filename)' == 'System.Runtime' Or '%(ReferencePath.Filename)' == 'System.Collections' Or '%(ReferencePath.Filename)' == 'System.Linq' Or '%(ReferencePath.Filename)' == 'System.ObjectModel' Or '%(ReferencePath.Filename)' == 'System.Runtime.Extensions'" />
+      <DeniedFrameworkReference Include="@(ReferencePath)" Condition="'%(ReferencePath.Filename)' == 'System.Threading.Thread' Or '%(ReferencePath.Filename)' == 'System.Threading.Tasks' Or '%(ReferencePath.Filename)' == 'System.IO.FileSystem' Or '%(ReferencePath.Filename)' == 'System.Reflection.Extensions'" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FixtureFiles)" DestinationFolder="$(TargetDir)fixtures" />
+    <Copy SourceFiles="@(ApprovedFrameworkReference)" DestinationFolder="$(TargetDir)refs" />
+    <Copy SourceFiles="@(DeniedFrameworkReference)" DestinationFolder="$(TargetDir)denied-refs" />
+  </Target>
+</Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Compiler/RuneCLR.Compiler.csproj" />
+  </ItemGroup>
+  <Target Name="StageApprovedFrameworkReferences" AfterTargets="Build">
+    <ItemGroup>
+      <ApprovedFrameworkReference Include="@(ReferencePath)" Condition="'%(ReferencePath.Filename)' == 'System.Runtime' Or '%(ReferencePath.Filename)' == 'System.Collections' Or '%(ReferencePath.Filename)' == 'System.Linq' Or '%(ReferencePath.Filename)' == 'System.ObjectModel' Or '%(ReferencePath.Filename)' == 'System.Runtime.Extensions'" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ApprovedFrameworkReference)" DestinationFolder="$(TargetDir)refs" />
+  </Target>
+</Project>
