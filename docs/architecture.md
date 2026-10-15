@@ -2,12 +2,34 @@
 
 ## Goal
 
-A host can retire one UGC script session and load different C# code without
-restarting the game process. Successive custom maps are one example; scripts
-may belong to other host-owned containers. Existing `Map` names are prototype
-terminology scheduled for a later naming review. No live code replacement
-within a session is required. Target gameplay is server-authoritative; reproducible lockstep
-simulation is not a project goal.
+Make C# usable for iOS hot-update scripting, then add managed UGC. New IL uses
+the CoreCLR interpreter while trusted application/framework code may remain
+R2R, sharing CLR types and objects. See [product direction](product-direction.md).
+
+A host can retire one script module/session and load different C# code without
+restarting the process. Successive custom maps are one example. Existing `Map`
+names are prototype terminology scheduled for a later naming review. Initial
+updates do not require replacing active stacks or migrating live object state.
+The server-authoritative model describes the game examples, not all hosts;
+deterministic lockstep is not a project goal.
+
+## Direct interaction and trust profiles
+
+The interpreter and trusted R2R code use CLR calls and managed references;
+ordinary object interaction does not require serialization into a second
+language's object model. Shared contract identity and reference ownership are
+essential. Formal same-source IL/R2R and object-interop matrices remain planned
+acceptance work, rather than a claim of arbitrary .NET compatibility.
+
+The current entity handles and narrow gameplay API serve the restricted UGC
+prototype. They are not a requirement that every trusted hot-update host expose
+only scalar values. Richer objects/delegates can also retain collectible code;
+their release contract must precede successful retirement. Host-owned final
+results must remain free of script objects, exceptions and metadata.
+
+The versioned loader currently applies `managed-il-gameplay-v1`. A supported
+trusted-update integration profile is a deliverable, not an existing policy
+switch. Native budget/capability work for UGC need not block that deliverable.
 
 ## Current prototype
 
@@ -51,8 +73,8 @@ host. It does not force a script to return, and can prevent further API use in
 
 ## Ownership and unloading
 
-The host owns entities and retains only primitive handles and bounded log
-strings. Ordinary error reporting copies the exception type name/message to a
+The prototype's entity store uses primitive handles and bounded log strings.
+Ordinary error reporting copies the exception type name/message to a
 string; the native-budget path copies a bounded type name or fixed host message
 without invoking the author's virtual exception properties.
 No script instance, map `Type`, `Assembly`, exception, or delegate is returned
@@ -68,15 +90,18 @@ diagnostic, may pause execution, and cannot make retained references disappear.
 
 Contexts share the CLR heap, process permissions, and framework libraries.
 Unloadability does not establish memory isolation, execution isolation, or
-complete reversal of map side effects. The first version does not support map
-background tasks, script-created threads, timers, or asynchronous callbacks.
-That is an API convention, not an enforced prohibition.
+complete reversal of map side effects. The lifecycle API does not yet own
+background tasks, script-created threads, timers or asynchronous callbacks.
+The restricted versioned policy also denies those static API routes; legacy
+trusted fixtures do not pass that gate. Neither establishes a universal CLR
+prohibition or a hostile-code sandbox.
 
 ## Execution backend
 
-Assembly loading is separate from how CoreCLR executes methods. The installed
-runtime currently selects JIT/interpreter behavior. RuneCLR does not pretend
-that loading IL through an ALC makes execution interpreted.
+Assembly loading is separate from how CoreCLR executes methods. Ordinary
+runtime selection is the default SDK path; the explicit policy below needs a
+matching private runtime. Loading IL through an ALC alone does not make
+execution interpreted.
 
 The [accepted target strategy](execution-strategy.md) starts with interpreted
 UGC on every target platform and explores UGC JIT later. Trusted host/framework
@@ -93,8 +118,13 @@ and [Release production/recovery/control lanes](android-session-policy-release-p
 also pass. Production/refusal method-entry coverage and real-device acceptance
 remain open. The [session instruction-budget plan](runtime-session-budget-plan.md)
 now has matching Windows meter/terminal/finalizer prototypes and an explicit
-[host budget option](host-instruction-budget.md). Its full lifecycle/mobile
-acceptance is incomplete; host API charging remains separately cooperative.
+[host budget option](host-instruction-budget.md). The
+[controlled-package/pumped combination](controlled-package-native-budget.md)
+passes 33/33 Windows groups. The updated
+[iOS simulator pumped application](ios-pumped-budget-acceptance.md) passes
+16 cases/74 collections in a separate diagnostic IL lane. Updated Android
+host combinations, full boundary coverage and physical-device acceptance remain
+open; host API charging remains separately cooperative.
 
 Runtime changes should stay small: execution checks and allocation attribution
 where host-level APIs cannot provide them. Lifecycle policy, resource stores,
@@ -104,12 +134,13 @@ and per-context acknowledgement. Its visibility is not a security boundary.
 
 ## Game integration
 
-The initial host-pumped session API lets the authoritative game host control
+The initial host-pumped session API lets the embedding host control
 tick cadence and retirement. Callbacks are serialized and reentrant lifecycle
 calls are rejected. There is no internal timer or native budget refill between
 frames. Event dispatch, game-facing entity access, timers and async work still
-need host-owned APIs and cleanup contracts. Client-side execution may serve UI or presentation,
-but the authoritative server must validate gameplay effects.
+need host-owned APIs and cleanup contracts. In the current server-authoritative
+game example, the server validates gameplay effects. Other trusted hot-update
+hosts can choose their own application model.
 
 Time and randomness need useful game APIs, not cross-device determinism. API
 versions and package compatibility need explicit contracts before public UGC

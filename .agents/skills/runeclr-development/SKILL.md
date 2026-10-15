@@ -1,9 +1,16 @@
 ---
 name: runeclr-development
-description: Develop RuneCLR map lifecycle and restricted execution features, or coordinate its host with a dotnet/runtime CoreCLR interpreter checkout. Use for interpreter integration, unload behavior, execution budgets, and platform feasibility work in this project.
+description: Develop RuneCLR C# hot-update integration and UGC lifecycle features, or coordinate its host with a dotnet/runtime CoreCLR interpreter checkout. Use for interpreter/R2R integration, object lifetimes, unload behavior, execution budgets, and platform feasibility.
 ---
 
 # RuneCLR development
+
+Follow [the product direction](../../../docs/product-direction.md): first C#
+iOS hot-update scripting, then UGC management. Trusted application integration,
+same-source IL/R2R builds and direct managed-object interoperability are useful
+independent milestones. Restricted UGC policy is not the universal language/API
+contract, and full hostile-code hardening is not a prerequisite for trusted
+hot-update work.
 
 Use the project constraints and validation entry points in
 [AGENTS.md](../../../AGENTS.md). Read [the handoff](../../../docs/development.md)
@@ -36,10 +43,11 @@ Record its base commit, patch branch/commit, platform, configuration, interprete
 selection, artifact path, and relevant test results when an experiment actually
 establishes them. Use private runtime outputs with matching framework libraries.
 
-Advance one observable capability at a time. The next baseline is running the
-existing map lifecycle suite through a proven interpreter path before introducing
-runtime enforcement. Cooperative budgets can remain useful during prototyping;
-identify them accurately.
+Advance one observable capability at a time and check the current handoff before
+selecting work: desktop interpreter lifecycle and opt-in execution/budget
+prototypes already have evidence. Extend the recorded gaps rather than repeating
+completed feasibility experiments. Cooperative budgets can remain useful during
+prototyping; identify them accurately.
 
 When adding terminal execution budgets, include a regression where script code
 catches the limit exception and tries to continue. Account for constructors,

@@ -1,5 +1,11 @@
 # Controlled source/IL packages
 
+This is the current restricted UGC intake profile. Developer-owned C# hot-update
+integration is a separate first-class use in [product direction](product-direction.md);
+its supported packaging/approval path remains to be delivered. Neither the
+current C# 12 configuration nor the gameplay allowlist defines CoreCLR's
+universal language/library ceiling.
+
 The local operator-side pipeline for #4 accepts raw C# or managed IL and creates
 a versioned package. It never executes an author project, MSBuild target,
 analyzer, generator, NuGet restore, or author assembly during intake. This is a

@@ -1,20 +1,37 @@
-# Execution strategy — decision on 2026-10-12
+# Execution strategy
 
-## Decision
+## Shared foundation and trusted hot updates - clarified 2026-10-15
+
+RuneCLR first supports C# iOS hot-update scripting, then adds UGC management.
+See [product direction](product-direction.md). New iOS IL is interpreted while
+trusted host/framework code can be precompiled as R2R and use direct CLR calls
+and managed objects. Trusted R2R belongs to the application's build/signing
+pipeline; downloaded server-built native code is not assumed to be executable
+on iOS. No device-side JIT is needed for this goal.
+
+Same-source IL/R2R builds, direct-object interoperability and an engine-independent
+trusted-update sample are first-class milestones. They do not wait for a UGC
+pilot or equivalent native UGC budget enforcement. Their language/API coverage,
+build inputs, object identity and reference lifetimes need reproducible tests.
+This does not introduce a finished trusted-update profile into the current
+versioned gameplay loader.
+
+## Restricted UGC decision - accepted 2026-10-12
 
 Start with interpreted UGC on every target platform, including desktop, Android
 and iOS. Explore JIT for UGC after the restricted interpreter profile and a real
 game pilot provide enough correctness and performance evidence. This records
 the project owner's accepted direction; it is not a claim that the current host
-already enforces it.
+enforces it on every supported configuration. Explicit required mode is now
+available on matching private builds; ordinary SDK execution is a separate lane.
 
 The scope is map code and its map-private managed dependencies. The trusted
 host and approved framework libraries may use their platform's JIT, R2R or AOT
 execution. The project does not require full-framework interpretation or a
-JIT-free desktop process. Server-authoritative gameplay remains the model;
-backend uniformity is not a cross-device determinism requirement.
+JIT-free desktop process. Server-authoritative gameplay describes the initial
+UGC examples; backend uniformity is not a cross-device determinism requirement.
 
-Authors submit source or IL as build inputs. Final runnable packages are produced
+UGC authors submit source or IL as build inputs. Final runnable packages are produced
 by the project's controlled server-side validation/build pipeline, including any
 future R2R route. Author-built runnable packages or native machine-code payloads
 are not accepted for direct execution. Source/IL remains untrusted input; approval
@@ -60,8 +77,12 @@ Desktop measurements do not establish Android or iOS support.
   equivalent restrictions before becoming part of the restricted profile.
   Trusted compiler provenance alone does not add missing budget checks.
 
-These are target-policy requirements. The current ALC loader, environment
-switches and cooperative Charge() API do not yet enforce them.
+These are restricted-profile requirements. ALC loading, environment switches and
+cooperative Charge() alone do not enforce them. The explicit
+[session policy](session-execution-policy.md) and
+[host budget prototype](host-instruction-budget.md) have matching private-build
+evidence; broad platform/interop coverage and public hostile-code readiness
+remain separate acceptance gates.
 
 ## Preserve work for a later backend
 
@@ -84,7 +105,11 @@ The benchmark's opt-in method selection is diagnostic, not production policy
 enforcement. A trusted development comparison must not enable authors to bypass
 the default restricted execution route.
 
-## When to explore UGC JIT
+## When to explore restricted UGC JIT
+
+These gates apply to adding native execution to the restricted UGC profile.
+They do not postpone trusted R2R application builds or the same-source
+hot-update build experiment described above.
 
 1. The supported interpreter profile has demonstrated lifecycle recovery and
    terminal budget behavior, including catch-and-continue loops and declared

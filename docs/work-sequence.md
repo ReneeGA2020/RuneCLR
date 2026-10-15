@@ -1,10 +1,39 @@
 # Work sequence
 
-This sequence translates the [accepted execution strategy](execution-strategy.md)
-into reviewable contributions. It was arranged on 2026-10-12. The tracker is
-[Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11); an issue stays
-open until its acceptance evidence exists. This document schedules work and
-does not establish that any unperformed experiment has passed.
+This sequence follows the [product direction](product-direction.md), clarified
+on 2026-10-15: C# iOS hot updates first, UGC management on the same foundation.
+The tracker is [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11).
+An issue stays open until its acceptance evidence exists. Scheduling a task does
+not establish that an unperformed experiment has passed.
+
+## Current contribution order - 2026-10-15
+
+1. Complete #2 physical iOS new-IL acceptance when a target is reachable.
+   Independently document/build #12's minimal engine-independent trusted-update
+   host: load post-build C# IL, call shared host objects, retire and recover.
+2. Validate #13's identical business sources in interpreted IL and trusted R2R builds,
+   with shared API identity, equivalent behavior and declared platform limits.
+   R2R here is application-built trusted code, not native UGC or downloaded iOS
+   machine code. This work does not depend on #5/#6/#7 completion.
+3. Define #14's direct-object/ownership matrix and #15's separate compiler language,
+   runtime feature, framework and UGC-policy compatibility. Publish diagnostics
+   and an honest supported surface; C# 12 is today's restricted compiler setting.
+4. Integrate one real game's trusted hot-update path: version switching at safe
+   boundaries, rollback, errors, callback costs and retention. This is the first
+   stage of #9, independent of arbitrary public UGC readiness.
+5. Extend #8 events/resources, #7 allocation observation and the remaining
+   #4/#5/#6 package/capability/budget boundaries for UGC; then validate the UGC
+   stage of #9 and #10 public readiness. Shared host work can proceed earlier.
+
+The [roadmap](roadmap.md) links the dedicated hot-update issues. Desktop
+interpreter feasibility, controlled packages, pumping and budget prototypes
+already have evidence below; do not repeat them as prerequisites.
+
+## Scope of the retained UGC sequence
+
+The original sequence was arranged on 2026-10-12 and is retained below with
+its dated evidence. Its restricted-author rules apply to UGC, rather than
+imposing those constraints on every trusted hot-update host.
 
 UGC map code and map-private managed dependencies use interpretation first.
 Trusted host/framework code may remain native. Authors submit source or IL;

@@ -1,59 +1,57 @@
 # RuneCLR
 
-An embeddable C# runtime for player-created worlds.
+**C# scripting for iOS hot updates. One language for updateable logic and precompiled game code, with UGC management on top.**
 
-RuneCLR explores using the CoreCLR interpreter as the foundation for a
-restricted UGC game scripting engine. Games keep authority over gameplay and
-resources; map authors implement C# lifecycle callbacks. The intended model is
-server-authoritative gameplay, with no cross-device deterministic or lockstep
-simulation requirement.
+**English** | [简体中文](README.zh-CN.md)
 
-UGC scripts need not live in a container called a map: a host can attach them to
-levels, game modes, minigames or other host-owned scopes. Custom maps are an
-authoring analogy. The prototype currently uses `Map` names; a later naming
-review will align the public API and package terminology with this broader scope.
+iOS cannot rely on conventional JIT compilation to execute newly downloaded code. Game teams often introduce another scripting language, maintain cross-language bindings, or adapt a separate C# interpreter's language and runtime coverage. RuneCLR explores a different route: **execute new C# IL with the CoreCLR interpreter and let it work directly with a trusted R2R host in the same CLR.** R2R (ReadyToRun) provides ahead-of-time native code for the shipped application.
 
-**Status: experimental UGC runtime, not a security sandbox.** The default host
-uses ordinary .NET runtime selection to validate loading, callbacks, resource
-cleanup and collectible contexts. The explicit
-[RequireInterpreter option](docs/session-execution-policy.md) now uses a
-matching private CoreCLR/CoreLib build to fix interpreter policy before
-loading author IL. Its [Windows acceptance](docs/runtime-session-policy-build.md)
-passes lifecycle 24/24, player packages 15/15 and ordinary native controls with
-global interpretation disabled. Stock SDKs reject unsupported required mode.
-A pinned private CoreCLR build previously passed interpreted lifecycle; see
-[the desktop interpreter experiment](docs/interpreter-experiment.md). Its mode 1
-allows CoreLib JIT. Full-framework mode 3 hits a retained
-[suspected upstream Checked assertion](docs/upstream-bugs/full-framework-interpreter-assert.md);
-runtime metering and real-device iOS acceptance remain future milestones.
-The [iOS simulator experiment](docs/ios-simulator-experiment.md) passes the
-full harness with selective trusted R2R and the runtime assembly left as IL;
-the fully R2R host interface boundary crashes on Preview 6, official RC1 and the pinned
-unpatched .NET 12 Debug source build.
-The [minimal cache-path reproduction](docs/ios-r2r-minimal.md) now captures
-stale type/entrypoint mappings after retirement. A private conservative CoreCLR
-candidate passes [Debug simulator acceptance](docs/ios-r2r-fix-validation.md):
-the unchanged full R2R host passes 21/21 and controlled packages pass 15/15.
-Matching [Release simulator acceptance](docs/ios-r2r-release-validation.md)
-also passes. Upstream submission and real-device acceptance remain open;
-these earlier mobile builds do not validate the new session policy. The later
-[matching session-policy Release simulator](docs/ios-session-policy-build.md)
-passes current lifecycle 24/24, packages 15/15 and 20 selection sessions with
-native policy 1 and global interpretation disabled. Its separate native capture
-has 11 interpreter-entry samples covering nine installed-fixture method groups.
-Android policy validation, mobile refusal recovery and physical iOS execution
-remain unverified.
+> **Experimental.** iOS ARM64 simulator runs execute IL compiled after installation, with trusted R2R interaction, failure recovery and repeated collection. **Physical iOS device acceptance is still pending.** A production-ready mobile SDK is not yet available.
 
-**Direction:** start with interpreted UGC across all target platforms, then
-explore UGC JIT when recovery and real-game performance evidence mature. Trusted
-host/framework native code remains allowed. See
-[the execution strategy](docs/execution-strategy.md) and
-[the local performance comparison](docs/performance-experiment.md).
+## Why This Route
 
-## Quick start
+- **C# on both sides of the update boundary.** Keep one language, type system and API instead of rewriting logic in Lua or maintaining parallel implementations. The goal is to move code by changing build configuration, rather than rewriting business logic.
+- **Use host objects directly.** Interpreted and trusted R2R code share CLR types, objects and GC. Ordinary managed interactions do not require cross-language serialization, copying or proxy conversion. Calls still have execution overhead; cross-session references need explicit ownership.
+- **Keep expensive work in trusted native code.** Interpret newly downloaded IL while the shipped host/framework can use R2R. Both sides retain C# calls. Formal same-source IL/R2R build acceptance is on the roadmap.
+- **Aim for modern C# and engine-independent embedding.** Build on CoreCLR's type and execution model; the core projects have no Unity dependency. Expand language/library support through explicit compatibility tests. The current restricted UGC compiler is fixed to C# 12, not full C#/.NET coverage.
+- **Add UGC management on the same foundation.** Package validation, session lifetimes, execution budgets and resource cleanup serve player scripts. Trusted developer-owned hot-update integration can progress independently.
 
-Install a .NET 11 SDK compatible with `global.json`, then run from the repository
-root:
+## Compared With Common Routes
+
+| Route | Integration concern | RuneCLR's focus |
+| --- | --- | --- |
+| Lua integrations such as xLua / ToLua | C#/Lua logic migration, object bindings and cross-language debugging | Keep business logic in C# and interact through one CLR object model |
+| Standalone C# IL interpreters such as ILRuntime | Evaluate each implementation's language/library coverage, bindings and engine workflow | Reuse CoreCLR foundations and validate direct interpreter/trusted-R2R collaboration |
+| Pure AOT execution | New IL has no native method body compiled into the installed app | Interpret new IL while keeping the trusted host R2R |
+
+These are architectural tradeoffs, not a competitor speed ranking. In the existing [Windows Release benchmark](docs/performance-experiment.md), selected CoreCLR interpreter object/state workloads were near Lua 5.4: object updates took 72.44 ms versus 81.56 ms; numeric recurrence was about 1.62x slower than Lua. Results depend on the workload. There is no direct ILRuntime, xLua or ToLua performance comparison here, and these measurements do not establish physical iOS performance.
+
+## Two Uses, One Runtime Foundation
+
+| Use | Audience | Focus |
+| --- | --- | --- |
+| **C# hot updates** | Teams updating their own game code | New iOS IL, direct host interaction, same-source builds, version switching/rollback, diagnostics and embedding |
+| **C# UGC** | Games accepting player or external scripts | Add controlled compilation, capability policy, budgets, resource ownership and retirement |
+
+Hot update initially means obtaining and executing new logic after application publication, with version changes at module/session boundaries. Replacing active stack frames or automatically migrating live object state is not promised. Server-authoritative gameplay is a choice of the current game examples, not an embedding prerequisite.
+
+## What Has Been Demonstrated
+
+These are recorded results; the experiments were not rerun for this documentation update.
+
+| Capability | Recorded evidence |
+| --- | --- |
+| Desktop loading, recovery and retirement | [37 lifecycle, 84 packaging, 15 synchronous-player and 22 pumped-player cases](docs/package-execution-tests.md), plus [interpreter execution evidence](docs/interpreter-experiment.md) |
+| New IL on the iOS ARM64 simulator | [Nine fresh-IL method groups across three interpreter entry paths](docs/ios-open-delegate-entry-acceptance.md); [updated pumped-budget host: 16 scenarios / 74 collected contexts](docs/ios-pumped-budget-acceptance.md) |
+| Android x64 emulator | [Release selection, refusal/recovery and native controls](docs/android-session-policy-release-production.md); [100/1000 batch accounting and timing](docs/mobile-batch-measurement.md) |
+| Execution-budget prototype | [Windows controlled packages with pumped native budgets: 33/33 groups](docs/controlled-package-native-budget.md), with separate diagnostic-IL acceptance on the iOS simulator |
+| Upstream runtime defect tracking | [Independent defect register](docs/upstream-bugs/README.md), including R2R/collectible-cache defects and private fix validation |
+
+Still ahead: physical iOS execution, formal same-source IL/R2R builds, a full object-interop and language compatibility matrix, distributable runtime packages and a real game integration. **This is not a hostile-code sandbox or a hard memory-isolation boundary.**
+
+## Quick Start
+
+Install a .NET 11 SDK compatible with `global.json`, then run from the repository root:
 
 ```sh
 dotnet build RuneCLR.slnx -c Release
@@ -62,140 +60,18 @@ dotnet run --project tests/RuneCLR.Packaging.Tests -c Release --no-build
 dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --collect
 ```
 
-The sample runs **Hello -> Arena -> Hello in one process**. Both Hello sessions
-print `start-count=1`, demonstrating fresh map static state. Each session releases
-its entities. `--collect` forces GC for diagnostic unload checks; without it,
-`unload: pending` is normal until GC runs. Forced GC is not a gameplay scheduling
-strategy and can pause the process or wait on map finalizers.
-Add `--pump` to exercise the [host-pumped session API](docs/host-pumped-sessions.md):
-`MapRunner.Start` creates a session that the game host drives with `Tick(delta)`
-and retires with `Stop`/`Dispose`.
+The sample runs **Hello -> Arena -> Hello in one process**, with Hello's static start count reset to 1 each time. Add `--pump` for host-driven frames. `--collect` is diagnostic, not a per-frame GC strategy. PowerShell users can run `./eng/verify.ps1` for full ordinary-SDK verification.
 
-On PowerShell, `./eng/verify.ps1` also compiles a separate map after the host
-build and includes its execution/unloading in the tests. The tests are an
-executable integration harness without third-party test packages; use the command
-above rather than `dotnet test`.
-The verification script also generates controlled source/IL fixtures and runs
-[a compiler-free player acceptance harness](docs/package-execution-tests.md)
-for rejection, failure recovery, private dependencies and retirement.
+This quick start uses ordinary SDK runtime selection. Required interpretation and native budgets need matching private CoreCLR/CoreLib builds; see the [execution strategy](docs/execution-strategy.md). Running the sample alone does not prove interpreter execution.
 
-The controlled operator tool accepts raw C# or IL and produces a versioned
-`package.json` with file, compiler and approved-reference hashes. It uses fixed
-compiler settings and does not execute author build projects or generators.
-See [the runnable source/IL packaging examples](docs/controlled-packaging.md).
-The compiler-free [player acceptance harness](docs/package-execution-tests.md)
-supports `--pump` for controlled-package frame scheduling, recovery and unloading.
-This local tool does not authenticate approval or enforce a security sandbox.
-The [initial gameplay policy](docs/capability-policy.md) checks approved API
-references in every entry/private DLL during packaging and again at versioned
-loading; unsupported process APIs are rejected before script execution.
+## Explore
 
-## Write a map
+- [Getting started and script example](docs/getting-started.md) / [Controlled source and IL packages](docs/controlled-packaging.md)
+- [Product direction](docs/product-direction.md) / [Roadmap](docs/roadmap.md) / [GitHub tracker](https://github.com/ReneeGA2020/RuneCLR/issues/11)
+- [Architecture and object lifetimes](docs/architecture.md) / [CoreCLR integration](docs/coreclr.md) / [Security and trust](SECURITY.md)
+- [Development handoff](docs/development.md) / [Contributor instructions](AGENTS.md)
 
-Reference `RuneCLR.Abstractions` from a `net11.0` class library:
-
-```csharp
-using RuneCLR;
-
-public sealed class MyMap : IMapScript
-{
-    private IMapContext _context = null!;
-
-    public void OnStart(IMapContext context)
-    {
-        _context = context;
-        context.SpawnEntity("hero");
-    }
-
-    public void OnTick(MapTick tick)
-    {
-        _context.Log($"Host tick {tick.Index}");
-        // Add Charge() checkpoints to long loops in this cooperative prototype.
-    }
-
-    public void OnStop() { }
-}
-```
-
-The following unversioned `map.json` is a trusted local-fixture compatibility
-path. Use the controlled packaging tool for the versioned intake path.
-Place it beside the built assembly. For a package without private
-dependencies:
-
-```json
-{
-  "id": "my-map",
-  "entryAssembly": "MyMap.dll",
-  "entryType": "MyMap"
-}
-```
-
-Private dependencies must be explicitly declared with relative paths, full
-assembly identities and SHA-256 hashes. They are not discovered from a map
-`.deps.json` or the host directory. See [package resolution](docs/package-resolution.md)
-for the schema and host framework inventory requirement.
-
-Run one or more packages sequentially:
-
-```sh
-dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- /path/to/map.json --collect
-```
-
-The map has a public, parameterless entry constructor. Its callbacks run
-synchronously on the calling host thread. `MapTick` is a callback input, not a
-lockstep contract. `MapRunner.Run` remains a finite headless convenience;
-`MapRunner.Start` exposes synchronous callbacks for an owning game loop.
-Game-facing events, timers and networking integration remain future work.
-
-## What works today
-
-- Each session gets a collectible `AssemblyLoadContext`; the contract assembly
-  is shared with the host and package dependencies are resolved locally.
-- `OnStart`, `OnTick`, and `OnStop` run with a host-owned context.
-- Entity and log quotas bound resources retained through these host APIs.
-- Cooperative operation budgets are reset per callback; violations remain
-  latched even when a map catches the exception and returns.
-- Host entity cleanup and unload requests happen after ordinary managed failures.
-- Results contain host data and error strings, not map exceptions or reflection
-  objects that would accidentally retain the map context.
-- `UnloadTicket.IsCollected` observes completed context collection through a
-  weak reference; pending collection is not an unload failure.
-
-## Important boundaries
-
-Only run trusted maps in this prototype. Maps still execute ordinary .NET code
-with the process's authority. A collectible context is not a security boundary.
-The versioned gameplay gate rejects unsupported static API routes. Trusted
-legacy fixtures do not pass that gate. The native-library loader override only
-rejects its loader path; complete runtime isolation from process authority,
-malformed hostile IL and runtime vulnerabilities remains outside this prototype.
-
-`Charge()` is voluntary metering. A loop with no checkpoints, blocking library
-call, constructor, finalizer, or `OnStop` can hang the host. Script allocations
-are not capped. Background work and references outside the session can prevent
-unloading. Versioned packages now pass controlled source/IL intake and a small
-static gameplay API policy. Trusted legacy fixtures bypass that policy; complete
-malicious IL verification and runtime CPU/memory enforcement remain open.
-
-## Repository
-
-| Path | Purpose |
-| --- | --- |
-| `src/RuneCLR.Abstractions` | Map lifecycle and host capability API |
-| `src/RuneCLR.Runtime` | Package loading, session execution, quotas, cleanup |
-| `samples/Maps.Hello`, `samples/Maps.Arena` | Independently compiled maps |
-| `samples/RuneCLR.SampleHost` | Same-process multi-session demonstration |
-| `tests` | Lifecycle, unload, failure, and quota integration tests |
-| `docs` | Architecture, runtime integration plan, and roadmap |
-| `eng` | Local verification tools |
-
-Read [the architecture](docs/architecture.md), [CoreCLR integration plan](docs/coreclr.md),
-[roadmap](docs/roadmap.md), and [security model](SECURITY.md).
-The [upstream defect register](docs/upstream-bugs/README.md) tracks official
-runtime findings, private fixes and future upstream-fix adoption checks.
-For continuing development in a new agent session, start with
-[AGENTS.md](AGENTS.md) and [the development handoff](docs/development.md). The
-project Skill lives in `.agents/skills/runeclr-development/SKILL.md`.
+Current APIs retain prototype `Map` names; scripts need not be maps. Restricted UGC policy, trusted hot-update requirements and CLR capabilities are documented separately. Full .NET/NuGet compatibility requires explicit validation.
 
 ## License
 

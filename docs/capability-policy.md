@@ -1,5 +1,10 @@
 # Initial gameplay capability policy
 
+This is an additional restricted UGC policy, not the API/feature ceiling for
+trusted developer-owned hot updates. A broader trusted integration profile is
+planned separately; the current versioned loader still applies this policy.
+See [product direction](product-direction.md) for that distinction.
+
 The controlled-author profile for [#5](https://github.com/ReneeGA2020/RuneCLR/issues/5)
 adds a static API check to source/IL packaging and to versioned package loading.
 It is implemented in

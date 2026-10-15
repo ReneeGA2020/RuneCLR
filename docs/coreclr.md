@@ -2,6 +2,12 @@
 
 ## Why it matters
 
+The primary product goal is C# iOS hot-update scripting, with UGC management
+built on top. CoreCLR provides one managed type/object model for interpreted
+new IL and trusted R2R application code; formal same-source build and object
+compatibility matrices remain separate milestones. See
+[product direction](product-direction.md).
+
 Desktop JIT runtimes can execute newly downloaded IL. A pure AOT runtime cannot
 generally execute arbitrary new IL that has no precompiled native body. An IL
 interpreter provides an execution path on platforms that prohibit dynamic native

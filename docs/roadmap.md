@@ -1,110 +1,85 @@
 # Roadmap
 
-The active GitHub tracker is
-[Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11). Its ten sub-issues
-contain acceptance criteria and dependency links. The #1 desktop acceptance
-criteria are [locally verified](interpreter-experiment.md); independent
-work can proceed when its prerequisites allow. Phases are capability milestones,
-not release dates.
+RuneCLR first makes **C# usable for iOS hot updates**, then adds **UGC
+management** on the same runtime foundation. The [product direction](product-direction.md)
+records this priority; [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11)
+is the live tracker. Milestones express capabilities, not release dates.
 
-The [accepted execution strategy](execution-strategy.md) starts with interpreted
-UGC on all target platforms, while trusted host/framework code can remain native.
-UGC JIT is a later, separately validated exploration driven by a real pilot;
-it is not required for the initial restricted profile. #5/#6 track the execution
-boundary and interpreter enforcement, and #3 retains JIT performance comparisons.
-Authors provide source/IL as inputs to controlled server builds; future native
-execution does not permit author-supplied machine-code packages. #4 owns that
-build/package trust boundary.
+## Shared foundation
 
-The [contribution sequence](work-sequence.md) gives the concrete next order:
-extend #3 with session/host-boundary measurements, then build the minimal #4
-controlled source/IL package pipeline and mobile-compatible dependency resolver.
-Prepare #2 device environments in parallel; missing tooling does not block
-independent desktop work or establish mobile support. Follow with #5's supported
-execution surface and #6's terminal interpreter budgets, then #7/#8 and the game
-pilot according to their dependencies. The
-[platform audit](platform-validation.md) records the current environment gaps.
-
-| Phase | Issue | Deliverable |
+| Issue | Deliverable | Recorded status |
 | --- | --- | --- |
-| 1 | [#1](https://github.com/ReneeGA2020/RuneCLR/issues/1) | Reproducible interpreter build and proven map lifecycle execution |
-| 1 | [#2](https://github.com/ReneeGA2020/RuneCLR/issues/2) | New map IL and repeated unloading on a real iOS device |
-| 1 | [#3](https://github.com/ReneeGA2020/RuneCLR/issues/3) | Startup, gameplay callback, and memory benchmarks |
-| 2 | [#4](https://github.com/ReneeGA2020/RuneCLR/issues/4) | Controlled C# compilation and versioned map packages |
-| 2 | [#5](https://github.com/ReneeGA2020/RuneCLR/issues/5) | Initial map capability and dependency restrictions |
-| 2 | [#6](https://github.com/ReneeGA2020/RuneCLR/issues/6) | Interpreter-enforced execution budgets and terminal interruption |
-| 2 | [#7](https://github.com/ReneeGA2020/RuneCLR/issues/7) | Allocation attribution and a practical memory-limit design |
-| 2 | [#8](https://github.com/ReneeGA2020/RuneCLR/issues/8) | Host-owned game-loop events, timers, and session resources |
-| 3 | [#9](https://github.com/ReneeGA2020/RuneCLR/issues/9) | One server-authoritative game pilot with internal authors |
-| 3 | [#10](https://github.com/ReneeGA2020/RuneCLR/issues/10) | Readiness gates for arbitrary public UGC |
+| [#1](https://github.com/ReneeGA2020/RuneCLR/issues/1) | Reproducible CoreCLR interpreter execution and lifecycle | Closed; desktop acceptance completed and merged into main |
+| [#2](https://github.com/ReneeGA2020/RuneCLR/issues/2) | Post-publication IL and repeated retirement on physical iOS | Open; ARM64 simulator evidence exists, device execution remains pending |
+| [#3](https://github.com/ReneeGA2020/RuneCLR/issues/3) | Startup, callbacks, host interaction and memory measurements | Desktop and mobile simulator/emulator experiments recorded; representative game/device envelope remains open |
+| [#4](https://github.com/ReneeGA2020/RuneCLR/issues/4) | Controlled UGC source/IL packages and version compatibility | Local compiler/intake/player implemented; authenticated approval/distribution remains open |
+| [#8](https://github.com/ReneeGA2020/RuneCLR/issues/8) | Host-driven callbacks, events, timers and resource ownership | Pumped Start/Tick/Stop implemented; richer events/resources remain open |
 
-Keep the milestone checklist below aligned with verified results. Issue closure
-requires its stated evidence; creating a task or prototype does not establish
-interpreter execution, platform support, or isolation.
+The current versioned loader uses restricted `managed-il-gameplay-v1`; #4 does
+not yet provide a general trusted-update profile. Shared loading, diagnostics,
+compatibility and lifecycle components can serve both uses. Existing `Map` names
+are prototype terminology, not a restriction to maps.
 
-## Phase 0: lifecycle prototype
+## First application: developer-owned C# hot updates
 
-- [x] Shared map contract and a small host capability API.
-- [x] Manifest-based loading in per-session collectible contexts.
-- [x] Sequential maps in the same process with fresh static state.
-- [x] Host-owned entity cleanup and ordinary managed error reporting.
-- [x] Cooperative operation, entity, and log quotas.
-- [x] Weak-reference unload observation and regression tests.
-- [x] Desktop build and validation workflow.
+| Issue | Deliverable | Acceptance focus |
+| --- | --- | --- |
+| [#12](https://github.com/ReneeGA2020/RuneCLR/issues/12) | Engine-independent iOS hot-update integration | Post-build IL, pinned host/runtime build, approved version activation, rollback and recovery |
+| [#13](https://github.com/ReneeGA2020/RuneCLR/issues/13) | Same-source interpreted IL and trusted R2R builds | Identical business sources/shared APIs, actual execution evidence and matching behavior |
+| [#14](https://github.com/ReneeGA2020/RuneCLR/issues/14) | Direct-object interoperability and ownership contract | Reference identity, calls, generic/delegate cases, release and retirement |
+| [#15](https://github.com/ReneeGA2020/RuneCLR/issues/15) | C#/.NET compatibility matrix and useful diagnostics | Separate compiler, runtime, framework and UGC-policy support |
 
-## Phase 1: interpreter and platform feasibility
+These are planned acceptance milestones. Start a minimal #12 integration while
+#13/#14/#15 establish its build, interop and compatibility contracts. Run #2 when
+a real device is available; device preparation must not block independent work.
+Then validate the trusted-update stage of [game pilot #9](https://github.com/ReneeGA2020/RuneCLR/issues/9).
+The [work sequence](work-sequence.md) gives the contribution order.
 
-- [x] Pin and build an upstream CoreCLR runtime separately from the host.
-- [x] Establish interpreted map execution through runtime diagnostics (mode 1; CoreLib may JIT).
-- [x] Run the lifecycle suite under the interpreter.
-- [x] Load a map built after the host and verify private dependency isolation.
-- [ ] Load and unload new IL on a real iOS device.
-- [ ] Measure startup, callback overhead, representative loops, and memory.
+Trusted integration does not depend on completing public-UGC isolation or hard
+CPU/memory limits. On iOS, new IL is interpreted; trusted R2R is built into the
+application through its native build/signing pipeline. #13 is not a downloaded
+native-code route or an expansion of restricted UGC execution.
 
-Gate: downloaded C# maps execute and retire reliably on the target platforms.
+Gate: a developer can integrate C# updates, use supported host objects, change
+versions at declared boundaries and recover from ordinary update failures, with
+physical evidence before claiming iOS device support.
 
-## Phase 2: restricted game scripting
+## Second application: managed C# UGC
 
-- [x] Initial controlled source compilation and explicit language/library support.
-- [x] Initial static gameplay API/dependency gate for versioned packages.
-- [ ] Dependency, reflection, dynamic loading, and native interop restrictions.
-- [ ] Interpreter-enforced execution budgets and safe terminal cancellation.
-- [ ] Allocation telemetry, then a design for meaningful memory limits.
-- [ ] Host-owned events, timers, and resource handles with lifecycle cleanup.
-- [ ] Game-loop integration and package/API versioning.
+| Issue | Deliverable | Remaining gate |
+| --- | --- | --- |
+| [#5](https://github.com/ReneeGA2020/RuneCLR/issues/5) | Capability/dependency policy and interpreter selection | Complete the declared supported execution surface and remaining call/platform boundaries |
+| [#6](https://github.com/ReneeGA2020/RuneCLR/issues/6) | Native interpreted budgets and terminal interruption | Stable contract, remaining interruption/host-call boundaries and matching mobile combinations |
+| [#7](https://github.com/ReneeGA2020/RuneCLR/issues/7) | Allocation attribution and practical memory policy | Distinguish allocation volume, retained/shared memory and any feasible limit |
+| [#8](https://github.com/ReneeGA2020/RuneCLR/issues/8) | Managed scheduling/resources | Events, timers, subscriptions and cleanup ownership |
+| [#9](https://github.com/ReneeGA2020/RuneCLR/issues/9) | Real game pilot | Trusted-update stage first, then controlled-author UGC with explicit prerequisites |
+| [#10](https://github.com/ReneeGA2020/RuneCLR/issues/10) | Public UGC readiness | Threat model, abuse coverage, distribution and runtime maintenance decision |
 
-The initial [host-pumped session API](host-pumped-sessions.md) now passes Windows
-ordinary and required-interpreter lifecycle suites plus cross-tick native budget
-recovery. Controlled-package pumping also passes 22/22 on both Windows lanes.
-Its [native-budget combination](controlled-package-native-budget.md) now passes
-33/33 Windows cases with twenty-five native-budget context collections.
-The broader integration item stays open for game-facing events/resources,
-API versioning and matching mobile/real-device
-acceptance.
+The [UGC execution strategy](execution-strategy.md) starts with interpreted
+author code/private dependencies across target platforms. Authors submit source
+or IL; controlled builds create runnable packages. Trusted host/framework R2R
+remains allowed. Later native UGC needs equivalent restrictions and is separate
+from trusted same-source builds.
 
-The completed initial gates are documented in [controlled packaging](controlled-packaging.md)
-and [capability policy](capability-policy.md). The
-[portable player acceptance suite](package-execution-tests.md) adds private
-version/generic state, author-failure retirement and invalid-package recovery
-coverage without shipping operator compilation tooling. It passes 15/15 on
-stock desktop, the pinned desktop interpreter and
-[the pinned iOS simulator](ios-controlled-packages.md), alongside the existing suites.
-The broader restriction milestone
-remains open until runtime execution-selection and platform evidence are complete.
+Current UGC evidence includes [controlled packaging](controlled-packaging.md),
+[capability policy](capability-policy.md), [required interpretation](session-execution-policy.md),
+[Windows controlled-package pumped budgets](controlled-package-native-budget.md)
+(33/33 groups) and the separate [updated iOS simulator diagnostic application](ios-pumped-budget-acceptance.md)
+(16 scenarios / 74 collected contexts). These results do not close physical-device,
+public-hostile-code or hard-memory-isolation milestones.
 
-Gate: common author mistakes cannot leave the host stuck or leaking between games.
+Gate: declared author mistakes do not leave the host stuck or retaining old
+sessions; public-author acceptance additionally requires #10's readiness decision.
 
-## Phase 3: real UGC pilot
+## Evidence and scope
 
-- [ ] Integrate with an authoritative server for one game.
-- [ ] Build representative UGC maps with internal authors.
-- [ ] Evaluate author tooling, debugging, CPU/memory costs, and long-running sessions.
-- [ ] Review untrusted-code threats and platform distribution requirements.
-- [ ] Define the supported trust model before accepting arbitrary public maps.
+See the [development handoff](development.md) for current results and the
+[upstream defect register](upstream-bugs/README.md) for Microsoft-runtime fixes.
+Keep historical experiment reports configuration-specific; do not reinterpret
+simulator evidence as device execution or compiler success as feature support.
 
-## Outside current scope
-
-- Live code replacement within an ongoing game.
-- Cross-device deterministic simulation / lockstep networking.
-- Full .NET or arbitrary NuGet package compatibility.
-- A production security guarantee from the initial prototype.
+Initial hot updates can switch at module/session boundaries. Active-stack
+replacement, automatic live-state migration, deterministic lockstep, full
+.NET/arbitrary NuGet compatibility and a security guarantee from the prototype
+are outside the current commitment. Server-authoritative gameplay belongs to
+the existing examples/UGC pilot, not every host.

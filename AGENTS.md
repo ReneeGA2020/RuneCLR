@@ -2,11 +2,24 @@
 
 ## Project intent
 
-RuneCLR is an open-source experiment in a CoreCLR-interpreter-based C# UGC game
-runtime. Players load different maps across successive games in one process.
-New IL on iOS is a central reason to use an interpreter. Gameplay is
-server-authoritative: lockstep and cross-device deterministic simulation are
-outside scope. Live code replacement within a game is not required.
+RuneCLR first makes C# usable for iOS hot-update scripting, then adds the
+management needed for C# UGC. New IL executes through the CoreCLR interpreter
+and interacts with trusted R2R host code through shared CLR types and objects.
+Keep hot-update and non-hot-update logic in C# and aim for engine-independent
+embedding. Read docs/product-direction.md for the two uses and their boundaries.
+
+Trusted developer-owned hot updates must not wait for all restricted-UGC
+capabilities. The current UGC compiler/API restrictions are a profile, not the
+language or runtime's universal compatibility ceiling. Same-source IL/R2R
+builds and broad object interoperability need their own reproducible acceptance.
+On iOS, newly downloaded IL is interpreted; trusted R2R belongs to the
+application's native build/signing pipeline.
+
+Successive script sessions/maps are one integration model. Initial version
+switches can happen at module/session boundaries; active-stack replacement and
+automatic live-state migration are not required. Server-authoritative gameplay
+describes the current game examples, not every embedding host. Lockstep and
+cross-device deterministic simulation remain outside scope.
 
 Work incrementally toward use in company games. Prioritize platform feasibility
 and recovery from ordinary author mistakes before full hostile-code hardening.
@@ -15,7 +28,8 @@ security a prerequisite for every useful experiment.
 
 ## Start here
 
-- Read `docs/development.md` for handoff status and the next experiment.
+- Read `docs/product-direction.md` for positioning and `docs/development.md`
+  for handoff status and the next experiment.
 - If present, `docs/development.local.md` records machine-specific paths.
 - Use `.agents/skills/runeclr-development/SKILL.md` for lifecycle, interpreter,
   execution-budget, or coordinated CoreCLR work.
@@ -24,9 +38,12 @@ security a prerequisite for every useful experiment.
 
 ## Implementation boundaries
 
-The current host does not enforce interpretation. ALC loading, cooperative
-`Charge()` checks, and a native loader override do not establish a security
-sandbox. Environment variables alone do not prove interpreter execution.
+The default stock-SDK path uses ordinary runtime selection. Explicit
+`RequireInterpreter` and native budget prototypes need matching private
+CoreCLR/CoreLib builds; unsupported required mode rejects before author loading.
+ALC loading, cooperative `Charge()` checks, and a native loader override do not
+establish a security sandbox. Environment variables alone do not prove
+interpreter execution.
 
 Map code, dependencies, and static state belong to a per-session collectible
 context. Share the host's `RuneCLR.Abstractions` assembly. Host-owned results

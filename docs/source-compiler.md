@@ -1,5 +1,11 @@
 # Controlled source compilation
 
+This document describes the restricted UGC compiler, not the complete C#
+compatibility contract for trusted hot updates. The broader
+[product direction](product-direction.md) requires separate reporting of source
+language version, emitted runtime features, framework availability and policy
+restrictions. Modern-language compatibility remains explicit acceptance work.
+
 RuneCLR.Compiler.SourceCompiler is the source-text increment of
 [issue #4](https://github.com/ReneeGA2020/RuneCLR/issues/4). It compiles a managed
 DLL without running author code. Package construction and IL intake are separate
