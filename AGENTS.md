@@ -12,6 +12,9 @@ Trusted developer-owned hot updates must not wait for all restricted-UGC
 capabilities. The current UGC compiler/API restrictions are a profile, not the
 language or runtime's universal compatibility ceiling. Same-source IL/R2R
 builds and broad object interoperability need their own reproducible acceptance.
+Source compilation follows the selected SDK compiler's latest stable C#
+version. Do not impose an older source-language cap as a substitute for API
+capability policy or runtime compatibility checks.
 On iOS, newly downloaded IL is interpreted; trusted R2R belongs to the
 application's native build/signing pipeline.
 

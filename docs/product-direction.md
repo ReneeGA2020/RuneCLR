@@ -28,8 +28,8 @@ general-purpose mobile SDK.
 These are product requirements, not two fully implemented selectable profiles.
 The shipped versioned loader currently applies `managed-il-gameplay-v1`. Its
 legacy trusted fixture APIs do not constitute a production trusted-update SDK.
-The restricted compiler's C# 12 setting is not a declaration of CoreCLR's
-maximum language version. Compiler syntax, emitted IL/runtime features,
+The source compiler follows the selected SDK compiler's latest stable C#
+version, without a project-imposed C# 12 ceiling. Compiler syntax, emitted IL/runtime features,
 framework availability and UGC policy must be reported separately.
 
 ## What hot update means here

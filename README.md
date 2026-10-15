@@ -13,7 +13,7 @@ iOS cannot rely on conventional JIT compilation to execute newly downloaded code
 - **C# on both sides of the update boundary.** Keep one language, type system and API instead of rewriting logic in Lua or maintaining parallel implementations. The goal is to move code by changing build configuration, rather than rewriting business logic.
 - **Use host objects directly.** Interpreted and trusted R2R code share CLR types, objects and GC. Ordinary managed interactions do not require cross-language serialization, copying or proxy conversion. Calls still have execution overhead; cross-session references need explicit ownership.
 - **Keep expensive work in trusted native code.** Interpret newly downloaded IL while the shipped host/framework can use R2R. Both sides retain C# calls. Formal same-source IL/R2R build acceptance is on the roadmap.
-- **Aim for modern C# and engine-independent embedding.** Build on CoreCLR's type and execution model; the core projects have no Unity dependency. Expand language/library support through explicit compatibility tests. The current restricted UGC compiler is fixed to C# 12, not full C#/.NET coverage.
+- **Modern C# and engine-independent embedding.** Build on CoreCLR's type and execution model; the core projects have no Unity dependency. Source compilation follows the selected SDK compiler's latest stable C# version. Language/runtime/library compatibility is verified separately.
 - **Add UGC management on the same foundation.** Package validation, session lifetimes, execution budgets and resource cleanup serve player scripts. Trusted developer-owned hot-update integration can progress independently.
 
 ## Compared With Common Routes
@@ -37,11 +37,11 @@ Hot update initially means obtaining and executing new logic after application p
 
 ## What Has Been Demonstrated
 
-These are recorded results; the experiments were not rerun for this documentation update.
+Results apply to the linked configurations. Desktop counts include the latest source-compiler regression.
 
 | Capability | Recorded evidence |
 | --- | --- |
-| Desktop loading, recovery and retirement | [37 lifecycle, 84 packaging, 15 synchronous-player and 22 pumped-player cases](docs/package-execution-tests.md), plus [interpreter execution evidence](docs/interpreter-experiment.md) |
+| Desktop loading, recovery and retirement | [37 lifecycle, 85 packaging, 15 synchronous-player and 22 pumped-player cases](docs/package-execution-tests.md), plus [interpreter execution evidence](docs/interpreter-experiment.md) |
 | New IL on the iOS ARM64 simulator | [Nine fresh-IL method groups across three interpreter entry paths](docs/ios-open-delegate-entry-acceptance.md); [updated pumped-budget host: 16 scenarios / 74 collected contexts](docs/ios-pumped-budget-acceptance.md) |
 | Android x64 emulator | [Release selection, refusal/recovery and native controls](docs/android-session-policy-release-production.md); [100/1000 batch accounting and timing](docs/mobile-batch-measurement.md) |
 | Execution-budget prototype | [Windows controlled packages with pumped native budgets: 33/33 groups](docs/controlled-package-native-budget.md), with separate diagnostic-IL acceptance on the iOS simulator |

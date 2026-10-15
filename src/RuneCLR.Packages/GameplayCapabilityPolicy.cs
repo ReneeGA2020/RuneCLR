@@ -98,7 +98,7 @@ public static class GameplayCapabilityPolicy
         Add("System.Collections.Generic.KeyValuePair`2", ".ctor get_Key get_Value Deconstruct ToString");
         foreach (var exception in new[] { "Exception", "SystemException", "ArgumentException", "ArgumentNullException", "ArgumentOutOfRangeException", "InvalidOperationException", "ArithmeticException", "DivideByZeroException", "OverflowException", "IndexOutOfRangeException", "NullReferenceException", "NotSupportedException" })
             Add("System." + exception, ".ctor get_Message");
-        foreach (var attribute in new[] { "CompilationRelaxationsAttribute", "NullableAttribute", "NullableContextAttribute", "RefSafetyRulesAttribute", "CompilerGeneratedAttribute", "IsReadOnlyAttribute", "IsExternalInit" })
+        foreach (var attribute in new[] { "CompilationRelaxationsAttribute", "NullableAttribute", "NullableContextAttribute", "RefSafetyRulesAttribute", "CompilerGeneratedAttribute", "IsReadOnlyAttribute", "IsExternalInit", "ParamCollectionAttribute" })
             Add("System.Runtime.CompilerServices." + attribute, ".ctor");
         Add("System.Runtime.CompilerServices.RuntimeCompatibilityAttribute", ".ctor set_WrapNonExceptionThrows");
         // This single known ref-struct is supported for ordinary C# interpolation; Span and author ref-structs are not.

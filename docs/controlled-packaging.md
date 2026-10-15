@@ -2,9 +2,9 @@
 
 This is the current restricted UGC intake profile. Developer-owned C# hot-update
 integration is a separate first-class use in [product direction](product-direction.md);
-its supported packaging/approval path remains to be delivered. Neither the
-current C# 12 configuration nor the gameplay allowlist defines CoreCLR's
-universal language/library ceiling.
+its supported packaging/approval path remains to be delivered. Source language
+selection follows the selected compiler's latest stable version. The gameplay
+allowlist is a separate API policy, not a source-language version cap.
 
 The local operator-side pipeline for #4 accepts raw C# or managed IL and creates
 a versioned package. It never executes an author project, MSBuild target,
@@ -47,7 +47,8 @@ author-failure recovery and revalidation when a package changes before `Start`.
 
 ## Initial supported profile
 
-- C# 12, regular source files, Release deterministic AnyCPU library, nullable
+- Latest stable C# supported by the selected SDK compiler, regular source files,
+  Release deterministic AnyCPU library, nullable
   enabled, unsafe disabled. See [the compiler contract](source-compiler.md).
 - Fixed reference assemblies: System.Runtime, System.Collections, System.Linq,
   System.ObjectModel, System.Runtime.Extensions, the approved host

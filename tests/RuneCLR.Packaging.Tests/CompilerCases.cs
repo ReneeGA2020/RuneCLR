@@ -14,7 +14,7 @@ internal static class CompilerCases
         yield return ("Compiler rejects invalid source labels and duplicate files", InvalidNames);
         yield return ("Compiler bounds source count, total text and diagnostic output", InputLimits);
         yield return ("Missing approved references produce actionable diagnostics", MissingReference);
-        yield return ("Compiler fixes the C# language version instead of following SDK latest", FixedLanguage);
+        yield return ("Compiler accepts modern syntax from the selected SDK without a C# 12 cap", ModernLanguage);
     }
 
     private static SourceFile[] ScriptSources() =>
@@ -168,18 +168,25 @@ internal static class CompilerCases
             "Reference diagnostic exposes a server machine path.");
     }
 
-    private static void FixedLanguage()
+    private static void ModernLanguage()
     {
-        Check.Assert(SourceCompiler.LanguageVersion == "12.0", "Language profile changed unexpectedly.");
         var result = Compile(new SourceFile("new-language.cs", """
             using System.Collections.Generic;
-            public static class NewLanguage
+            public sealed class NewLanguage
             {
-                public static void Method(params List<int> values) { }
+                public int Value { get; set => field = value; }
+                public static int Sum(params List<int> values)
+                {
+                    int sum = 0;
+                    foreach (int value in values) sum += value;
+                    return sum;
+                }
+                public void SetValue() => Value = Sum(20, 22);
             }
             """));
-        Check.Assert(!result.Succeeded && result.Diagnostics.Any(item => item.Code == "CS9202"),
-            "C# 13 params collections should be rejected by the fixed C# 12 profile.");
+        Check.Assert(result.Succeeded,
+            $"C# 13 params collections and C# 14 field properties must compile (C# {SourceCompiler.LanguageVersion}): "
+            + string.Join("; ", result.Diagnostics.Select(item => item.Message)));
     }
 }
 

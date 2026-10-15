@@ -51,6 +51,18 @@ product-wide priority. No experiment was rerun for the positioning update.
 
 ## Latest verified increments
 
+The operator source compiler now uses the selected SDK Roslyn's latest stable
+language version instead of fixing C# 12. Its regression covers C# 13 params
+collections and C# 14 field-backed properties; the corresponding end-to-end
+package fixture checks execution and repeated retirement. The gameplay gate
+accepts the compiler's `ParamCollectionAttribute` metadata marker. Historical
+reports below retain the compiler configuration actually used for those runs;
+their hashes/results are not retroactively updated.
+Fresh Windows RC1 verification passes 37/37 lifecycle, 85/85 packaging, 15/15
+synchronous and 22/22 pumped player cases, plus six sample collections. The
+modern package fixture executes and collects three times; no new mobile
+interpreter result is claimed.
+
 The [controlled-package/pumped/native-budget combination](controlled-package-native-budget.md)
 now passes 33/33 on the matching Windows 20405f7 Release runtime. Twenty-five
 native-budget sessions cover constructor/start/tick/stop exhaustion, cumulative

@@ -19,6 +19,7 @@ internal static class PipelineCases
     internal static IEnumerable<(string Name, Action Run)> Cases()
     {
         yield return ("Source to versioned package runs and unloads across successive sessions", SourceLifecycle);
+        yield return ("Modern C# source packages execute and retire with the existing UGC policy", ModernLanguageLifecycle);
         yield return ("Same source produces identical package identities independent of output path", DeterministicPackage);
         yield return ("Raw IL import preserves bytes and runs through the same versioned loader", ImportLifecycle);
         yield return ("Changed files are rejected and the next valid session still succeeds", TamperRecovery);
@@ -45,6 +46,40 @@ internal static class PipelineCases
         var build = Build(Path.Combine(temp.Path, "package"));
         Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
         for (var cycle = 0; cycle < 3; cycle++) Run(build.ManifestPath!);
+    }
+    private static void ModernLanguageLifecycle()
+    {
+        using var temp = new TempDirectory();
+        var build = Build(Path.Combine(temp.Path, "modern"), """
+            using RuneCLR;
+            using System.Collections.Generic;
+            public sealed class GameScript : IMapScript
+            {
+                private int Value { get; set => field = value; }
+                private static int Sum(params List<int> values)
+                {
+                    int sum = 0;
+                    foreach (int value in values) sum += value;
+                    return sum;
+                }
+                public void OnStart(IMapContext context)
+                {
+                    Value = Sum(20, 22);
+                    context.Log("value=" + Value);
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        for (var cycle = 0; cycle < 3; cycle++)
+        {
+            var result = new MapRunner().Run(MapPackage.FromManifest(build.ManifestPath!));
+            Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+                && result.Report.Logs.SequenceEqual(new[] { "value=42" }),
+                result.Report.Error ?? "Modern language fixture did not produce the expected result.");
+            Check.Collected(result);
+        }
     }
     private static void DeterministicPackage()
     {

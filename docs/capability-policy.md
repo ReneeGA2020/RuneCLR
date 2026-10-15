@@ -38,7 +38,8 @@ every one of its APIs available to a packaged script.
 | Native and unsafe routes | Structural intake denies R2R/native/mixed-mode implementations and P/Invoke/InternalCall; capability checking denies unsafe signatures and unsupported IL call routes |
 
 Metadata-only compiler/assembly attributes are explicitly allowed where required
-for supported C# output; this does not allow general reflection. String
+for supported C# output, including C# 13 `ParamCollectionAttribute`; this does
+not allow general reflection or impose a language-version ceiling. String
 interpolation has a specific compiler-handler allowance. LINQ, arbitrary
 framework/NuGet APIs and custom delegate declarations are outside the initial
 profile; use ordinary loops and supported collections.

@@ -17,7 +17,8 @@ not establish that an unperformed experiment has passed.
    machine code. This work does not depend on #5/#6/#7 completion.
 3. Define #14's direct-object/ownership matrix and #15's separate compiler language,
    runtime feature, framework and UGC-policy compatibility. Publish diagnostics
-   and an honest supported surface; C# 12 is today's restricted compiler setting.
+   and an honest supported surface; source syntax follows the selected compiler's
+   latest stable C# version independently of the UGC API policy.
 4. Integrate one real game's trusted hot-update path: version switching at safe
    boundaries, rollback, errors, callback costs and retention. This is the first
    stage of #9, independent of arbitrary public UGC readiness.

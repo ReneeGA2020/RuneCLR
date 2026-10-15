@@ -12,7 +12,11 @@ namespace RuneCLR.Compiler;
 /// <summary>Compiles author-provided text using only the server's approved references.</summary>
 public static class SourceCompiler
 {
-    public const string LanguageVersion = "12.0";
+    private static readonly CSharpParseOptions ParseOptions = new(
+        global::Microsoft.CodeAnalysis.CSharp.LanguageVersion.Latest,
+        DocumentationMode.None, SourceCodeKind.Regular);
+
+    public static string LanguageVersion => ParseOptions.LanguageVersion.ToDisplayString();
     public const int MaximumSources = 64;
     public const int MaximumSourceCharacters = 2_000_000;
     public const int MaximumDiagnostics = 100;
@@ -68,11 +72,8 @@ public static class SourceCompiler
                 }
             }
 
-            var parseOptions = new CSharpParseOptions(
-                global::Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp12,
-                DocumentationMode.None, SourceCodeKind.Regular);
             var trees = sources.Select(source => CSharpSyntaxTree.ParseText(
-                SourceText.From(source.Text, Encoding.UTF8), parseOptions, source.Name)).ToArray();
+                SourceText.From(source.Text, Encoding.UTF8), ParseOptions, source.Name)).ToArray();
             var options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                 optimizationLevel: OptimizationLevel.Release, allowUnsafe: false,
                 platform: Platform.AnyCpu, deterministic: true, nullableContextOptions: NullableContextOptions.Enable,

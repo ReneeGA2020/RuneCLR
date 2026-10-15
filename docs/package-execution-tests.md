@@ -1,5 +1,18 @@
 # Controlled package execution acceptance
 
+## Latest desktop compiler regression - 2026-10-15
+
+After removing the artificial C# 12 cap, the selected SDK compiler accepts its
+latest stable language version. A new end-to-end source fixture uses C# 13
+params collections and C# 14 field-backed properties, passes the gameplay
+metadata policy, executes with result 42 and retires three fresh sessions.
+Full Windows RC1 verification passes 37 lifecycle, 85 packaging, 15 synchronous
+player and 22 pumped player cases, with zero build warnings/errors and six
+sample collections. The runs below retain their original configurations;
+this regression does not add mobile-interpreter acceptance.
+
+## Player harness
+
 The same player harness exercises versioned controlled packages on desktop,
 Android and iOS. Operator compilation runs separately; the player test executable
 references only RuneCLR.Runtime and RuneCLR.Packages and their shared contract.

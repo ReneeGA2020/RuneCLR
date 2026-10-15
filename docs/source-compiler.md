@@ -11,8 +11,9 @@ RuneCLR.Compiler.SourceCompiler is the source-text increment of
 DLL without running author code. Package construction and IL intake are separate
 steps; successful compilation is not package approval or a security guarantee.
 `PackageBuilder` additionally applies the [gameplay capability policy](capability-policy.md)
-to the emitted entry and every private dependency. C# 12 is the compiler language
-version; some valid C# output (for example, async/delegates or reflection) is
+to the emitted entry and every private dependency. Source compilation uses the
+selected SDK compiler's latest stable language version; some valid C# output
+(for example, async/delegates or reflection) is
 outside the initial package profile and receives a capability rejection.
 
 The server calls:
@@ -32,9 +33,15 @@ default load context, working directory or NuGet. The caller must use a private,
 stable reference staging directory and record the identities and hashes of the
 same bytes in its package provenance.
 
-## Fixed compilation profile
+## Compiler selection and fixed build settings
 
-- Regular C# 12.0; newer SDK language defaults do not change the source language.
+- Regular C# using Roslyn `LanguageVersion.Latest`, without an artificial
+  C# 12 ceiling. The selected compiler controls the latest stable version;
+  experimental preview syntax is not enabled implicitly.
+- `SourceCompiler.LanguageVersion` reports the effective numeric version from
+  those parse options. Compiler binary hashes/identities bind the actual syntax
+  and lowering implementation for reproducible builds. Changing SDK/compiler
+  versions can change accepted syntax and emitted bytes.
 - Release, deterministic DLL, AnyCPU, nullable enabled, unsafe disabled.
 - No PDB output, source-file reads, author MSBuild projects, response files,
   analyzers or source generators. Regular source rejects #r and #load.
@@ -64,7 +71,7 @@ the resulting script.
 
 The executable packaging harness includes compiler cases for a real
 multi-source IMapScript, deterministic PE output without a PDB, actual source
-positions, unapproved references, unsupported language features, unsafe and
+positions, unapproved references, language diagnostics, unsafe and
 script directives, malformed labels and input limits. Its source fixture also
 contains a throwing module initializer: compilation and metadata inspection
 succeed without loading or executing the resulting assembly. On 2026-10-12,
@@ -73,6 +80,13 @@ all ten compiler cases passed using the private official SDK
 pipeline's acceptance.
 
 ## Current limits
+
+The language-version regression compiles C# 13 params collections and C# 14
+field-backed properties. A separate pipeline case packages that source, runs
+it in three fresh sessions and observes retirement. This is desktop acceptance;
+the new source fixture has not been rerun on the mobile interpreter. The
+compiler-generated ParamCollectionAttribute is allowed as metadata by the
+existing gameplay policy, without approving new process or reflection APIs.
 
 This API does not enforce instruction execution, permissions or CPU/memory
 isolation. Disabling unsafe syntax does not remove capabilities exposed by
