@@ -9,12 +9,24 @@ and managed objects. Trusted R2R belongs to the application's build/signing
 pipeline; downloaded server-built native code is not assumed to be executable
 on iOS. No device-side JIT is needed for this goal.
 
-Same-source IL/R2R builds, direct-object interoperability and an engine-independent
-trusted-update sample are first-class milestones. They do not wait for a UGC
-pilot or equivalent native UGC budget enforcement. Their language/API coverage,
-build inputs, object identity and reference lifetimes need reproducible tests.
+Same-source IL/R2R builds, independently built R2R module composition,
+direct-object interoperability and an engine-independent trusted-update sample
+are first-class milestones. They do not wait for a UGC pilot or equivalent
+native UGC budget enforcement. Their language/API coverage, build inputs, object
+identity and reference lifetimes need reproducible tests.
 This does not introduce a finished trusted-update profile into the current
 versioned gameplay loader.
+
+Updateable and non-updateable trusted modules can each have independent R2R
+builds and execute together; R2R is not restricted to the host. A first-party
+game's update module is trusted and does not need to inherit UGC's
+interpreter-only policy. Validate compatible runtime/framework/architecture
+inputs, module composition and the platform's update packaging/signing route.
+On iOS, newly downloaded IL is interpreted and native R2R follows the
+application's native build/signing pipeline. The current interpreted-only UGC
+choice keeps machine-code accounting, termination and capability complexity out
+of the initial restricted profile; it is not a universal limitation on hot-update
+code.
 
 ## Restricted UGC decision - accepted 2026-10-12
 

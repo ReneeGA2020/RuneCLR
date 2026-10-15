@@ -4,8 +4,12 @@
 
 The primary product goal is C# iOS hot-update scripting, with UGC management
 built on top. CoreCLR provides one managed type/object model for interpreted
-new IL and trusted R2R application code; formal same-source build and object
-compatibility matrices remain separate milestones. See
+new IL and trusted R2R application code. Trusted updateable and non-updateable
+modules can each be precompiled to R2R and run together; restricted UGC currently
+uses interpretation for management control. Formal same-source builds, independent
+R2R module composition and object compatibility matrices remain separate
+milestones. On iOS, newly downloaded IL is interpreted and native R2R uses the
+application's native build/signing pipeline. See
 [product direction](product-direction.md).
 
 Desktop JIT runtimes can execute newly downloaded IL. A pure AOT runtime cannot

@@ -7,19 +7,19 @@ management needed for C# UGC. This ordering was clarified by the project owner
 on 2026-10-15. It broadens the earlier UGC-first plan without invalidating its
 runtime experiments or weakening the restricted UGC contract.
 
-The core value is keeping gameplay in C#: an interpreter executes new managed
-IL while trusted host/framework code can remain R2R, using CLR calls and shared
-objects instead of introducing a second language and its object bridge. The
-runtime should be embeddable independently of Unity or a specific game engine.
-Current project APIs and examples are early integration surfaces, not a finished
-general-purpose mobile SDK.
+The core value is keeping gameplay in C#: trusted updateable and non-updateable
+modules can each use independent R2R builds and interact with interpreted IL,
+using CLR calls and shared objects instead of introducing a second language
+and its object bridge. The runtime should be embeddable independently of Unity
+or a specific game engine. Current project APIs and examples are early
+integration surfaces, not a finished general-purpose mobile SDK.
 
 ## Two uses
 
 | Concern | Developer-owned hot updates | Managed UGC |
 | --- | --- | --- |
 | Code source | The game's trusted development/build pipeline | Player/external source or IL, processed by controlled builds |
-| Initial execution | Downloaded iOS IL interpreted; trusted application code may be R2R | Author IL/private dependencies interpreted across target platforms |
+| Execution direction | Trusted update modules may use independent R2R builds or interpreted IL, according to platform and delivery requirements | Author IL/private dependencies interpreted across target platforms |
 | Objects and APIs | Direct managed interaction with supported host APIs | The same CLR mechanism, narrowed by capability and resource policy |
 | Recovery | Defined module/version boundaries, useful errors and reference ownership | Session retirement plus budget, capability and resource management |
 | Compatibility | Explicit language, framework and interop support matrix | An additional, deliberately narrower approved surface |
@@ -40,11 +40,14 @@ host-controlled module/session boundaries. Replacing active stack frames or
 automatically migrating live object state is outside the initial scope. This
 does not make successive-module hot updates out of scope.
 
-On iOS, new IL uses interpretation. Trusted R2R code is built ahead of time and
-included through the application's native build/signing pipeline. A server-built
-R2R image is not assumed to be an executable downloaded-code route on iOS. No
-device-side JIT or native code generation is required by the hot-update goal.
-Technical execution evidence and app-distribution approval are separate facts.
+For a first-party game, update modules are trusted by the game team and do not
+inherit the UGC profile's interpreter-only restriction. They may use independent
+R2R builds and execute with other R2R modules and the host. On iOS, newly
+downloaded IL is interpreted; native R2R modules belong to the application's
+native build/signing pipeline. R2R build capability does not establish a
+downloaded native-code route. No device-side JIT or native code generation is
+required by the hot-update goal. Technical execution evidence and
+app-distribution approval are separate facts.
 
 The same-source goal is to keep business logic and shared APIs stable when
 choosing interpreted IL or trusted R2R at build time. It does not promise equal
@@ -52,6 +55,19 @@ performance, identical native artifacts, unrestricted library support or native
 execution of newly downloaded iOS code. Formal repository acceptance remains
 pending. The owner reports separate-session experiments; these are motivation,
 not a replacement for reproducible evidence in this repository.
+
+The update boundary and execution mode are separate choices. Both trusted
+updateable and non-updateable modules can have independent R2R builds and run
+together, with compatible runtime/framework/architecture inputs; a single
+composite image is not inherently required. They can also interact with
+interpreted IL. R2R precompilation is an AOT route, distinct from NativeAOT.
+Formal RuneCLR acceptance must include separately compiled module composition,
+not just an interpreted module calling an R2R host.
+
+The current UGC route deliberately chooses interpretation: machine-code R2R
+would require additional budget, termination and capability enforcement. This
+restriction belongs to the UGC profile, rather than to first-party hot-update
+modules.
 
 ## Direct object interaction
 

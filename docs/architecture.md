@@ -2,9 +2,12 @@
 
 ## Goal
 
-Make C# usable for iOS hot-update scripting, then add managed UGC. New IL uses
-the CoreCLR interpreter while trusted application/framework code may remain
-R2R, sharing CLR types and objects. See [product direction](product-direction.md).
+Make C# usable for iOS hot-update scripting, then add managed UGC. Trusted
+updateable and non-updateable modules can each have independent R2R builds and
+run together, sharing CLR types and objects with interpreted IL. First-party
+modules do not inherit UGC's interpreter-only policy. On iOS, newly downloaded
+IL is interpreted; native R2R uses the application build/signing pipeline.
+See [product direction](product-direction.md).
 
 A host can retire one script module/session and load different C# code without
 restarting the process. Successive custom maps are one example. Existing `Map`
@@ -18,8 +21,9 @@ deterministic lockstep is not a project goal.
 The interpreter and trusted R2R code use CLR calls and managed references;
 ordinary object interaction does not require serialization into a second
 language's object model. Shared contract identity and reference ownership are
-essential. Formal same-source IL/R2R and object-interop matrices remain planned
-acceptance work, rather than a claim of arbitrary .NET compatibility.
+essential. Formal same-source IL/R2R builds, independent R2R module composition
+and object-interop matrices remain planned acceptance work, rather than a claim
+of arbitrary .NET compatibility.
 
 The current entity handles and narrow gameplay API serve the restricted UGC
 prototype. They are not a requirement that every trusted hot-update host expose

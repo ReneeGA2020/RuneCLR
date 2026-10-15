@@ -10,8 +10,11 @@ embedding. Read docs/product-direction.md for the two uses and their boundaries.
 
 Trusted developer-owned hot updates must not wait for all restricted-UGC
 capabilities. The current UGC compiler/API restrictions are a profile, not the
-language or runtime's universal compatibility ceiling. Same-source IL/R2R
-builds and broad object interoperability need their own reproducible acceptance.
+language or runtime's universal compatibility ceiling. Trusted updateable and
+non-updateable modules can each have independent R2R builds and run together;
+the UGC interpreter-only strategy does not constrain first-party code. Same-source
+IL/R2R builds, independent R2R module composition and broad object
+interoperability need their own reproducible acceptance.
 Source compilation follows the selected SDK compiler's latest stable C#
 version. Do not impose an older source-language cap as a substitute for API
 capability policy or runtime compatibility checks.
