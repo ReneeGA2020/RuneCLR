@@ -30,15 +30,17 @@ iOS cannot rely on conventional JIT compilation to execute newly downloaded code
 
 On iOS, newly downloaded IL is interpreted; native R2R modules go through the application's native build/signing pipeline. A module's R2R build capability does not establish a downloaded native-code delivery route. R2R/AOT here means ReadyToRun precompilation, distinct from NativeAOT.
 
-## Compared With Common Routes
+## Comparing First-Party Game Hot-Update Routes
 
-| Route | Integration concern | RuneCLR's focus |
+The comparison assumes a game team updates its own trusted C# gameplay code. The focus is source reuse, object interaction, precompilation and engine integration.
+
+| Route | First-party integration work | RuneCLR's approach |
 | --- | --- | --- |
-| Lua integrations such as xLua / ToLua | C#/Lua logic migration, object bindings and cross-language debugging | Keep business logic in C# and interact through one CLR object model |
-| Standalone C# IL interpreters such as ILRuntime | Evaluate each implementation's language/library coverage, bindings and engine workflow | Reuse CoreCLR foundations and validate direct interpreter/trusted-R2R collaboration |
-| Pure AOT execution | New IL has no native method body compiled into the installed app | Interpret new IL while trusted modules retain their R2R builds |
+| Lua integrations such as xLua / ToLua | Move selected C# logic to Lua; maintain C#/Lua object bindings and cross-language debugging | Keep updateable and non-updateable logic in C#, sharing CLR types and objects |
+| Standalone C# IL interpreters such as ILRuntime | Adapt the separate interpreter to the native host; check language/library coverage and engine workflow for the chosen version | Reuse CoreCLR's type/runtime mechanisms; the same module can use interpreted IL or its own R2R build, with an engine-independent embedding goal |
+| Application code executed only through AOT | New IL has no native method body in the installed application; code changes need an additional execution/delivery mechanism | Build updateable and non-updateable modules independently to R2R and run them together; use interpretation for newly downloaded iOS IL |
 
-These are architectural tradeoffs, not a competitor speed ranking. In the existing [Windows Release benchmark](docs/performance-experiment.md), selected CoreCLR interpreter object/state workloads were near Lua 5.4: object updates took 72.44 ms versus 81.56 ms; numeric recurrence was about 1.62x slower than Lua. Results depend on the workload. There is no direct ILRuntime, xLua or ToLua performance comparison here, and these measurements do not establish physical iOS performance.
+Same-source IL/R2R builds and independent R2R module composition remain planned RuneCLR acceptance work. Performance comparisons for this use should use trusted first-party configurations and measure startup, gameplay callbacks and host interaction. The existing [Windows kernel benchmark](docs/performance-experiment.md) is a separate reference; it does not establish an ILRuntime/xLua/ToLua ranking or physical iOS performance.
 
 ## Two Uses, One Runtime Foundation
 
