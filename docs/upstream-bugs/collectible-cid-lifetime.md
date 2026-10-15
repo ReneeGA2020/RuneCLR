@@ -62,7 +62,14 @@ disabled. Its separate native samples cover nine installed selection-fixture
 groups. These combined-candidate results extend integration coverage; they do
 not replace the original failing controls or establish upstream approval.
 
-## Future issue draft
+## Prepared issue report
+
+The [complete English report](reports/001-collectible-cid-lifetime.md) follows
+the upstream template and includes reproduction topology, original controls,
+native fault observations, the dynamic implementation-owner case, configuration
+and commit-pinned public references. It supersedes the short draft below.
+See the [filing guide](reports/README.md) for the source/evidence attachment and
+2026-10-15 source/duplicate review. No issue has been submitted.
 
 Suggested title: Cached interface dispatch retains collectible targets across
 AssemblyLoadContext retirement on iOS CoreCLR.

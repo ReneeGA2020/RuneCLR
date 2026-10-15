@@ -83,7 +83,14 @@ This removes the managed-target workaround for this new standalone experiment.
 Packaging/launching still use the private native UIKit wrapper. Full upstream
 XHarness/Helix, tvOS execution and current upstream fix status remain unverified.
 
-## Future issue draft
+## Prepared issue report
+
+The [complete English report](reports/002-apple-simulator-test-generator.md)
+follows the upstream template and supplies a desktop command that invokes the
+actual official generator, expected/actual body masks, a two-arm patch and
+separately scoped simulator results. It supersedes the short draft below.
+See the [filing guide](reports/README.md) for the source/evidence attachment and
+2026-10-15 source/duplicate review. No issue has been submitted.
 
 Suggested title: XUnitWrapperGenerator silently skips conditional test bodies
 when TargetOS is iossimulator.

@@ -16,8 +16,8 @@ execution acceptance and official-fix review requirements.
 
 | ID | Finding | Attribution | Local disposition | Upstream report |
 | --- | --- | --- | --- | --- |
-| RCLR-UP-001 | [Collectible cached-interface lifetime](collectible-cid-lifetime.md) | Confirmed failure in unmodified pinned CoreCLR; reduced fixture needs no RuneCLR runtime assemblies | Private conservative native candidate; Debug and matching Release simulator acceptance | Draft, not submitted |
-| RCLR-UP-002 | [Apple simulator test-generator mapping](apple-simulator-test-generator.md) | Confirmed official generator omission and generated false condition; complete official mobile runner integration remains unverified | Private two-arm source fix passes 21/21 actual-generator/model-body checks; validated TargetOS=ios experiment workaround retained | Draft, not submitted |
+| RCLR-UP-001 | [Collectible cached-interface lifetime](collectible-cid-lifetime.md) | Confirmed failure in unmodified pinned CoreCLR; reduced fixture needs no RuneCLR runtime assemblies | Private conservative native candidate; Debug and matching Release simulator acceptance | [Ready-to-paste report](reports/001-collectible-cid-lifetime.md), not submitted |
+| RCLR-UP-002 | [Apple simulator test-generator mapping](apple-simulator-test-generator.md) | Confirmed official generator omission and generated false condition; complete official mobile runner integration remains unverified | Private two-arm source fix passes 21/21 actual-generator/model-body checks; validated TargetOS=ios experiment workaround retained | [Ready-to-paste report](reports/002-apple-simulator-test-generator.md), not submitted |
 | RCLR-UP-003 | [Full-framework interpreter assertion](full-framework-interpreter-assert.md) | Suspected upstream interpreter issue; minimal repro and root cause pending | Continue supported selective mode 1 experiments; no assertion bypass | Investigation, not ready to submit |
 
 The confirmed affected source is official main commit
@@ -25,6 +25,24 @@ The confirmed affected source is official main commit
 .NET 11 RC1 build SDK. These records do not establish whether a later upstream
 commit already fixes a finding. No current upstream HEAD or issue-duplication
 search was performed when creating this register.
+
+## Filing preparation - 2026-10-15
+
+Two English reports now follow the upstream bug-report template, with expected
+and actual behavior, reproduction, configuration, controls, private-fix scope
+and public commit-pinned references. The [filing guide](reports/README.md)
+identifies both documents and a local source/evidence attachment ZIP. Neither
+issue has been submitted; no upstream issue number is assigned.
+
+Upstream main was source-reviewed at
+2ef0256337f918788487bde223a7bce2f16dffc1. The two implicated source files still
+have the same Git blobs as the affected baseline. Scoped issue/PR searches
+found related #134766 and #126199 with different causes, but no exact duplicate
+in the reviewed results. This is not proof of behavior on a rebuilt latest main.
+The actual pinned-source generator probe was freshly rebuilt and rerun on
+Windows: zero build warnings/errors and 19/19 expected-baseline checks,
+reproducing the skipped simulator bodies. No mobile runtime experiment was
+replayed for this preparation. RCLR-UP-003 remains an investigation.
 
 ## Do not classify as an official defect without more evidence
 
