@@ -300,3 +300,5 @@ On 2026-10-16 the controlled package player passed 15/15 without --pump and 22/2
 On 2026-10-16 ./eng/verify.ps1 exited 0. The desktop script covered the Release solution, late map, runtime tests, packaging, controlled player, trusted-update selector, the desktop iOS-host source check, the trusted-update self-test, and both sample collection paths. It did not start a simulator and does not close #2, #8, or #12.
 
 docs/direct-interop.md records the desktop reference-identity facts already measured. It does not list every supported type, it does not accept physical iOS, and it does not close #14.
+
+The controlled player already covers an author failure followed by a valid package, and a pumped tick or stop failure followed by a fresh package. That is desktop evidence for ordinary-failure recovery. It does not close #8 and is not physical iOS.
