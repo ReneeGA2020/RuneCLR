@@ -48,6 +48,7 @@ internal static class Program
             int extraCalls = residentReuse.Count + (reactivation is null ? 0 : 1);
             Check(host.Touches == 9 + extraCalls && host.InterfaceCalls == 9 + extraCalls && host.DelegateCalls == 9 + extraCalls && host.GenericCalls == 18 + extraCalls * 2,
                 "Host call totals differ.");
+            long managedBytes = GC.GetTotalMemory(false);
             Emit(args, new
             {
                 Passed = true, Runtime = RuntimeInformation.FrameworkDescription,
@@ -61,6 +62,7 @@ internal static class Program
                 TimingBoundaryUs = timing[2] * 1_000_000L / Stopwatch.Frequency,
                 ResidentReuseStaticCounts = residentReuse,
                 ResidentReactivationStaticCount = reactivation,
+                ManagedBytes = managedBytes,
                 Witnesses = ExecutionWitness.Drain()
             });
             return 0;
