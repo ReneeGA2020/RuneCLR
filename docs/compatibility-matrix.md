@@ -34,6 +34,8 @@ The source compiler follows the selected SDK compiler's latest stable C# version
 
 | Desktop restricted UGC packaging, 102/102, commit 67c5045 | Not a complete syntax set. Custom delegates and async void OnStart pass the product compiler | Stock desktop JIT. An exception filter runs: the first when returns false, the second returns true, the log is misses=1;hits=1, and the session completes 1 tick. A throwing OnStart keeps before and stopped and releases the entity. A failing second OnTick keeps started and tick=0; the failed tick is not counted in CompletedTicks. When OnStop itself throws, the error starts with OnStop:. An unread static field initializer does not run before OnStart. Not interpreter evidence | Not a framework-wide API pass. System.MulticastDelegate and System.Type are not approved, so custom delegates and async OnStart are rejected before run | Desktop stock JIT. Not iOS and not a physical device | managed-il-gameplay-v1. Entry shapes, parameterized constructors, overloaded, explicit, and generic callbacks, and a missing IMapScript are rejected before run. Issue 5 stays open |
 
+| Desktop execution-selection probe, 2026-10-13, artifacts/execution-selection/20261013-015010-f556c2e16b104e7f83403b4c6fd96411 | Not a syntax measurement | SDK control passed 20/20 sessions and 20/20 collected contexts. Private unpatched Checked CoreCLR mode 1 passed the same 20/20 and 20/20. All 17 returned values matched. The interpreter lane recorded no SelectionUGC JIT fallback and 26 bytecode groups, 20 dumps each, 520 total. Paths included constructor counts, a property getter, generic methods, a capturing delegate, virtual and default interface bodies, and an evaluated exception filter. Mode 1 also interprets this fixture's non-CoreLib host. This is not the 102/102 packaging suite | Not a framework-wide API pass | Windows x64. Runtime base 0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de, no runtime patch. Not iOS and not a physical device | Not the managed-il-gameplay-v1 packaging profile. Not an author-resistant interpreter sandbox. Issue 5 stays open |
+
 ## Untested
 
 These are untested. They are not implied by the rows above.
@@ -42,7 +44,7 @@ These are untested. They are not implied by the rows above.
 - Any `iphoneos` physical-device run.
 - Native R2R for a collectible module. The desktop composition result stays `blocked-collectible-r2r`.
 - Full .NET, or an arbitrary NuGet package.
-- Interpreter execution of these 102/102 restricted UGC paths. Untested.
+- Interpreter execution of these 102/102 restricted UGC paths. Untested. The 2026-10-13 execution-selection probe is a different fixture and does not supply that evidence.
 - Android interpreter execution. Untested. Existing Android evidence is an x64 emulator that uses JIT.
 - Any physical iphoneos device run. Untested. The iPhone XR on iOS 18.7 is not the iOS 27 runtime used here.
 - Issue 16 coarse-grained callback timeout. Scheduled, not implemented. It is not a cumulative instruction quota and not an API call-count limit.
