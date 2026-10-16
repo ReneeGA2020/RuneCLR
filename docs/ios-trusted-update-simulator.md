@@ -247,3 +247,11 @@ ios-trusted-update-20261015-sim-plan-accept-b/results.json on the Mac.
 
 
 
+
+## Clean receipt - 2026-10-16
+
+The sections above are earlier launches. They do not replace the later clean receipt. A clean checkout of commit c268026 at /Users/editor/RuneCLR-experiments/RuneCLR-c268026 produced artifacts/ios-trusted-update/rerun-c268026-20261016-01. python3 eng/verify-ios-trusted-update.py --output on that directory exited 0 with passed=true and nativeExecutionProven=true. A and B both recorded RUNECLR_EXIT=0 and TRUSTED_UPDATE_SUCCESS result=216. After success the host printed GC.GetTotalMemory(false) as MANAGED_BYTES=74248 for A and MANAGED_BYTES=74264 for B. That snapshot is not a forced collection and not physical footprint.
+
+A separate 2026-10-16 relaunch of version A, not that receipt process, stopped at libsystem_c exit while the process was still alive. footprint --noCategories printed phys_footprint 24 MB and phys_footprint_peak 24 MB, a formatted summary with 16384-byte pages, not --format bytes. The same process printed MANAGED_BYTES=41040 and result=216. Do not treat 24 MB as an exact byte count or as the c268026 process.
+
+The host is not a Unity host and not a supported distribution SDK. The only phone is an iPhone XR locked to iOS 18.7. Do not build or install an iphoneos runtime for it. Do not repeat the c268026 simulator receipt. Issue 12 stays open.
