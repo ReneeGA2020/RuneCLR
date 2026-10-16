@@ -32,6 +32,8 @@ The source compiler follows the selected SDK compiler's latest stable C# version
 
 | Desktop eng/verify.ps1, 2026-10-16 | Not a syntax measurement | Exited 0. Covered the Release solution, late map, runtime tests, packaging, controlled player, trusted-update selector, desktop iOS-host source check, trusted-update self-test, and both sample collection paths. No simulator | Not a framework-wide API pass | Desktop. Not a physical device | Not a UGC grant. The ordinary sample path is not interpreter proof |
 
+| Desktop restricted UGC packaging, 102/102, commit 67c5045 | Not a complete syntax set. Custom delegates and async void OnStart pass the product compiler | Stock desktop JIT. An exception filter runs: the first when returns false, the second returns true, the log is misses=1;hits=1, and the session completes 1 tick. A throwing OnStart keeps before and stopped and releases the entity. A failing second OnTick keeps started and tick=0; the failed tick is not counted in CompletedTicks. When OnStop itself throws, the error starts with OnStop:. An unread static field initializer does not run before OnStart. Not interpreter evidence | Not a framework-wide API pass. System.MulticastDelegate and System.Type are not approved, so custom delegates and async OnStart are rejected before run | Desktop stock JIT. Not iOS and not a physical device | managed-il-gameplay-v1. Entry shapes, parameterized constructors, overloaded, explicit, and generic callbacks, and a missing IMapScript are rejected before run. Issue 5 stays open |
+
 ## Untested
 
 These are untested. They are not implied by the rows above.
@@ -40,3 +42,7 @@ These are untested. They are not implied by the rows above.
 - Any `iphoneos` physical-device run.
 - Native R2R for a collectible module. The desktop composition result stays `blocked-collectible-r2r`.
 - Full .NET, or an arbitrary NuGet package.
+- Interpreter execution of these 102/102 restricted UGC paths. Untested.
+- Android interpreter execution. Untested. Existing Android evidence is an x64 emulator that uses JIT.
+- Any physical iphoneos device run. Untested. The iPhone XR on iOS 18.7 is not the iOS 27 runtime used here.
+- Issue 16 coarse-grained callback timeout. Scheduled, not implemented. It is not a cumulative instruction quota and not an API call-count limit.
