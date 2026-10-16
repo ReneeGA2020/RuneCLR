@@ -60,3 +60,4 @@ These are untested. They are not implied by the rows above.
 - Android interpreter execution. Untested. Existing Android evidence is an x64 emulator that uses JIT. The 8/8 package result is that emulator and is not interpreter evidence.
 - Any physical iphoneos device run. Untested. The iPhone XR on iOS 18.7 is not the iOS 27 runtime used here.
 - Issue 16 coarse-grained callback timeout. Scheduled, not implemented. It is not a cumulative instruction quota and not an API call-count limit. The packaging case shows the cooperative quota does not stop a computation loop and does not implement this deadline.
+- A wall-clock timer inside the session is intentionally absent, not an untested pass. The host chooses when to call Tick. Issue 16 is a coarse UGC interpreter cutoff and is not this timer.

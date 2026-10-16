@@ -227,5 +227,4 @@ fixture adds no controlled-package mobile or physical-device acceptance. Old
 mobile input preparers/controllers remain frozen at their original 15/73
 contracts.
 
-Next host work is a game-facing event or wall-clock timer, mobile execution of the
-controlled-package combination, and physical-device acceptance.
+A wall-clock timer remains intentionally absent from the session. The host decides when to call Tick. Desktop trusted sessions already cover Signal during a callback, tick Schedule and Repeat, resource names, and host-posted events. The restricted UGC profile rejects those APIs before run. Packaging tests passed 106/106. That is not interpreter evidence and not a physical-device result. Next host work is still mobile execution of the controlled-package combination and physical-device acceptance. Issue 8 stays open. The coarse cutoff in Issue 16 is a UGC interpreter cutoff, not this wall-clock timer.
