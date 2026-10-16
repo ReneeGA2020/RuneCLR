@@ -99,6 +99,7 @@ internal static class CapabilityCases
         yield return ("An entity spawned in OnStart is destroyed on the first tick and the second destroy fails", EntitySurvivesUntilDestroy);
         yield return ("Session completion releases an entity the author did not destroy", SessionReleasesLiveEntity);
         yield return ("A caught second destroy does not stop the session", CaughtSecondDestroy);
+        yield return ("Destroying one entity leaves the other for session completion", PartialDestroyReleasesSurvivor);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -2221,6 +2222,47 @@ internal static class CapabilityCases
             && error.Length == 0
             && result.Report.CompletedTicks == 1
             && result.Report.Logs.SequenceEqual(new[] { "made", "tick", "gone", "kept" })
+            && result.Report.CreatedEntities == 2
+            && result.Report.ReleasedEntities == 2
+            && result.Report.RemainingEntities == 0,
+            "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks + " created=" + result.Report.CreatedEntities + " released=" + result.Report.ReleasedEntities + " remaining=" + result.Report.RemainingEntities);
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void PartialDestroyReleasesSurvivor()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                private EntityId first;
+                public void OnStart(IMapContext context)
+                {
+                    this.context = context;
+                    first = context.SpawnEntity("a");
+                    context.SpawnEntity("b");
+                    context.Log("made");
+                }
+                public void OnTick(MapTick tick)
+                {
+                    context!.DestroyEntity(first);
+                    context.Log("tick");
+                }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "partial"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        var error = result.Report.Error ?? "";
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && error.Length == 0
+            && result.Report.CompletedTicks == 1
+            && result.Report.Logs.SequenceEqual(new[] { "made", "tick" })
             && result.Report.CreatedEntities == 2
             && result.Report.ReleasedEntities == 2
             && result.Report.RemainingEntities == 0,
