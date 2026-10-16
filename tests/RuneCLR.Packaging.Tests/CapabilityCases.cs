@@ -67,6 +67,7 @@ internal static class CapabilityCases
         yield return ("The cooperative API budget stops a second log but not a computation loop", CooperativeBudgetDoesNotStopLoop);
         yield return ("Schedule, resource, and posted-event APIs are rejected before run", RejectHostSchedulingApis);
         yield return ("Remaining schedule, work, and resource accessors are rejected before run", RejectRemainingHostAccessors);
+        yield return ("A Signal subscription is rejected because Action is not approved", RejectSignalSubscription);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -970,6 +971,33 @@ internal static class CapabilityCases
         Reject("raise-signal", "context.RaiseSignal(1);", "Member 'RuneCLR.IMapContext.RaiseSignal' is not approved.");
         Reject("take-posted", "int postedId; int postedValue; context.TryTakePosted(out postedId, out postedValue);", "Member 'RuneCLR.IMapContext.TryTakePosted' is not approved.");
         Reject("pending-posted", "_ = context.PendingPosted;", "Member 'RuneCLR.IMapContext.get_PendingPosted' is not approved.");
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void RejectSignalSubscription()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Signal += value => { _ = value; }; }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var error = Check.Throws<InvalidDataException>(() =>
+        {
+            var built = Build(Path.Combine(temp.Path, "signal"), source);
+            var details = built.Diagnostics.Length == 0
+                ? "Build returned without an exception. Succeeded=" + built.Succeeded
+                : string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message));
+            throw new InvalidOperationException(details);
+        });
+        Check.Assert(error.Message.Contains("Capability profile 'managed-il-gameplay-v1':", StringComparison.Ordinal)
+            && error.Message.Contains("Type 'System.Action`1' is not approved.", StringComparison.Ordinal),
+            error.Message);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
