@@ -75,6 +75,7 @@ internal static class CapabilityCases
         yield return ("A blank or overlong entity name fails before OnStart and the next package still runs", RejectBadEntityNames);
         yield return ("A null or overlong log fails before OnStart and the next package still runs", RejectBadLogs);
         yield return ("A second log or entity at the host limit fails and the next package still runs", HostCountLimits);
+        yield return ("A caught host log limit still stops the session and the next package still runs", CaughtHostLimit);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1263,6 +1264,43 @@ internal static class CapabilityCases
         var entityNext = Build(Path.Combine(temp.Path, "entities-next"));
         Check.Assert(entityNext.Succeeded, "Next package failed to compile.");
         RunSafe(entityNext.ManifestPath!);
+    }
+    private static void CaughtHostLimit()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context)
+                {
+                    try
+                    {
+                        context.Log("one");
+                        context.Log("two");
+                    }
+                    catch (System.Exception) { }
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "caught"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!),
+            new MapRunOptions { TickCount = 1, MaxLogMessages = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && result.Report.Error?.Contains("The session log limit was exceeded.", StringComparison.Ordinal) == true
+            && result.Report.Logs.SequenceEqual(new[] { "one" })
+            && result.Report.CompletedTicks == 0
+            && result.Report.CreatedEntities == 0
+            && result.Report.ReleasedEntities == 0
+            && result.Report.RemainingEntities == 0,
+            result.Report + " logs=[" + string.Join(",", result.Report.Logs) + "]");
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
     }
     private static void RunSafe(string manifestPath)
     {
