@@ -105,6 +105,7 @@ internal static class CapabilityCases
         yield return ("An empty log string is stored", EmptyLogStringStored);
         yield return ("A log of one space is stored unchanged", WhitespaceLogStored);
         yield return ("An entity name of one space is rejected", WhitespaceEntityNameRejected);
+        yield return ("A log of exactly 2048 characters is stored", ExactLogLimitStored);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -2447,6 +2448,37 @@ internal static class CapabilityCases
             && result.Report.ReleasedEntities == 0
             && result.Report.RemainingEntities == 0,
             "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join("|", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks + " created=" + result.Report.CreatedEntities + " released=" + result.Report.ReleasedEntities + " remaining=" + result.Report.RemainingEntities);
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void ExactLogLimitStored()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log(new string('a', 2048)); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "exact-log"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        var error = result.Report.Error ?? "";
+        var length = result.Report.Logs.Count == 0 ? 0 : result.Report.Logs[0].Length;
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && error.Length == 0
+            && result.Report.CompletedTicks == 1
+            && result.Report.Logs.Count == 1
+            && length == 2048
+            && result.Report.CreatedEntities == 0
+            && result.Report.ReleasedEntities == 0
+            && result.Report.RemainingEntities == 0,
+            "outcome=" + result.Report.Outcome + " error=[" + error + "] count=" + result.Report.Logs.Count + " length=" + length + " ticks=" + result.Report.CompletedTicks);
         Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");

@@ -127,3 +127,5 @@ An empty log string is stored. It is not treated as a null log. The session comp
 A log of one space is stored unchanged. It is not rejected as whitespace. The session completes one tick, and the next package still runs. Packaging tests passed 142/142. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
 An entity name of one space is rejected. No entity is created, no tick completes, and the next package still runs. Packaging tests passed 143/143. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
+A log of exactly 2048 characters is stored. The session completes one tick, and the next package still runs. Packaging tests passed 144/144. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
