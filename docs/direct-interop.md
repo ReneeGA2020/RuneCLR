@@ -16,6 +16,13 @@ On 2026-10-16, eng/verify.ps1 exited 0 and did not start a simulator.
 
 The shape table below is not every supported or unsupported type. TrustedUpdateMutableBox is one measured host class, not a general contract for arbitrary classes. A retained update field keeping one host object alive is measured. A retained script instance or delegate keeping its collectible map context alive is also measured. The delegate case is not a UGC grant. Physical iOS was not run. The iPhone XR on iOS 18.7 is not a target of the iOS 27 runtime. Full .NET and arbitrary NuGet are not accepted. This document does not close #14.
 
+## Explicitly untested
+
+These are not implied by the measured rows.
+
+- Ref structs, pointers, and function pointers.
+- An arbitrary third-party assembly or NuGet package.
+- Physical iOS. The iPhone XR on iOS 18.7 is not a target of the iOS 27 runtime.
 
 ## Measured shapes
 
