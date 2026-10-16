@@ -79,6 +79,7 @@ internal static class CapabilityCases
         yield return ("A caught host entity limit still stops the session and the next package still runs", CaughtEntityLimit);
         yield return ("OnStop runs after a caught entity limit but cannot log and the next package still runs", OnStopAfterCaughtEntityLimit);
         yield return ("An empty OnStop after a caught entity limit adds no OnStop error and the next package still runs", EmptyOnStopAfterCaughtEntityLimit);
+        yield return ("A latched log limit is raised again from OnStop but not from an empty OnStop", LatchedLogLimitOnStop);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1419,6 +1420,80 @@ internal static class CapabilityCases
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
+    }
+    private static void LatchedLogLimitOnStop()
+    {
+        using var temp = new TempDirectory();
+        const string logging = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext value)
+                {
+                    context = value;
+                    try
+                    {
+                        context.Log("one");
+                        context.Log("two");
+                    }
+                    catch (System.Exception) { }
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { context!.Log("stopped"); }
+            }
+            """;
+        var loggingBuilt = Build(Path.Combine(temp.Path, "logging-stop"), logging);
+        Check.Assert(loggingBuilt.Succeeded, string.Join(" | ", loggingBuilt.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var options = new MapRunOptions { TickCount = 1, MaxLogMessages = 1 };
+        var loggingResult = new MapRunner().Run(MapPackage.FromManifest(loggingBuilt.ManifestPath!), options);
+        Check.Assert(loggingResult.Report.Outcome == MapRunOutcome.Failed
+            && loggingResult.Report.Error?.Contains("The session log limit was exceeded.", StringComparison.Ordinal) == true
+            && loggingResult.Report.Error?.Contains("OnStop:", StringComparison.Ordinal) == true
+            && loggingResult.Report.Logs.SequenceEqual(new[] { "one" })
+            && loggingResult.Report.CompletedTicks == 0
+            && loggingResult.Report.CreatedEntities == 0
+            && loggingResult.Report.ReleasedEntities == 0
+            && loggingResult.Report.RemainingEntities == 0,
+            (loggingResult.Report.Error ?? "") + " logs=[" + string.Join(",", loggingResult.Report.Logs) + "]");
+        Check.Collected(loggingResult);
+        var loggingNext = Build(Path.Combine(temp.Path, "logging-next"));
+        Check.Assert(loggingNext.Succeeded, "Next package failed to compile.");
+        RunSafe(loggingNext.ManifestPath!);
+
+        const string empty = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context)
+                {
+                    try
+                    {
+                        context.Log("one");
+                        context.Log("two");
+                    }
+                    catch (System.Exception) { }
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var emptyBuilt = Build(Path.Combine(temp.Path, "empty-stop"), empty);
+        Check.Assert(emptyBuilt.Succeeded, string.Join(" | ", emptyBuilt.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var emptyResult = new MapRunner().Run(MapPackage.FromManifest(emptyBuilt.ManifestPath!), options);
+        Check.Assert(emptyResult.Report.Outcome == MapRunOutcome.Failed
+            && emptyResult.Report.Error?.Contains("The session log limit was exceeded.", StringComparison.Ordinal) == true
+            && emptyResult.Report.Error?.Contains("OnStop:", StringComparison.Ordinal) != true
+            && emptyResult.Report.Logs.SequenceEqual(new[] { "one" })
+            && emptyResult.Report.CompletedTicks == 0
+            && emptyResult.Report.CreatedEntities == 0
+            && emptyResult.Report.ReleasedEntities == 0
+            && emptyResult.Report.RemainingEntities == 0,
+            (emptyResult.Report.Error ?? "") + " logs=[" + string.Join(",", emptyResult.Report.Logs) + "]");
+        Check.Collected(emptyResult);
+        var emptyNext = Build(Path.Combine(temp.Path, "empty-next"));
+        Check.Assert(emptyNext.Succeeded, "Next package failed to compile.");
+        RunSafe(emptyNext.ManifestPath!);
     }
     private static void RunSafe(string manifestPath)
     {
