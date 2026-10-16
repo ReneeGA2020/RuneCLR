@@ -77,6 +77,7 @@ internal static class CapabilityCases
         yield return ("A second log or entity at the host limit fails and the next package still runs", HostCountLimits);
         yield return ("A caught host log limit still stops the session and the next package still runs", CaughtHostLimit);
         yield return ("A caught host entity limit still stops the session and the next package still runs", CaughtEntityLimit);
+        yield return ("OnStop runs after a caught entity limit but cannot log and the next package still runs", OnStopAfterCaughtEntityLimit);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1335,6 +1336,46 @@ internal static class CapabilityCases
             && result.Report.ReleasedEntities == 1
             && result.Report.RemainingEntities == 0,
             result.Report + " logs=[" + string.Join(",", result.Report.Logs) + "]");
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void OnStopAfterCaughtEntityLimit()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext value)
+                {
+                    context = value;
+                    try
+                    {
+                        context.SpawnEntity("a");
+                        context.SpawnEntity("b");
+                    }
+                    catch (System.Exception) { }
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { context!.Log("stopped"); }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "onstop"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!),
+            new MapRunOptions { TickCount = 1, MaxEntities = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && result.Report.Error?.Contains("The entity limit was exceeded.", StringComparison.Ordinal) == true
+            && result.Report.Error.Contains("OnStop:", StringComparison.Ordinal)
+            && result.Report.Logs.Count == 0
+            && result.Report.CompletedTicks == 0
+            && result.Report.CreatedEntities == 1
+            && result.Report.ReleasedEntities == 1
+            && result.Report.RemainingEntities == 0,
+            (result.Report.Error ?? "") + " logs=[" + string.Join(",", result.Report.Logs) + "] " + result.Report);
         Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
