@@ -90,6 +90,7 @@ internal static class CapabilityCases
         yield return ("An author Charge of int.MaxValue exceeds the callback budget before OnTick and the next package still runs", ChargeMaxValueExceedsBudget);
         yield return ("The cooperative budget refills for OnStart, OnTick, and OnStop", CallbackBudgetRefills);
         yield return ("A refilled callback budget still rejects an overspend on the next tick", RefilledBudgetRejectsOverspend);
+        yield return ("OnTick observes the host tick index and duration", HostTickIndexAndDuration);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1912,6 +1913,37 @@ internal static class CapabilityCases
             && error.IndexOf(limit, StringComparison.Ordinal) == error.LastIndexOf(limit, StringComparison.Ordinal)
             && result.Report.CompletedTicks == 0
             && result.Report.Logs.Count == 0
+            && result.Report.CreatedEntities == 0
+            && result.Report.ReleasedEntities == 0
+            && result.Report.RemainingEntities == 0,
+            "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks);
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void HostTickIndexAndDuration()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext context) { this.context = context; }
+                public void OnTick(MapTick tick) { context!.Log(tick.Index + ":" + tick.Delta.Ticks); }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "ticks"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!),
+            new MapRunOptions { TickCount = 2, TickDuration = TimeSpan.FromMilliseconds(50) });
+        var error = result.Report.Error ?? "";
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && error.Length == 0
+            && result.Report.CompletedTicks == 2
+            && result.Report.Logs.SequenceEqual(new[] { "0:500000", "1:500000" })
             && result.Report.CreatedEntities == 0
             && result.Report.ReleasedEntities == 0
             && result.Report.RemainingEntities == 0,
