@@ -29,6 +29,7 @@ internal static class CapabilityCases
         yield return ("Capability profile rejects forbidden calls in unused helpers and constructors", HiddenMethods);
         yield return ("Capability profile rejects forbidden signature-only and generic argument types", ForbiddenSignatures);
         yield return ("Capability profile rejects unsafe pointer IL because SecurityAction is not approved", PointerSignature);
+        yield return ("Capability profile rejects a pointer signature without executing it", PointerSignatureBlob);
         yield return ("Capability profile rejects unsafe function-pointer IL because SecurityAction is not approved", FunctionPointerSignature);
         yield return ("Capability profile rejects finalizers, module initializers and ThreadStatic state", UnsupportedLifecycle);
         yield return ("Capability profile rejects threading and IO even with explicit wider references", WiderReferences);
@@ -94,6 +95,26 @@ internal static class CapabilityCases
     private static void FunctionPointerSignature() =>
         RejectUnsafe("public static class Probe { public static unsafe int Call(delegate*<int, int> value, int input) => value(input); }",
             "System.Security.Permissions.SecurityAction");
+
+    private static void PointerSignatureBlob()
+    {
+        var image = Compile("public static class Probe { public static ref int Marker(ref int value) => ref value; }");
+        var pattern = new byte[] { 0x06, 0x00, 0x01, 0x10, 0x08, 0x10, 0x08 };
+        var found = 0;
+        for (var i = 0; i <= image.Length - pattern.Length; i++)
+        {
+            var match = true;
+            for (var j = 0; j < pattern.Length; j++)
+                if (image[i + j] != pattern[j]) { match = false; break; }
+            if (!match) continue;
+            found++;
+            image[i + 3] = 0x0F;
+            image[i + 5] = 0x0F;
+        }
+        Check.Assert(found == 1, "Expected one ref int signature, found " + found + ".");
+        var error = Check.Throws<InvalidDataException>(() => Validate(image));
+        Check.Assert(error.Message.Contains("Pointer signatures are unsupported.", StringComparison.Ordinal), error.Message);
+    }
 
     private static void RejectUnsafe(string source, string expected)
     {
