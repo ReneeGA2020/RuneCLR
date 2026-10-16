@@ -30,6 +30,7 @@ internal static class CapabilityCases
         yield return ("Capability profile rejects forbidden signature-only and generic argument types", ForbiddenSignatures);
         yield return ("Capability profile rejects unsafe pointer IL because SecurityAction is not approved", PointerSignature);
         yield return ("Capability profile rejects a pointer signature without executing it", PointerSignatureBlob);
+        yield return ("Capability profile rejects an author ref struct because IsByRefLikeAttribute is not approved", RefStructRejected);
         yield return ("Capability profile rejects unsafe function-pointer IL because SecurityAction is not approved", FunctionPointerSignature);
         yield return ("Capability profile rejects finalizers, module initializers and ThreadStatic state", UnsupportedLifecycle);
         yield return ("Capability profile rejects threading and IO even with explicit wider references", WiderReferences);
@@ -95,6 +96,13 @@ internal static class CapabilityCases
     private static void FunctionPointerSignature() =>
         RejectUnsafe("public static class Probe { public static unsafe int Call(delegate*<int, int> value, int input) => value(input); }",
             "System.Security.Permissions.SecurityAction");
+
+    private static void RefStructRejected()
+{
+        var image = Compile("public ref struct Marker { public int Value; }");
+        var error = Check.Throws<InvalidDataException>(() => Validate(image));
+        Check.Assert(error.Message.Contains("System.Runtime.CompilerServices.IsByRefLikeAttribute", StringComparison.Ordinal) && error.Message.Contains("is not approved", StringComparison.Ordinal), error.Message);
+}
 
     private static void PointerSignatureBlob()
     {
