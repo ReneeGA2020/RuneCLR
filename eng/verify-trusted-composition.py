@@ -289,11 +289,18 @@ def main():
                     raise RuntimeError('Collectible lane reactivated a resident module: ' + name)
             elif again != 4:
                 raise RuntimeError('Resident version statics reset on return: ' + name + ' ' + str(again))
+            private_value = report.get('ResidentReactivationPrivateValue')
+            private_version = report.get('ResidentReactivationPrivateVersion')
+            if collectible:
+                if private_value is not None or private_version is not None:
+                    raise RuntimeError('Collectible lane reported a resident private binding: ' + name)
+            elif private_value != 101 or private_version != '1.0.0.0':
+                raise RuntimeError('Returned A private binding differs: ' + name + ' ' + str(private_value) + ' ' + str(private_version))
             results.append(dict(name=name, functional=True, collected=sum(session['Collected'] for session in report['Sessions']),
                                 native=native, helperInterpreter=not jit, helperDump=dump, interpreterEvidence=interpreter,
                                 collectibleR2RRefused=disabled, timingStartupUs=report['TimingStartupUs'],
                                 timingCallbackUs=report['TimingCallbackUs'], timingBoundaryUs=report['TimingBoundaryUs'],
-                                residentReuseStaticCounts=reuse, residentReactivationStaticCount=again, managedBytes=report['ManagedBytes'], workingSetBytes=report['WorkingSetBytes']))
+                                residentReuseStaticCounts=reuse, residentReactivationStaticCount=again, residentReactivationPrivateValue=private_value, residentReactivationPrivateVersion=private_version, managedBytes=report['ManagedBytes'], workingSetBytes=report['WorkingSetBytes']))
             save(output / 'lanes.json', results)
         execute('evidence-regressions', [sys.executable, '-B', ROOT / 'eng/verify-trusted-composition-evidence.py',
                                         '--evidence', output])

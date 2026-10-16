@@ -28,6 +28,8 @@ internal static class Program
             var residentReuse = new List<int>();
             var residentModules = new List<IUpdateModule>();
             int? reactivation = null;
+            int? reactivationPrivateValue = null;
+            string? reactivationPrivateVersion = null;
             foreach (var spec in new[] { ("A", false), ("B", false), ("A", false), ("A", true), ("A", false) })
             {
                 SessionResult completed = RunSession(root, spec.Item1, spec.Item2, host, observe, interpreted, hostInterpreted, jit, collectible, timing, residentReuse, residentModules);
@@ -41,8 +43,12 @@ internal static class Program
                 if (!collectible && sessions.Count == 2)
                 {
                     UpdateOutcome returned = residentModules[0].Execute(host, false);
-                    Check(returned.StaticCount == 4 && returned.PrivateCount == 4, "Returning to the already loaded version did not keep its statics.");
+                    Check(returned.StaticCount == 4 && returned.PrivateCount == 4
+                        && returned.PrivateValue == 101 && returned.PrivateVersion == "1.0.0.0",
+                        "Returning to the already loaded version did not keep its A private binding.");
                     reactivation = returned.StaticCount;
+                    reactivationPrivateValue = returned.PrivateValue;
+                    reactivationPrivateVersion = returned.PrivateVersion;
                 }
             }
             int extraCalls = residentReuse.Count + (reactivation is null ? 0 : 1);
@@ -63,6 +69,8 @@ internal static class Program
                 TimingBoundaryUs = timing[2] * 1_000_000L / Stopwatch.Frequency,
                 ResidentReuseStaticCounts = residentReuse,
                 ResidentReactivationStaticCount = reactivation,
+                ResidentReactivationPrivateValue = reactivationPrivateValue,
+                ResidentReactivationPrivateVersion = reactivationPrivateVersion,
                 ManagedBytes = managedBytes,
                 WorkingSetBytes = workingSetBytes,
                 Witnesses = ExecutionWitness.Drain()
@@ -159,7 +167,11 @@ internal static class Program
             {
                 var again = (IUpdateModule)Activator.CreateInstance(module.GetType())!;
                 UpdateOutcome reused = again.Execute(host, false);
-                Check(reused.StaticCount == 3 && reused.PrivateCount == 3, "Resident module statics did not continue for a second instance.");
+                int expectedPrivate = version == "A" ? 101 : 202;
+                string expectedPrivateVersion = version == "A" ? "1.0.0.0" : "2.0.0.0";
+                Check(reused.StaticCount == 3 && reused.PrivateCount == 3
+                    && reused.PrivateValue == expectedPrivate && reused.PrivateVersion == expectedPrivateVersion,
+                    "Resident module statics did not continue for a second instance.");
                 residentReuse.Add(reused.StaticCount);
                 if (residentModules.Count == 0)
                     residentModules.Add(module);
