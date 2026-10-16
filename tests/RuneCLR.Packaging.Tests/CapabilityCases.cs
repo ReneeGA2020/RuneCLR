@@ -55,6 +55,7 @@ internal static class CapabilityCases
         yield return ("An author static constructor runs before OnStart and the session still retires", AuthorStaticConstructor);
         yield return ("A throwing author constructor fails before OnStart and the next package still runs", AuthorConstructorFailure);
         yield return ("A throwing author static constructor fails before OnStart and the next package still runs", AuthorStaticConstructorFailure);
+        yield return ("Generic, nested, abstract, internal and inherited entry shapes are rejected before run", UnsupportedEntryShapes);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -417,6 +418,76 @@ internal static class CapabilityCases
         Check.Assert(built.Succeeded, "Allowed gameplay fixture failed compilation.");
         for (var cycle = 0; cycle < 3; cycle++) RunSafe(built.ManifestPath!);
     }
+    private static void UnsupportedEntryShapes()
+    {
+        using var temp = new TempDirectory();
+        void Reject(string directory, string source, string expected)
+        {
+            var error = Check.Throws<InvalidDataException>(() =>
+            {
+                var built = Build(Path.Combine(temp.Path, directory), source);
+                var details = built.Diagnostics.Length == 0
+                    ? "Build returned without an exception. Succeeded=" + built.Succeeded
+                    : string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message));
+                throw new InvalidOperationException(details);
+            });
+            Check.Assert(error.Message.Contains(expected, StringComparison.Ordinal), error.Message);
+        }
+
+        Reject("generic", """
+            using RuneCLR;
+            public sealed class GameScript<T> : IMapScript
+            {
+                public void OnStart(IMapContext context) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """, "Entry type 'GameScript' was not found; nested entries are unsupported.");
+        Reject("nested", """
+            using RuneCLR;
+            public sealed class Holder
+            {
+                public sealed class GameScript : IMapScript
+                {
+                    public void OnStart(IMapContext context) { }
+                    public void OnTick(MapTick tick) { }
+                    public void OnStop() { }
+                }
+            }
+            """, "Entry 'GameScript' must be a public, nonabstract, nongeneric, nonnested class.");
+        Reject("abstract", """
+            using RuneCLR;
+            public abstract class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """, "Entry 'GameScript' must be a public, nonabstract, nongeneric, nonnested class.");
+        Reject("internal", """
+            using RuneCLR;
+            sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """, "Entry 'GameScript' must be a public, nonabstract, nongeneric, nonnested class.");
+        Reject("inherited", """
+            using RuneCLR;
+            public class BaseScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            public sealed class GameScript : BaseScript { }
+            """, "Entry 'GameScript' must directly extend System.Object; inherited entry implementations are unsupported.");
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+
     private static void RunSafe(string manifestPath)
     {
         var result = new MapRunner().Run(MapPackage.FromManifest(manifestPath), new MapRunOptions { TickCount = 1 });
