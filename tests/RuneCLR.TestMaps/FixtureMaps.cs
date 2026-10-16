@@ -620,3 +620,21 @@ public sealed class PublishSelfMap : IMapScript
 
     public void OnStop() { }
 }
+
+public sealed class PublishDelegateMap : IMapScript
+{
+    public static Delegate? Callback;
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        Callback = Call;
+        _context.Log("published");
+    }
+
+    public void OnStop() { }
+
+    private void Call() { }
+}

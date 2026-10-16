@@ -14,7 +14,7 @@ Compiler syntax, runtime behavior, framework API, platform/architecture, and the
 
 The source compiler follows the selected SDK compiler's latest stable C# version. There is no project-imposed C# 12 ceiling. That choice is not a measurement that every language feature or every framework API runs on every platform.
 
-| Desktop pumped sessions, tests/RuneCLR.Runtime.Tests 55/55 | Not a syntax measurement | Passed 55/55 in Release. Includes host-owned resource names, one-slot Repeat, and host-posted primitives in FIFO order. Not a wall-clock timer | Resource registration, Repeat, Subscribe, and Post are covered by that suite. Not a framework-wide API pass | Desktop. Not iOS and not a physical device | Not the restricted UGC profile. That profile still excludes resource registration, Repeat, and host-posted events |
+| Desktop pumped sessions, tests/RuneCLR.Runtime.Tests 56/56 | Not a syntax measurement | Passed 56/56 in Release. Includes host-owned resource names, one-slot Repeat, and host-posted primitives in FIFO order. Not a wall-clock timer | Resource registration, Repeat, Subscribe, and Post are covered by that suite. Not a framework-wide API pass | Desktop. Not iOS and not a physical device | Not the restricted UGC profile. That profile still excludes resource registration, Repeat, and host-posted events |
 
 | Desktop sample host --pump, 2026-10-16 | Not a syntax measurement | Release --pump exited 0. hello, arena, and hello each Completed with ticks=3. --collect unloaded all three. --require-interpreter on the installed SDK exited 1 before a map ran | Sample maps only. Not a framework-wide API pass | Desktop ordinary runtime selection. Not iOS and not a physical device | Not the restricted UGC profile. Not interpreter execution |
 

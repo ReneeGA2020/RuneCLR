@@ -39,6 +39,7 @@ internal static class SessionTests
         yield return ("Concurrent host ticks are serialized", ConcurrentTicks);
         yield return ("A retained stopped session does not retain author code", RetainedSession);
         yield return ("A retained script instance keeps the collectible context alive", RetainedScriptKeepsContext);
+        yield return ("A retained script delegate keeps the collectible context alive", RetainedDelegateKeepsContext);
         yield return ("Pumped required interpretation rejects before author loading", RequiredPolicy);
     }
 
@@ -713,6 +714,37 @@ internal static class SessionTests
         Check(result.Report.CompletedTicks == 20 && result.Report.Logs.Skip(1).Take(20).SequenceEqual(Enumerable.Range(0, 20).Select(index => $"tick={index}")),
             "Concurrent ticks overlapped or lost tick indices.");
         CheckReleased(result);
+    }
+
+    private static void RetainedDelegateKeepsContext()
+    {
+        MapRunResult result;
+        Delegate callback;
+        using (var session = Start("PublishDelegateMap", new MapRunOptions { TickCount = 0 }))
+        {
+            Check(session.Tick(), "The script did not publish its delegate.");
+            callback = ReadPublishedDelegate();
+            result = session.Stop();
+        }
+
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["published"]), "The script did not record publication.");
+        Collect();
+        GC.KeepAlive(callback);
+        Check(!result.Unload.IsCollected, "The collectible context unloaded while the test retained only the script delegate.");
+        callback = null!;
+        for (var attempt = 0; attempt < 10 && !result.Unload.IsCollected; attempt++)
+            Collect();
+        Check(result.Unload.IsCollected, "Dropping the script delegate did not let the collectible context unload.");
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static Delegate ReadPublishedDelegate()
+    {
+        var map = CollectibleTestMaps().GetType("RuneCLR.TestMaps.PublishDelegateMap")
+            ?? throw new InvalidOperationException("PublishDelegateMap was not loaded.");
+        return map.GetField("Callback", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as Delegate
+            ?? throw new InvalidOperationException("The script did not publish its delegate.");
     }
 
     private static void RetainedScriptKeepsContext()

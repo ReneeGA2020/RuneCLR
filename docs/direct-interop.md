@@ -14,7 +14,7 @@ On 2026-10-16, eng/verify.ps1 exited 0 and did not start a simulator.
 
 ## Not accepted from these facts
 
-The shape table below is not every supported or unsupported type. TrustedUpdateMutableBox is one measured host class, not a general contract for arbitrary classes. A retained update field keeping one host object alive is measured. A retained script instance keeping its collectible map context alive is also measured. Physical iOS was not run. The iPhone XR on iOS 18.7 is not a target of the iOS 27 runtime. Full .NET and arbitrary NuGet are not accepted. This document does not close #14.
+The shape table below is not every supported or unsupported type. TrustedUpdateMutableBox is one measured host class, not a general contract for arbitrary classes. A retained update field keeping one host object alive is measured. A retained script instance or delegate keeping its collectible map context alive is also measured. The delegate case is not a UGC grant. Physical iOS was not run. The iPhone XR on iOS 18.7 is not a target of the iOS 27 runtime. Full .NET and arbitrary NuGet are not accepted. This document does not close #14.
 
 
 ## Measured shapes
@@ -35,6 +35,7 @@ These rows are desktop results already recorded. A blank shape is not a pass.
 | Released host input and held object | EchoDifferentStillSucceeds records INPUT-COLLECTED and HELD-COLLECTED, and does not record INPUT-ALIVE or HELD-ALIVE. |
 | Update static reference | RetainedIdentityStaysAlive records BEFORE-ALIVE while the update Held field stores the host object, and AFTER-COLLECTED after ReleaseHeldObjects. |
 | Retained script instance | RetainedScriptKeepsContext keeps the collectible map context alive while the test holds the script instance, then unloads it after that reference is dropped. |
+| Retained script delegate | RetainedDelegateKeepsContext keeps the collectible map context alive while the test holds only the script delegate, then unloads it after that delegate is dropped. Not a UGC grant. |
 
 ## Restricted UGC
 
