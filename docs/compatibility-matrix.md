@@ -18,6 +18,8 @@ The source compiler follows the selected SDK compiler's latest stable C# version
 
 | Desktop sample host --pump, 2026-10-16 | Not a syntax measurement | Release --pump exited 0. hello, arena, and hello each Completed with ticks=3. --collect unloaded all three. --require-interpreter on the installed SDK exited 1 before a map ran | Sample maps only. Not a framework-wide API pass | Desktop ordinary runtime selection. Not iOS and not a physical device | Not the restricted UGC profile. Not interpreter execution |
 
+| Desktop eng/verify.ps1, 2026-10-16 | Not a syntax measurement | Exited 0. Covered the Release solution, late map, runtime tests, packaging, controlled player, trusted-update selector, desktop iOS-host source check, trusted-update self-test, and both sample collection paths. No simulator | Not a framework-wide API pass | Desktop. Not a physical device | Not a UGC grant. The ordinary sample path is not interpreter proof |
+
 ## Untested
 
 These are untested. They are not implied by the rows above.

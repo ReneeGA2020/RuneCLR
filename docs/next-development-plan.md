@@ -296,3 +296,5 @@ On 2026-10-16, after the host-session additions, desktop samples/RuneCLR.SampleH
 On 2026-10-16 dotnet build RuneCLR.slnx -c Release exited 0 with 0 warnings and 0 errors. The trusted-update selector suite then passed in Release with the same count already recorded. This is not an iOS result and does not close #8, #12, or #13.
 
 On 2026-10-16 the controlled package player passed 15/15 without --pump and 22/22 with --pump --include-pumped fixtures. Both used a new artifacts/package-execution directory and the Release player. Packaging tests passed 85/85 in the same Release build. This is desktop only and does not close #4 or #8.
+
+On 2026-10-16 ./eng/verify.ps1 exited 0. The desktop script covered the Release solution, late map, runtime tests, packaging, controlled player, trusted-update selector, the desktop iOS-host source check, the trusted-update self-test, and both sample collection paths. It did not start a simulator and does not close #2, #8, or #12.
