@@ -53,6 +53,7 @@ internal static class CapabilityCases
         yield return ("Allowed collections, arithmetic and author exceptions retain clean session lifecycle", SafeLifecycle);
         yield return ("An author constructor runs before OnStart and the session still retires", AuthorConstructor);
         yield return ("An author static constructor runs before OnStart and the session still retires", AuthorStaticConstructor);
+        yield return ("A throwing author constructor fails before OnStart and the next package still runs", AuthorConstructorFailure);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -308,6 +309,35 @@ internal static class CapabilityCases
         }
         public sealed class AuthorException : Exception { public AuthorException(string message) : base(message) { } }
         """;
+    private static void AuthorConstructorFailure()
+{
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public GameScript() { throw new AuthorCtorException(); }
+                public void OnStart(IMapContext context) { context.Log("started"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { contextUnused(); }
+                private static void contextUnused() { }
+            }
+            public sealed class AuthorCtorException : System.Exception { }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "faulty"), source);
+        Check.Assert(built.Succeeded, "Throwing constructor failed compilation.");
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && result.Report.Error?.Contains("AuthorCtorException", StringComparison.Ordinal) == true
+            && result.Report.Logs.Count == 0
+            && result.Report.CreatedEntities == 0 && result.Report.RemainingEntities == 0,
+            result.Report.ToString());
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+}
+
     private static void AuthorStaticConstructor()
 {
         const string source = """

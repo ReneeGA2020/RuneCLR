@@ -27,3 +27,5 @@ An author ref struct compiles with the product compiler. The capability profile 
 An author instance constructor that stores 41 runs before OnStart. The session logs value=41, completes one tick, and the map context is collected. Packaging tests passed 90/90. Issue 5 stays open.
 
 An author static constructor that stores 41 also runs before OnStart. The session logs value=41, completes one tick, and the map context is collected. Packaging tests passed 91/91. Issue 5 stays open.
+
+A throwing author constructor fails the session before OnStart. The host-owned error names AuthorCtorException, no log line is written, no entity is created, and the map context is collected. The next package still runs. Packaging tests passed 92/92. Issue 5 stays open.
