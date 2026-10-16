@@ -1341,6 +1341,8 @@ On 2026-10-16 packaging tests passed 136/136 at commit 87ed913. An entity spawne
 
 On 2026-10-16 packaging tests passed 137/137 at commit dbb8868. The author catches a second DestroyEntity of the same id, and the session still completes. The other entity is then destroyed. The logs are made, tick, gone, and kept. One tick completes, created 2, released 2, remaining 0. A caught argument error is not a latched host limit. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
+On 2026-10-16 packaging tests passed 138/138 at commit 5721b5a. Destroying one entity leaves the other alive until session completion. The logs are made and tick. One tick completes, created 2, released 2, remaining 0, and no error is reported. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
