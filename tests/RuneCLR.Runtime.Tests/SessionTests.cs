@@ -836,6 +836,9 @@ internal static class SessionTests
             Expect<PlatformNotSupportedException>(() => new MapRunner().Start(Package("CounterMap"),
                 new MapRunOptions { ExecutionPolicy = MapExecutionPolicy.RequireInterpreter }));
             Check(loads == 0, "Pumped required policy loaded author IL before rejection.");
+            Expect<PlatformNotSupportedException>(() => new MapRunner().Start(Package("CounterMap"),
+                new MapRunOptions { ExecutionPolicy = MapExecutionPolicy.RequireInterpreter, PrototypeInstructionBudget = 8192 }));
+            Check(loads == 0, "Budgeted required policy loaded author IL before rejection.");
         }
         finally { AppDomain.CurrentDomain.AssemblyLoad -= Observe; }
     }

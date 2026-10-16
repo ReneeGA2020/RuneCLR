@@ -50,6 +50,8 @@ The source compiler follows the selected SDK compiler's latest stable C# version
 
 | Desktop stock SDK controlled-package native budget preflight | Not a syntax measurement | NATIVE_BUDGET_UNAVAILABLE beforeAuthorFile=true collectibleBefore=0 collectibleAfter=0 authorLoads=0. Exit code 2. The preflight happened before an author file was read. It does not establish the controlled-package and native instruction-budget combination | Not a framework-wide API pass | Installed desktop SDK. Not iOS and not a physical device | Not a managed-il-gameplay-v1 pass. Issue 5 stays open. Issue 6 stays open |
 
+| Desktop runtime test rejects a budgeted interpreter start before author load | Not a syntax measurement | 56/56 tests passed. On this SDK the unsupported branch throws PlatformNotSupportedException for RequireInterpreter with PrototypeInstructionBudget 8192 and loads stays 0. Not a run of the controlled-package native-budget combination. Not iOS | Not a framework-wide API pass | Installed desktop SDK. Not a physical device | Not a UGC grant. Issue 6 stays open |
+
 ## Untested
 
 These are untested. They are not implied by the rows above.
