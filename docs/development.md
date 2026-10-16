@@ -1347,6 +1347,8 @@ On 2026-10-16 packaging tests passed 139/139 at commit 88c32f1. OnStop can destr
 
 On 2026-10-16 packaging tests passed 140/140 at commit c039cd9. Destroying an already removed entity in OnStop fails and adds OnStop:. The completed tick remains. The logs are made and tick, not stopped. CompletedTicks stays 1. The entity stays released, and the next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
+On 2026-10-16 packaging tests passed 141/141 at commit ced0bbb. An empty log string is stored. It is not treated as a null log. The session completes one tick, and the next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
