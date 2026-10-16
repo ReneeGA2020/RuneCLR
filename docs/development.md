@@ -1333,6 +1333,8 @@ On 2026-10-16 packaging tests passed 132/132 at commit 407dc0a. A zero TickDurat
 
 On 2026-10-16 packaging tests passed 133/133 at commit ff8e7e3. A TickDuration of one negative tick throws ArgumentOutOfRangeException with ParamName TickDuration before the author runs. The Message is TickDuration ('-00:00:00.0000001') must be greater than '00:00:00'. (Parameter 'TickDuration'), then Actual value was -00:00:00.0000001. Windows separates that line with CRLF. Ubuntu and macOS separate it with LF. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
+On 2026-10-16 packaging tests passed 134/134 at commit f894b2d. The default MapRunOptions run three ticks of 50 milliseconds. OnTick logs 0:500000, 1:500000, and 2:500000. The session completes. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
