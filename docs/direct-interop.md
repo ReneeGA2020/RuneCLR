@@ -32,6 +32,7 @@ These rows are desktop results already recorded. A blank shape is not a pass.
 | Instance-only, inherited, or private-only echo | ECHO ActivationFailed. Counters stay 0. OBJECT-SAME is absent. |
 | Interface callback | Desktop composition recorded nine interface callbacks and HostIdentity=true. Not a UGC grant. |
 | Trusted composition delegates | Desktop composition recorded nine delegate calls and HostIdentity=true. The host report retains neither the exception nor author metadata, delegates, or objects. Not a UGC grant. |
+| Released host input and held object | EchoDifferentStillSucceeds records INPUT-COLLECTED and HELD-COLLECTED, and does not record INPUT-ALIVE or HELD-ALIVE. |
 
 ## Restricted UGC
 
