@@ -280,7 +280,7 @@ Update the handoff with actual commands, products, results and remaining gaps.
 
 ## Next new-session assignment
 
-On 2026-10-16 commit c268026 records simulator directory rerun-a9164cd-20261016-10. python3 eng/verify-ios-trusted-update.py exited 0 with passed=true and nativeExecutionProven=true. A and B both recorded RUNECLR_EXIT=0 and TRUSTED_UPDATE_SUCCESS result=216. That run used a Mac clone which also printed temporary failure-type diagnostics. The committed tree does not contain those prints and has not itself been rerun. Reproduce c268026 on the iOS 27 simulator before calling that receipt a run of this tree.
+On 2026-10-16 commit c268026 records simulator directory rerun-a9164cd-20261016-10. python3 eng/verify-ios-trusted-update.py exited 0 with passed=true and nativeExecutionProven=true. A and B both recorded RUNECLR_EXIT=0 and TRUSTED_UPDATE_SUCCESS result=216. That run used a Mac clone which also printed temporary failure-type diagnostics. The committed tree does not contain those prints. On 2026-10-16 a clean checkout of c268026 at /Users/editor/RuneCLR-experiments/RuneCLR-c268026 reproduced the iOS 27 simulator as rerun-c268026-20261016-01: verify-ios-trusted-update.py exited 0 with passed=true and nativeExecutionProven=true, and A and B both recorded RUNECLR_EXIT=0. That is still not a physical-device result.
 
 The only available phone is an iPhone XR locked to iOS 18.7. Do not build an iphoneos CoreCLR or install on that phone. An iOS 18.7 device runtime waits until this committed simulator path is reproduced. Hot-update DLLs are not built per iOS version. The desktop selector is 270/270. Do not pursue unloadable hot-update R2R. One selected noncollectible version stays resident for the process.
 

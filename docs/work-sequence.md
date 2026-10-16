@@ -6,7 +6,7 @@ The tracker is [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11).
 An issue stays open until its acceptance evidence exists. Scheduling a task does
 not establish that an unperformed experiment has passed.
 
-On 2026-10-16 the only available phone is an iPhone XR locked to iOS 18.7. Do not build an iphoneos runtime for it. The next simulator task is to reproduce commit c268026, which does not include the temporary failure-type logs used by rerun-a9164cd-20261016-10.
+On 2026-10-16 the only available phone is an iPhone XR locked to iOS 18.7. Do not build an iphoneos runtime for it. A clean checkout of c268026 reproduced the iOS 27 simulator as rerun-c268026-20261016-01, with verify passed and nativeExecutionProven=true. A and B both recorded RUNECLR_EXIT=0. That checkout has no temporary failure-type logs.
 
 ## Current contribution order - 2026-10-15
 
