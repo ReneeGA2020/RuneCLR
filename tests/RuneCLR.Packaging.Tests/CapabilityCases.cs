@@ -71,6 +71,7 @@ internal static class CapabilityCases
         yield return ("The approved MapId accessor runs and the next package still runs", ApprovedMapId);
         yield return ("An author Charge call spends the cooperative budget and the next package still runs", AuthorCharge);
         yield return ("An author DestroyEntity releases the entity and the next package still runs", AuthorDestroyEntity);
+        yield return ("Destroying an unknown entity fails before OnStart and the next package still runs", DestroyUnknownEntity);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1104,6 +1105,34 @@ internal static class CapabilityCases
             && result.Report.ReleasedEntities == 1
             && result.Report.RemainingEntities == 0,
             result.Report + " logs=[" + string.Join(",", result.Report.Logs) + "]");
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void DestroyUnknownEntity()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.DestroyEntity(default); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "unknown"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && result.Report.Error?.Contains("The entity does not belong to this session.", StringComparison.Ordinal) == true
+            && result.Report.CompletedTicks == 0
+            && result.Report.Logs.Count == 0
+            && result.Report.CreatedEntities == 0
+            && result.Report.ReleasedEntities == 0
+            && result.Report.RemainingEntities == 0,
+            (result.Report.Error ?? "") + " created=" + result.Report.CreatedEntities + " released=" + result.Report.ReleasedEntities + " remaining=" + result.Report.RemainingEntities);
         Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
