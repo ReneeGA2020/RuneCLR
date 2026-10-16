@@ -66,6 +66,7 @@ internal static class CapabilityCases
         yield return ("An author exception filter runs, handles the failure, and the next package still runs", ExceptionFilterRecovery);
         yield return ("The cooperative API budget stops a second log but not a computation loop", CooperativeBudgetDoesNotStopLoop);
         yield return ("Schedule, resource, and posted-event APIs are rejected before run", RejectHostSchedulingApis);
+        yield return ("Remaining schedule, work, and resource accessors are rejected before run", RejectRemainingHostAccessors);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -929,6 +930,46 @@ internal static class CapabilityCases
         Reject("resource", "context.RegisterResource(\"a\");", "Member 'RuneCLR.IMapContext.RegisterResource' is not approved.");
         Reject("posted", "context.Subscribe(1);", "Member 'RuneCLR.IMapContext.Subscribe' is not approved.");
         Reject("work", "context.RequestWork(\"a\");", "Member 'RuneCLR.IMapContext.RequestWork' is not approved.");
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void RejectRemainingHostAccessors()
+    {
+        using var temp = new TempDirectory();
+        void Reject(string directory, string call, string member)
+        {
+            var source = $$"""
+                using RuneCLR;
+                public sealed class GameScript : IMapScript
+                {
+                    public void OnStart(IMapContext context) { {{call}} }
+                    public void OnTick(MapTick tick) { }
+                    public void OnStop() { }
+                }
+                """;
+            var error = Check.Throws<InvalidDataException>(() =>
+            {
+                var built = Build(Path.Combine(temp.Path, directory), source);
+                var details = built.Diagnostics.Length == 0
+                    ? "Build returned without an exception. Succeeded=" + built.Succeeded
+                    : string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message));
+                throw new InvalidOperationException(details);
+            });
+            Check.Assert(error.Message.Contains("Capability profile 'managed-il-gameplay-v1':", StringComparison.Ordinal)
+                && error.Message.Contains(member, StringComparison.Ordinal), error.Message);
+        }
+
+        Reject("schedule", "context.Schedule(1, 1);", "Member 'RuneCLR.IMapContext.Schedule' is not approved.");
+        Reject("take-scheduled", "int taken; context.TryTakeScheduled(out taken);", "Member 'RuneCLR.IMapContext.TryTakeScheduled' is not approved.");
+        Reject("pending-scheduled", "_ = context.PendingScheduled;", "Member 'RuneCLR.IMapContext.get_PendingScheduled' is not approved.");
+        Reject("release-resource", "context.ReleaseResource(\"a\");", "Member 'RuneCLR.IMapContext.ReleaseResource' is not approved.");
+        Reject("pending-resources", "_ = context.PendingResources;", "Member 'RuneCLR.IMapContext.get_PendingResources' is not approved.");
+        Reject("take-work", "long id; int value; bool ok; context.TryTakeWork(out id, out value, out ok);", "Member 'RuneCLR.IMapContext.TryTakeWork' is not approved.");
+        Reject("pending-work", "_ = context.PendingWork;", "Member 'RuneCLR.IMapContext.get_PendingWork' is not approved.");
+        Reject("raise-signal", "context.RaiseSignal(1);", "Member 'RuneCLR.IMapContext.RaiseSignal' is not approved.");
+        Reject("take-posted", "int postedId; int postedValue; context.TryTakePosted(out postedId, out postedValue);", "Member 'RuneCLR.IMapContext.TryTakePosted' is not approved.");
+        Reject("pending-posted", "_ = context.PendingPosted;", "Member 'RuneCLR.IMapContext.get_PendingPosted' is not approved.");
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
