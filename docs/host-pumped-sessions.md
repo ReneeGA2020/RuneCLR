@@ -155,6 +155,8 @@ Without `--pump`, the sample uses the existing `MapRunner.Run` path. A game
 integration should replace this finite loop with its own authoritative frame
 loop and explicitly retire sessions.
 
+On 2026-10-16, after the host-session additions, desktop samples/RuneCLR.SampleHost Release --pump exited 0. hello, arena, and hello each Completed with ticks=3. Without --collect, unload stayed pending. With --pump --collect, all three were collected. --pump --require-interpreter on the installed SDK exited 1 before any map ran, because CoreLib lacks RuneCLR_CreateInterpreterRequired. That rejection is not interpreter execution and not an iOS result.
+
 ## Measured acceptance - 2026-10-15
 
 The full private RC1 Windows verification passes a Release solution build with
