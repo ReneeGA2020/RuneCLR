@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.TrustedUpdate/RuneCLR.TrustedUpdate.csproj" />
+    <ProjectReference Include="../TrustedUpdate.Good/TrustedUpdate.Good.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../TrustedUpdate.Throwing/TrustedUpdate.Throwing.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="StageTrustedUpdateFixtures" AfterTargets="Build">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../TrustedUpdate.Good/bin/$(Configuration)/$(TargetFramework)/TrustedUpdate.Good.dll" DestinationFolder="$(TargetDir)fixtures" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../TrustedUpdate.Throwing/bin/$(Configuration)/$(TargetFramework)/TrustedUpdate.Throwing.dll" DestinationFolder="$(TargetDir)fixtures" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

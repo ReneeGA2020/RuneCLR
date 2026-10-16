@@ -18,6 +18,8 @@ public sealed record MapRunOptions
     public int OperationBudgetPerCallback { get; init; } = 1_000;
     public int MaxEntities { get; init; } = 128;
     public int MaxLogMessages { get; init; } = 128;
+    public int MaxScheduledSignals { get; init; } = 128;
+    public int MaxWorkItems { get; init; } = 128;
 
     internal void Validate()
     {
@@ -32,6 +34,8 @@ public sealed record MapRunOptions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(OperationBudgetPerCallback);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxEntities);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxLogMessages);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxScheduledSignals);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxWorkItems);
     }
 }
 
@@ -68,6 +72,10 @@ public sealed record PrototypeBudgetSnapshot(
     long CleanupExecuted);
 
 public sealed record MapRunResult(MapRunReport Report, UnloadTicket Unload);
+
+public readonly record struct MapEntityInfo(EntityId Id, string Name);
+
+public readonly record struct MapWorkInfo(long Id, string Name);
 
 public sealed class UnloadTicket
 {

@@ -217,3 +217,25 @@ Keep source/configuration/native/CoreLib/compiler/signing provenance and
 physical-device logs separate from simulator evidence. The current
 [Release package functional acceptance](ios-r2r-release-packages.md) remains
 an independent simulator result.
+
+## Read-only availability refresh recorded on 2026-10-15 22:43 China Standard Time
+
+At `2026-10-15T14:43:24Z`, one CoreDevice query on the configured Mac listed 62
+entries: 61 simulated and one physical iPad8,9 (iPad Pro 11-inch, 2nd
+generation). The physical device remains paired with developer mode enabled,
+but it is not available: `tunnelState` is `unavailable` and
+`ddiServicesAvailable` is false. Its cached OS field is present (`27.0.1`);
+that value was not read from a live connection. The last recorded connection
+remains `2026-10-08T08:40:00Z`. No physical iOS target is reachable. No
+simulator was booted, and pairing was not retried.
+
+Signing was reinspected without exporting identities or profiles. There is one
+valid codesigning identity and it is a development identity. Of 209 decoded
+profiles, 14 are unexpired iOS profiles, and 1 covers the cached physical
+device together with that valid development identity. The
+`org.runeclr.deviceprobe` bundle intersection was not remeasured. The missing
+prerequisite for a physical run is the device connection, not the development
+identity and not a device-plus-development-identity profile. The
+[sanitized receipt](../artifacts/device-readiness/20261015-144324Z/results.json)
+retains only counts and capability states. No application was installed, and
+no signing material or device setting was changed.

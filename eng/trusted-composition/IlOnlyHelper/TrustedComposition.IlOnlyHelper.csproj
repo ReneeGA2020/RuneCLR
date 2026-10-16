@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><ProjectReference Include="../Contract/TrustedComposition.Contract.csproj" /></ItemGroup>
+</Project>

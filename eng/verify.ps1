@@ -16,6 +16,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Player package execution tests failed.' }
     & dotnet run --project tests/RuneCLR.PackageExecution.Tests -c Release --no-build -- --packages $fixtures --pump
     if ($LASTEXITCODE -ne 0) { throw 'Host-pumped package execution tests failed.' }
+    & dotnet run --project tests/RuneCLR.TrustedUpdate.Tests -c Release --no-build
+    if ($LASTEXITCODE -ne 0) { throw 'Trusted update selector tests failed.' }
+    & py -3 eng/verify-trusted-update-plan.py
+    if ($LASTEXITCODE -ne 0) { throw 'Trusted update plan parity failed.' }
+    & py -3 eng/verify-ios-host-callback.py
+    if ($LASTEXITCODE -ne 0) { throw 'iOS host callback closure failed.' }
+    & dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --self-test
+    if ($LASTEXITCODE -ne 0) { throw 'Trusted update host self-test failed.' }
     & dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --collect
     if ($LASTEXITCODE -ne 0) { throw 'Sample failed.' }
     & dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --pump --collect

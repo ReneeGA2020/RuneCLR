@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Contract/TrustedComposition.Contract.csproj" />
+    <ProjectReference Include="../Update.A/TrustedComposition.Update.A.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Update.B/TrustedComposition.Update.B.csproj" ReferenceOutputAssembly="false" />
+    <Compile Include="../../windows-entry-observation/WindowsEntryObservation.cs" Link="WindowsEntryObservation.cs" />
+  </ItemGroup>
+</Project>

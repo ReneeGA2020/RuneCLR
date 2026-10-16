@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Compile Include="../Business.cs" Link="Business.cs" />
+    <ProjectReference Include="../Contract/TrustedComposition.Contract.csproj" />
+    <ProjectReference Include="../IlOnlyHelper/TrustedComposition.IlOnlyHelper.csproj" />
+    <ProjectReference Include="../Private.B/TrustedComposition.Private.B.csproj" />
+  </ItemGroup>
+</Project>

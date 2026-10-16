@@ -179,3 +179,222 @@ public sealed class GenericMap : IMapScript
         public int Read() => Value;
     }
 }
+
+public sealed class SignalMap : IMapScript
+{
+    public static int Seen;
+    public static IMapContext? Kept;
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        Kept = _context;
+        _context.Signal += OnSignal;
+        _context.RaiseSignal(4);
+        _context.Log($"seen={Seen}");
+    }
+
+    public void OnStop() => _context.Log("stopped");
+
+    private void OnSignal(int value) => Seen += value;
+}
+
+public sealed class TimerMap : IMapScript
+{
+    public static IMapContext? Kept;
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.Schedule(1, 4);
+        context.Schedule(2, 9);
+    }
+
+    public void OnTick(MapTick tick)
+    {
+        Kept = _context;
+        var taken = "";
+        while (_context.TryTakeScheduled(out var value))
+            taken = taken.Length == 0 ? value.ToString() : taken + "+" + value;
+        _context.Log("tick=" + tick.Index + ":taken=" + (taken.Length == 0 ? "none" : taken));
+        var rejectedZero = false;
+        try { _context.Schedule(0, 1); }
+        catch (ArgumentOutOfRangeException) { rejectedZero = true; }
+        if (!rejectedZero) _context.Log("accepted-zero");
+        if (tick.Index == 0) _context.Schedule(2, 5);
+    }
+
+    public void OnStop() => _context.Log("pending=" + _context.PendingScheduled);
+}
+
+public sealed class ResourceMap : IMapScript
+{
+    public static IMapContext? Kept;
+    public static long KeptEntity;
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        Kept = _context;
+        KeptEntity = _context.SpawnEntity("kept").Value;
+        _context.Log("spawned");
+    }
+
+    public void OnStop() => _context.Log("stopped");
+}
+
+public sealed class HostViewMap : IMapScript
+{
+    private IMapContext _context = null!;
+    private EntityId _first;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        if (tick.Index == 0)
+        {
+            _first = _context.SpawnEntity("kept");
+            _context.Log("spawned");
+            return;
+        }
+
+        _context.DestroyEntity(_first);
+        _context.SpawnEntity("next");
+        _context.Log("replaced");
+    }
+
+    public void OnStop() => _context.Log("stopped");
+}
+
+public sealed class HostWorkMap : IMapScript
+{
+    public static IMapContext? Kept;
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        Kept = _context;
+        if (tick.Index == 0)
+        {
+            _context.RequestWork("load");
+            _context.RequestWork("bad");
+            _context.Log("requested");
+            return;
+        }
+
+        var success = false;
+        var failure = false;
+        while (_context.TryTakeWork(out _, out var value, out var succeeded))
+        {
+            if (succeeded && value == 4) success = true;
+            if (!succeeded && value == 9) failure = true;
+        }
+
+        _context.Log(success && failure ? "taken=4:failed=9" : "mismatch");
+        _context.RequestWork("later");
+    }
+
+    public void OnStop() => _context.Log("pending=" + _context.PendingWork);
+}
+
+public sealed class FaultingWorkMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        if (tick.Index == 0)
+        {
+            _context.RequestWork("load");
+            _context.Schedule(2, 4);
+            _context.Log("requested");
+            return;
+        }
+
+        _context.RequestWork("again");
+        _context.Schedule(1, 9);
+        _context.Log("requested-again");
+        throw new MapDefinedException();
+    }
+
+    public void OnStop() => _context.Log("pending=" + _context.PendingWork + ":" + _context.PendingScheduled);
+}
+
+public sealed class NextScheduleMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.Schedule(1, 6);
+    }
+
+    public void OnTick(MapTick tick)
+    {
+        var taken = _context.TryTakeScheduled(out var value) ? value.ToString() : "none";
+        _context.Log("tick=" + tick.Index + ":taken=" + taken);
+    }
+
+    public void OnStop() => _context.Log("pending=" + _context.PendingScheduled);
+}
+
+public sealed class CatchingWorkLimitMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.RequestWork("kept");
+        try
+        {
+            context.RequestWork("extra");
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    public void OnTick(MapTick tick) { }
+
+    public void OnStop()
+    {
+        if (_context.PendingWork != 0) throw new InvalidOperationException("pending-work");
+    }
+}
+
+public sealed class CatchingScheduleLimitMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.Schedule(1, 4);
+        try
+        {
+            context.Schedule(1, 9);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    public void OnTick(MapTick tick) { }
+
+    public void OnStop()
+    {
+        if (_context.PendingScheduled != 0) throw new InvalidOperationException("pending-schedule");
+    }
+}

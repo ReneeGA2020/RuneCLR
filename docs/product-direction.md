@@ -45,6 +45,7 @@ For a first-party game, update modules are trusted by the game team and do not
 inherit the UGC profile's interpreter-only restriction. The direction is to
 download independently built R2R updates and load them with existing R2R
 modules and the host, using precompiled bodies and interpretation where needed.
+Based on the measured desktop result that the pinned runtime disables R2R for collectible modules, RuneCLR does not pursue unloadable hot-update R2R: an update that must be unloaded stays interpreted, and ordinary first-party execution does not repeatedly unload old assemblies.
 This follows CoreCLR's R2R-plus-interpreter architecture; see the
 [upstream explanation](https://github.com/dotnet/runtime/issues/112748#issuecomment-2681260591).
 The current post-install IL experiments establish a useful interpreted path,

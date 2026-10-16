@@ -13,7 +13,7 @@ is the live tracker. Milestones express capabilities, not release dates.
 | [#2](https://github.com/ReneeGA2020/RuneCLR/issues/2) | Post-publication IL and repeated retirement on physical iOS | Open; ARM64 simulator evidence exists, device execution remains pending |
 | [#3](https://github.com/ReneeGA2020/RuneCLR/issues/3) | Startup, callbacks, host interaction and memory measurements | Desktop and mobile simulator/emulator experiments recorded; representative game/device envelope remains open |
 | [#4](https://github.com/ReneeGA2020/RuneCLR/issues/4) | Controlled UGC source/IL packages and version compatibility | Local compiler/intake/player implemented; authenticated approval/distribution remains open |
-| [#8](https://github.com/ReneeGA2020/RuneCLR/issues/8) | Host-driven callbacks, events, timers and resource ownership | Pumped Start/Tick/Stop implemented; richer events/resources remain open |
+| [#8](https://github.com/ReneeGA2020/RuneCLR/issues/8) | Host-driven callbacks, events, timers and resource ownership | Pumped Start/Tick/Stop implemented; a callback-scoped map signal closes on return. A primitive tick schedule is taken on a later host tick and dropped on stop. Entity, log, and Charge calls require an open callback, and stop still releases those entities. The host can copy live entity ids and names between callbacks and can complete or fail primitive work between callbacks without retaining an exception. Wall-clock timers remain outside the session |
 
 The current versioned loader uses restricted `managed-il-gameplay-v1`; #4 does
 not yet provide a general trusted-update profile. Shared loading, diagnostics,
@@ -43,6 +43,7 @@ composition and actual method execution; #12 owns post-install delivery and
 platform packaging/signing/loading acceptance. Existing post-install IL evidence
 does not establish downloaded R2R native execution on iOS. These milestones do
 not expand restricted UGC execution.
+On the 2026-10-16 measured desktop result, RuneCLR does not pursue unloadable hot-update R2R: an update that must be unloaded stays interpreted, and ordinary first-party execution does not repeatedly unload old assemblies.
 
 Gate: a developer can integrate C# updates, use supported host objects, change
 versions at declared boundaries and recover from ordinary update failures, with

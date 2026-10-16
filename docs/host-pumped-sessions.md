@@ -2,7 +2,7 @@
 
 `MapRunner.Start(package, options)` creates a collectible session, constructs the
 script and calls `OnStart` before returning a `MapSession`. The game host then
-chooses when to call `Tick` and when to call `Stop`. There is no timer, sleep,
+chooses when to call `Tick` and when to call `Stop`. There is no wall-clock timer, sleep,
 wall-clock deadline or imposed frame cadence inside the session.
 
 ```csharp
@@ -60,6 +60,52 @@ Observe `result.Unload.IsCollected` after the lifecycle call stack has returned.
 leak. If diagnostic forced GC is needed, use a separate non-inlined lifecycle
 helper, as the sample does, then inspect its returned result. Do not force GC
 each frame.
+
+## Callback signal
+
+`IMapContext.Signal` and `RaiseSignal` are available only while `OnStart`, `OnTick`, or
+`OnStop` is running. Returning from that callback, including by an exception,
+closes the signal and drops every subscriber. A later raise or subscription
+throws `InvalidOperationException` with the message "The map signal is closed."
+and does not invoke the old handler. The session does not retain the subscribers
+after the callback. This desktop host contract is not part of the restricted
+`managed-il-gameplay-v1` profile, which still denies delegate-based work.
+
+## Tick schedule
+
+`Schedule(dueInTicks, value)` stores one primitive while a callback is running.
+`dueInTicks` is at least 1. From OnStart, 1 is ready on the first tick. During
+tick 0, 1 is ready on tick 1. `TryTakeScheduled` returns a due value only during
+that later tick callback, choosing the earliest due value first. It does not
+call author code by itself. After the callback returns, schedule and take throw
+`InvalidOperationException` ("The map schedule is closed."). `Stop` clears
+anything still pending before `OnStop`. There is still no background thread,
+sleep, or wall-clock timer. The restricted profile does not include this surface. A later session does not observe values cancelled by an earlier session.
+
+## Callback resources
+
+SpawnEntity, DestroyEntity, Log, and Charge are accepted only while OnStart,
+OnTick, or OnStop is running. After that callback returns, a retained context
+receives InvalidOperationException ("The map callback is closed.") and does not
+add, remove, or record anything. Entities created while the callback was open
+are still released by Stop, including when the script never destroys them.
+Between callbacks, MapSession.CopyEntities copies the current entity ids and
+names into host-owned values. Keep the returned array; a later tick does not
+change it. Copying after Stop throws InvalidOperationException. Call it between
+callbacks, not from inside one, because the session lock is already held there.
+This is not an asynchronous resource API.
+
+
+## Host-completed work
+
+RequestWork asks for one named operation while a callback is running. The host
+then calls CopyPendingWork, CompleteWork, or FailWork between callbacks. Both
+results are ints, and FailWork does not store an exception. The script reads
+them with TryTakeWork on a later callback. A retained context cannot request or
+take work after the callback returns. An unknown id is rejected, and finishing
+the same id twice throws. Stop drops both open requests and results the script
+has not taken, before OnStop. Author failure stops the session too, so the host cannot complete or fail a request it already observed. Pending tick-schedule values are cleared at the same time. Catching a work or schedule limit does not leave the session running, and the request or signal already accepted is cleared before OnStop. A latched limit is not labeled as an OnStop failure when OnStop returns. Call the host methods between callbacks, not from
+inside one. No thread, task, or wall-clock timer is started. Two live sessions do not share requests: completing one does not finish the other, and stopping one leaves the other running. After a session fails and releases its context, the next session can reuse the same work id and complete its own request.
 
 ## Budgets and execution policy
 

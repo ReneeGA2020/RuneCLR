@@ -3,12 +3,14 @@
     <Project Path="samples/Maps.Arena/Maps.Arena.csproj" />
     <Project Path="samples/Maps.Hello/Maps.Hello.csproj" />
     <Project Path="samples/RuneCLR.SampleHost/RuneCLR.SampleHost.csproj" />
+    <Project Path="samples/RuneCLR.TrustedUpdateHost/RuneCLR.TrustedUpdateHost.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
     <Project Path="src/RuneCLR.Compiler/RuneCLR.Compiler.csproj" />
     <Project Path="src/RuneCLR.Packages/RuneCLR.Packages.csproj" />
     <Project Path="src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <Project Path="src/RuneCLR.TrustedUpdate/RuneCLR.TrustedUpdate.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DependencyMap.A/DependencyMap.A.csproj" />
@@ -16,6 +18,7 @@
     <Project Path="tests/PrivateDependency.A/PrivateDependency.A.csproj" />
     <Project Path="tests/PrivateDependency.B/PrivateDependency.B.csproj" />
     <Project Path="tests/RuneCLR.Runtime.Tests/RuneCLR.Runtime.Tests.csproj" />
+    <Project Path="tests/RuneCLR.TrustedUpdate.Tests/RuneCLR.TrustedUpdate.Tests.csproj" />
     <Project Path="tests/RuneCLR.Packaging.Tests/RuneCLR.Packaging.Tests.csproj" />
     <Project Path="tests/RuneCLR.PackageExecution.Tests/RuneCLR.PackageExecution.Tests.csproj" />
     <Project Path="tests/RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" />

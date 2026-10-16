@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
+using RuneCLR;
 using RuneCLR.Runtime;
 
 internal static class SessionTests
@@ -7,6 +9,15 @@ internal static class SessionTests
     public static IEnumerable<(string Name, Action Run)> Cases()
     {
         yield return ("Host-pumped sessions obey host tick cadence and delta", ManualCadence);
+        yield return ("A map signal closes when its callback returns", ClosedMapSignal);
+        yield return ("A host tick schedule survives the callback and stop cancels it", ScheduledSignal);
+        yield return ("A closed callback cannot change host entities or logs", ClosedResources);
+        yield return ("The host can copy live entities between callbacks", HostEntitySnapshot);
+        yield return ("The host completes or fails work between callbacks and stop drops the rest", HostCompletedWork);
+        yield return ("Author failure cancels work the host has not finished", AuthorFailureCancelsWork);
+        yield return ("A retired session does not block the next session's work", NextSessionAfterFailedWork);
+        yield return ("A retired session does not leave scheduled signals for the next session", NextSessionAfterFailedSchedule);
+        yield return ("Caught work and schedule limits still stop the session", CaughtResourceLimits);
         yield return ("Invalid tick deltas leave the session active", InvalidDelta);
         yield return ("Stopping and disposing sessions are idempotent", StopAndDispose);
         yield return ("Failed startup stops and releases a pumped session", StartupFailure);
@@ -16,6 +27,7 @@ internal static class SessionTests
         yield return ("Caught cooperative violations stop pumped sessions", CaughtQuota);
         yield return ("Author error message failures cannot interrupt pumped cleanup", ThrowingErrorMessage);
         yield return ("Overlapping pumped sessions keep independent state", OverlappingSessions);
+        yield return ("Overlapping sessions keep independent host work", OverlappingWork);
         yield return ("Concurrent host ticks are serialized", ConcurrentTicks);
         yield return ("A retained stopped session does not retain author code", RetainedSession);
         yield return ("Pumped required interpretation rejects before author loading", RequiredPolicy);
@@ -38,6 +50,300 @@ internal static class SessionTests
         Check(result.Report.CompletedTicks == 2, "Report omitted completed host ticks.");
         CheckCompleted(result);
         CheckReleased(result);
+    }
+
+    private static void ClosedMapSignal()
+    {
+        using var session = Start("SignalMap", new MapRunOptions { TickCount = 0 });
+        Check(session.Tick(), "Signal tick failed.");
+        Check(LateSignalRejected(), "A closed map signal still ran or accepted a subscriber.");
+        var result = session.Stop();
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["seen=4", "stopped"]), "The closed signal changed the callback log.");
+        CheckReleased(result);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool LateSignalRejected()
+    {
+        var assembly = AssemblyLoadContext.All
+            .SelectMany(context => context.Assemblies)
+            .Single(item => item.IsCollectible && item.GetName().Name == "RuneCLR.TestMaps");
+        var map = assembly.GetType("RuneCLR.TestMaps.SignalMap")
+            ?? throw new InvalidOperationException("SignalMap was not loaded.");
+        var kept = map.GetField("Kept", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as IMapContext
+            ?? throw new InvalidOperationException("The map did not retain its context.");
+        var raised = false;
+        try
+        {
+            kept.RaiseSignal(9);
+        }
+        catch (InvalidOperationException exception) when (exception.Message == "The map signal is closed.")
+        {
+            raised = true;
+        }
+
+        var subscribed = false;
+        try
+        {
+            kept.Signal += ClosedProbe;
+        }
+        catch (InvalidOperationException exception) when (exception.Message == "The map signal is closed.")
+        {
+            subscribed = true;
+        }
+
+        var seen = (int)(map.GetField("Seen", BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
+            ?? throw new InvalidOperationException("SignalMap did not expose Seen."));
+        return raised && subscribed && seen == 4;
+    }
+
+    private static void ClosedProbe(int value)
+    {
+    }
+
+    private static void ScheduledSignal()
+    {
+        using var session = Start("TimerMap", new MapRunOptions { TickCount = 0 });
+        Check(session.Tick(), "The first scheduled tick failed.");
+        Check(LateScheduleRejected(), "A closed callback accepted another scheduled signal.");
+        Check(session.Tick(), "The second scheduled tick failed.");
+        var result = session.Stop();
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["tick=0:taken=4", "tick=1:taken=9", "pending=0"]),
+            "A scheduled signal was delivered early, kept after stop, or accepted a zero delay.");
+        CheckReleased(result);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool LateScheduleRejected()
+    {
+        var assembly = AssemblyLoadContext.All
+            .SelectMany(context => context.Assemblies)
+            .Single(item => item.IsCollectible && item.GetName().Name == "RuneCLR.TestMaps");
+        var map = assembly.GetType("RuneCLR.TestMaps.TimerMap")
+            ?? throw new InvalidOperationException("TimerMap was not loaded.");
+        var kept = map.GetField("Kept", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as IMapContext
+            ?? throw new InvalidOperationException("The map did not retain its context.");
+        var scheduled = false;
+        var taken = false;
+        var counted = false;
+        try { kept.Schedule(1, 7); }
+        catch (InvalidOperationException exception) when (exception.Message == "The map schedule is closed.")
+        { scheduled = true; }
+        try { kept.TryTakeScheduled(out _); }
+        catch (InvalidOperationException exception) when (exception.Message == "The map schedule is closed.")
+        { taken = true; }
+        try { _ = kept.PendingScheduled; }
+        catch (InvalidOperationException exception) when (exception.Message == "The map schedule is closed.")
+        { counted = true; }
+        return scheduled && taken && counted;
+    }
+
+    private static void ClosedResources()
+    {
+        using var session = Start("ResourceMap", new MapRunOptions { TickCount = 0 });
+        Check(session.Tick(), "Resource tick failed.");
+        Check(LateResourceRejected(), "A closed callback changed host resources.");
+        var result = session.Stop();
+        CheckCompleted(result);
+        Check(result.Report.CreatedEntities == 1 && result.Report.ReleasedEntities == 1 && result.Report.RemainingEntities == 0,
+            "The host did not release the entity created during the callback.");
+        Check(result.Report.Logs.SequenceEqual(["spawned", "stopped"]), "A closed callback wrote a host log.");
+        CheckReleased(result);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool LateResourceRejected()
+    {
+        var assembly = AssemblyLoadContext.All
+            .SelectMany(context => context.Assemblies)
+            .Single(item => item.IsCollectible && item.GetName().Name == "RuneCLR.TestMaps");
+        var map = assembly.GetType("RuneCLR.TestMaps.ResourceMap")
+            ?? throw new InvalidOperationException("ResourceMap was not loaded.");
+        var kept = map.GetField("Kept", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as IMapContext
+            ?? throw new InvalidOperationException("The map did not retain its context.");
+        var entity = (long)(map.GetField("KeptEntity", BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
+            ?? throw new InvalidOperationException("ResourceMap did not retain its entity."));
+        var spawned = RejectClosed(() => kept.SpawnEntity("late"));
+        var logged = RejectClosed(() => kept.Log("late"));
+        var destroyed = RejectClosed(() => kept.DestroyEntity(new EntityId(entity)));
+        var charged = RejectClosed(() => kept.Charge());
+        return entity > 0 && spawned && logged && destroyed && charged;
+    }
+
+    private static void HostEntitySnapshot()
+    {
+        using var session = Start("HostViewMap", new MapRunOptions { TickCount = 0 });
+        Check(session.CopyEntities().Length == 0, "Startup published an entity before a tick.");
+        Check(session.Tick(), "The first host-view tick failed.");
+        var first = session.CopyEntities();
+        Check(first.Length == 1 && first[0].Name == "kept" && first[0].Id.Value > 0, "The host snapshot missed the live entity.");
+        Check(session.Tick(), "The replacement tick failed.");
+        var second = session.CopyEntities();
+        Check(first.Length == 1 && first[0].Name == "kept", "A later tick mutated the earlier host snapshot.");
+        Check(second.Length == 1 && second[0].Name == "next" && second[0].Id != first[0].Id, "The live snapshot did not replace the entity.");
+        var result = session.Stop();
+        Expect<InvalidOperationException>(() => session.CopyEntities());
+        CheckCompleted(result);
+        Check(result.Report.CreatedEntities == 2 && result.Report.ReleasedEntities == 2 && result.Report.RemainingEntities == 0,
+            "The host snapshot changed entity release.");
+        Check(result.Report.Logs.SequenceEqual(["spawned", "replaced", "stopped"]), "The host snapshot changed the callback log.");
+        CheckReleased(result);
+    }
+
+    private static void HostCompletedWork()
+    {
+        using var session = Start("HostWorkMap", new MapRunOptions { TickCount = 0 });
+        Check(session.CopyPendingWork().Length == 0, "Startup published work before a request.");
+        Check(session.Tick(), "The work request tick failed.");
+        Check(LateWorkRejected(), "A closed callback accepted another work request.");
+        var open = session.CopyPendingWork();
+        var load = open.Single(item => item.Name == "load");
+        var bad = open.Single(item => item.Name == "bad");
+        Check(load.Id > 0 && bad.Id != load.Id, "The host did not see both work requests.");
+        Expect<ArgumentException>(() => session.CompleteWork(load.Id + 99, 1));
+        session.CompleteWork(load.Id, 4);
+        session.FailWork(bad.Id, 9);
+        Expect<InvalidOperationException>(() => session.CompleteWork(load.Id, 5));
+        Expect<InvalidOperationException>(() => session.FailWork(bad.Id, 3));
+        Check(!HoldsException(session), "Failed work retained an exception.");
+        Check(session.CopyPendingWork().Length == 0, "Finished work stayed pending.");
+        Check(session.Tick(), "The work result tick failed.");
+        Expect<ArgumentException>(() => session.FailWork(bad.Id, 9));
+        var later = session.CopyPendingWork();
+        Check(later.Length == 1 && later[0].Name == "later" && later[0].Id != load.Id && later[0].Id != bad.Id,
+            "The untaken request was lost before stop.");
+        var result = session.Stop();
+        Expect<InvalidOperationException>(() => session.FailWork(later[0].Id, 9));
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["requested", "taken=4:failed=9", "pending=0"]),
+            "Work was delivered without the host, kept a failure object, or ran during OnStop.");
+        CheckReleased(result);
+    }
+
+    private static void AuthorFailureCancelsWork()
+    {
+        using var session = Start("FaultingWorkMap", new MapRunOptions { TickCount = 0 });
+        Check(session.Tick(), "The work request tick failed.");
+        var open = session.CopyPendingWork();
+        Check(open.Length == 1 && open[0].Name == "load" && open[0].Id > 0, "The host did not see the open request.");
+        Check(!session.Tick(), "Author failure was reported as a completed tick.");
+        Check(!session.IsRunning && session.CompletedTicks == 1, "The failed tick stayed active or counted the incomplete callback.");
+        Expect<InvalidOperationException>(() => session.CompleteWork(open[0].Id, 4));
+        Expect<InvalidOperationException>(() => session.FailWork(open[0].Id, 9));
+        Expect<InvalidOperationException>(() => session.CopyPendingWork());
+        var result = session.Result ?? throw new InvalidOperationException("Author failure has no result.");
+        CheckFailed(result, "MapDefinedException");
+        Check(result.Report.Logs.SequenceEqual(["requested", "requested-again", "pending=0:0"]),
+            "Author failure left work or a scheduled signal for the host.");
+        Check(result.Report.CompletedTicks == 1, "The successful request tick was discarded.");
+        CheckReleased(result);
+    }
+
+    private static void NextSessionAfterFailedWork()
+    {
+        long failedId;
+        using (var failed = Start("FaultingWorkMap", new MapRunOptions { TickCount = 0 }))
+        {
+            Check(failed.Tick(), "The request before author failure failed.");
+            failedId = failed.CopyPendingWork().Single(item => item.Name == "load").Id;
+            Check(!failed.Tick(), "Author failure did not stop the first session.");
+            Expect<InvalidOperationException>(() => failed.CompleteWork(failedId, 4));
+            var failedResult = failed.Result ?? throw new InvalidOperationException("Failed work session has no result.");
+            CheckFailed(failedResult, "MapDefinedException");
+            CheckReleased(failedResult);
+        }
+
+        using var next = Start("HostWorkMap", new MapRunOptions { TickCount = 0 });
+        Check(next.Tick(), "The next session did not accept work.");
+        var load = next.CopyPendingWork().Single(item => item.Name == "load");
+        var bad = next.CopyPendingWork().Single(item => item.Name == "bad");
+        Check(load.Id == failedId, "The next session did not reuse a retired work id.");
+        next.CompleteWork(load.Id, 4);
+        next.FailWork(bad.Id, 9);
+        Check(next.Tick(), "The next session did not take its own result.");
+        var result = next.Stop();
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["requested", "taken=4:failed=9", "pending=0"]),
+            "A retired session's cancelled work changed the next session.");
+        CheckReleased(result);
+    }
+
+    private static void NextSessionAfterFailedSchedule()
+    {
+        using (var failed = Start("FaultingWorkMap", new MapRunOptions { TickCount = 0 }))
+        {
+            Check(failed.Tick() && !failed.Tick(), "The schedule owner did not fail on its second tick.");
+            var failedResult = failed.Result ?? throw new InvalidOperationException("Failed schedule session has no result.");
+            CheckFailed(failedResult, "MapDefinedException");
+            Check(failedResult.Report.Logs.Contains("pending=0:0"), "The failed session left a scheduled signal pending.");
+            CheckReleased(failedResult);
+        }
+
+        using var next = Start("NextScheduleMap", new MapRunOptions { TickCount = 0 });
+        Check(next.Tick() && next.Tick() && next.Tick(), "The next session did not take its own scheduled signal.");
+        var result = next.Stop();
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["tick=0:taken=6", "tick=1:taken=none", "tick=2:taken=none", "pending=0"]),
+            "A retired session's cancelled signal was delivered to the next session.");
+        CheckReleased(result);
+    }
+
+    private static void CaughtResourceLimits()
+    {
+        using (var work = Start("CatchingWorkLimitMap", new MapRunOptions { MaxWorkItems = 1, TickCount = 0 }))
+        {
+            Check(!work.IsRunning && work.CompletedTicks == 0, "A caught work limit left the session active.");
+            var result = work.Result ?? throw new InvalidOperationException("Caught work limit has no result.");
+            CheckFailed(result, "work limit");
+            Check(result.Report.Error?.Contains("pending-work", StringComparison.Ordinal) != true, "The accepted work request survived the limit.");
+            Check(result.Report.Error?.Contains("OnStop:", StringComparison.Ordinal) != true, "A successful OnStop was reported as a stop failure.");
+            Expect<InvalidOperationException>(() => work.CompleteWork(1, 4));
+            Expect<InvalidOperationException>(() => work.FailWork(1, 9));
+            CheckReleased(result);
+        }
+
+        using var schedule = Start("CatchingScheduleLimitMap", new MapRunOptions { MaxScheduledSignals = 1, TickCount = 0 });
+        Check(!schedule.IsRunning && schedule.CompletedTicks == 0, "A caught schedule limit left the session active.");
+        var scheduleResult = schedule.Result ?? throw new InvalidOperationException("Caught schedule limit has no result.");
+        CheckFailed(scheduleResult, "scheduled signal limit");
+        Check(scheduleResult.Report.Error?.Contains("pending-schedule", StringComparison.Ordinal) != true, "The accepted signal survived the limit.");
+        Check(scheduleResult.Report.Error?.Contains("OnStop:", StringComparison.Ordinal) != true, "A successful OnStop was reported as a stop failure.");
+        CheckReleased(scheduleResult);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool LateWorkRejected()
+    {
+        var assembly = AssemblyLoadContext.All
+            .SelectMany(context => context.Assemblies)
+            .Single(item => item.IsCollectible && item.GetName().Name == "RuneCLR.TestMaps");
+        var map = assembly.GetType("RuneCLR.TestMaps.HostWorkMap")
+            ?? throw new InvalidOperationException("HostWorkMap was not loaded.");
+        var kept = map.GetField("Kept", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as IMapContext
+            ?? throw new InvalidOperationException("The map did not retain its context.");
+        try
+        {
+            kept.RequestWork("late");
+        }
+        catch (InvalidOperationException exception) when (exception.Message == "The map callback is closed.")
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool RejectClosed(Action call)
+    {
+        try { call(); }
+        catch (InvalidOperationException exception) when (exception.Message == "The map callback is closed.")
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static void InvalidDelta()
@@ -168,6 +474,39 @@ internal static class SessionTests
         }
     }
 
+    private static void OverlappingWork()
+    {
+        using var first = Start("HostWorkMap", new MapRunOptions { TickCount = 0 });
+        using var second = Start("HostWorkMap", new MapRunOptions { TickCount = 0 });
+        Check(first.Tick() && second.Tick(), "The overlapping work requests failed.");
+        var firstLoad = first.CopyPendingWork().Single(item => item.Name == "load");
+        var firstBad = first.CopyPendingWork().Single(item => item.Name == "bad");
+        first.CompleteWork(firstLoad.Id, 4);
+        first.FailWork(firstBad.Id, 9);
+        Check(second.CopyPendingWork().Select(item => item.Name).Order().SequenceEqual(["bad", "load"]),
+            "Completing one session finished the other session's work.");
+        Check(first.Tick(), "The completed session did not take its own result.");
+        Check(first.CopyPendingWork().Select(item => item.Name).SequenceEqual(["later"]),
+            "The completed session did not keep its own later request.");
+        Check(second.CopyPendingWork().Select(item => item.Name).Order().SequenceEqual(["bad", "load"]),
+            "The other session changed while the first ticked.");
+        var secondLoad = second.CopyPendingWork().Single(item => item.Name == "load");
+        var secondBad = second.CopyPendingWork().Single(item => item.Name == "bad");
+        second.CompleteWork(secondLoad.Id, 4);
+        second.FailWork(secondBad.Id, 9);
+        Check(second.Tick(), "The second session did not take its own result.");
+        var firstResult = first.Stop();
+        Check(second.IsRunning && second.Result is null, "Stopping one session stopped the other.");
+        var secondResult = second.Stop();
+        foreach (var result in new[] { firstResult, secondResult })
+        {
+            CheckCompleted(result);
+            Check(result.Report.Logs.SequenceEqual(["requested", "taken=4:failed=9", "pending=0"]),
+                "Overlapping sessions shared a work result.");
+            CheckReleased(result);
+        }
+    }
+
     private static void ConcurrentTicks()
     {
         using var session = Start("CounterMap");
@@ -237,6 +576,35 @@ internal static class SessionTests
 
     private static MapPackage Package(string type) => new("fixture",
         Path.Combine(AppContext.BaseDirectory, "fixtures", "RuneCLR.TestMaps.dll"), $"RuneCLR.TestMaps.{type}");
+
+    private static bool HoldsException(object instance)
+    {
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        return HoldsException(instance, seen);
+    }
+
+    private static bool HoldsException(object? instance, HashSet<object> seen)
+    {
+        if (instance is null or string or int or long or bool) return false;
+        if (instance is Exception) return true;
+        if (!seen.Add(instance)) return false;
+        if (instance is System.Collections.IEnumerable enumerable)
+        {
+            foreach (var item in enumerable)
+            {
+                if (HoldsException(item, seen)) return true;
+            }
+        }
+
+        var type = instance.GetType();
+        if (type.Namespace != "RuneCLR.Runtime") return false;
+        foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+        {
+            if (HoldsException(field.GetValue(instance), seen)) return true;
+        }
+
+        return false;
+    }
 
     private static void CheckCompleted(MapRunResult result)
     {

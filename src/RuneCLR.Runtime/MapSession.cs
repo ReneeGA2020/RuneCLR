@@ -66,6 +66,42 @@ public sealed class MapSession : IDisposable
     /// <summary>The final host-owned result, or null until the session stops.</summary>
     public MapRunResult? Result { get { lock (_gate) return _result; } }
 
+    /// <summary>Copies current entity ids and names. Call it between callbacks; the session has stopped after Stop.</summary>
+    public MapEntityInfo[] CopyEntities()
+    {
+        lock (_gate)
+        {
+            if (_result is not null) throw new InvalidOperationException("The session has stopped.");
+            return _context!.CopyEntities();
+        }
+    }
+
+    /// <summary>Copies work the script requested and the host has not completed. Call it between callbacks.</summary>
+    public MapWorkInfo[] CopyPendingWork()
+    {
+        lock (_gate)
+        {
+            if (_result is not null) throw new InvalidOperationException("The session has stopped.");
+            return _context!.CopyPendingWork();
+        }
+    }
+
+    /// <summary>Supplies a primitive success value for one open request. The script can take it on a later callback.</summary>
+    public void CompleteWork(long id, int value) => FinishWork(id, value, fail: false);
+
+    /// <summary>Supplies a primitive failure code for one open request. No exception is stored.</summary>
+    public void FailWork(long id, int reason) => FinishWork(id, reason, fail: true);
+
+    private void FinishWork(long id, int value, bool fail)
+    {
+        lock (_gate)
+        {
+            if (_result is not null) throw new InvalidOperationException("The session has stopped.");
+            if (fail) _context!.FailWork(id, value);
+            else _context!.CompleteWork(id, value);
+        }
+    }
+
     /// <summary>Runs one tick with the configured delta. TickCount does not limit a pumped session.</summary>
     public bool Tick() => Tick(_options.TickDuration);
 
@@ -84,7 +120,7 @@ public sealed class MapSession : IDisposable
             try
             {
                 CheckPrototypeState();
-                _context!.BeginCallback();
+                _context!.BeginTick(_completedTicks);
                 _script!.OnTick(new MapTick(_completedTicks, delta));
                 CheckPrototypeState();
                 _context.CheckViolation();
@@ -101,6 +137,7 @@ public sealed class MapSession : IDisposable
             {
                 try
                 {
+                    _context?.EndCallback();
                     if (!completed) StopCore();
                 }
                 finally { _invoking = false; }
@@ -153,6 +190,7 @@ public sealed class MapSession : IDisposable
         {
             try
             {
+                _context?.EndCallback();
                 if (!started) StopCore();
             }
             finally { _invoking = false; }
@@ -168,6 +206,8 @@ public sealed class MapSession : IDisposable
         PrototypeBudgetSnapshot? prototypeBudget = null;
         try
         {
+            context.CancelScheduled();
+            context.CancelWork();
             try
             {
                 if (_script is not null)
@@ -177,9 +217,29 @@ public sealed class MapSession : IDisposable
                     if (beforeStop?.IsTerminated != true)
                     {
                         context.BeginCallback();
-                        _script.OnStop();
-                        CheckPrototypeState();
-                        context.CheckViolation();
+                        var stopReturned = false;
+                        try
+                        {
+                            _script.OnStop();
+                            CheckPrototypeState();
+                            stopReturned = true;
+                        }
+                        catch (Exception exception)
+                        {
+                            _error = Append(_error, $"OnStop: {DescribeFailure(exception)}");
+                        }
+
+                        // A latched limit is already the callback failure. Do not call a successful OnStop a stop failure.
+                        if (stopReturned)
+                        {
+                            try { context.CheckViolation(); }
+                            catch (Exception exception)
+                            {
+                                var described = DescribeFailure(exception);
+                                if (_error?.Contains(described, StringComparison.Ordinal) != true)
+                                    _error = Append(_error, described);
+                            }
+                        }
                     }
                 }
             }
@@ -190,7 +250,11 @@ public sealed class MapSession : IDisposable
         }
         finally
         {
-            try { context.Dispose(); }
+            try
+            {
+                context.EndCallback();
+                context.Dispose();
+            }
             finally
             {
                 // A retained, stopped session must not keep its author context alive.

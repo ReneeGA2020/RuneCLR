@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>TrustedComposition.Private</AssemblyName>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../PrivateLogic.cs" Link="PrivateLogic.cs" />
+    <ProjectReference Include="../Contract/TrustedComposition.Contract.csproj" />
+  </ItemGroup>
+</Project>

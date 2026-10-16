@@ -8,7 +8,16 @@ internal sealed class MapContext : IMapContext, IDisposable
     private int _remainingOperations;
     private string? _violation;
     private bool _disposed;
+    private bool _signalOpen;
     private long _nextEntity;
+    private Action<int>? _signal;
+    private readonly List<ScheduledSignal> _scheduled = [];
+    private int? _openTick;
+    private int _nextTick;
+    private readonly Dictionary<long, string> _openWork = [];
+    private readonly Queue<FinishedWork> _finishedWork = [];
+    private readonly HashSet<long> _finishedIds = [];
+    private long _nextWork;
 
     public MapContext(string mapId, MapRunOptions options)
     {
@@ -22,10 +31,205 @@ internal sealed class MapContext : IMapContext, IDisposable
     public int RemainingEntities => _entities.Count;
     public string[] Logs => _logs.ToArray();
 
+    public MapEntityInfo[] CopyEntities()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var copy = new MapEntityInfo[_entities.Count];
+        var index = 0;
+        foreach (var (id, name) in _entities)
+        {
+            copy[index++] = new MapEntityInfo(id, name);
+        }
+
+        return copy;
+    }
+
+    public event Action<int> Signal
+    {
+        add => ChangeSignal(value, add: true);
+        remove => ChangeSignal(value, add: false);
+    }
+
     public void BeginCallback()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _remainingOperations = _options.OperationBudgetPerCallback;
+        _signal = null;
+        _signalOpen = true;
+        _openTick = null;
+    }
+
+    public void BeginTick(int tickIndex)
+    {
+        BeginCallback();
+        ArgumentOutOfRangeException.ThrowIfNegative(tickIndex);
+        if (tickIndex == int.MaxValue) throw new ArgumentOutOfRangeException(nameof(tickIndex));
+        _openTick = tickIndex;
+        _nextTick = tickIndex + 1;
+    }
+
+    public void EndCallback()
+    {
+        _signalOpen = false;
+        _signal = null;
+    }
+
+    public void RaiseSignal(int value)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!_signalOpen)
+        {
+            throw new InvalidOperationException("The map signal is closed.");
+        }
+
+        _signal?.Invoke(value);
+    }
+
+    public void Schedule(int dueInTicks, int value)
+    {
+        EnsureScheduleOpen();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(dueInTicks);
+        int due;
+        try
+        {
+            due = _openTick is int tick
+                ? checked(tick + dueInTicks)
+                : checked(_nextTick + dueInTicks - 1);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dueInTicks));
+        }
+
+        Charge();
+        if (_scheduled.Count >= _options.MaxScheduledSignals)
+        {
+            Violate("The scheduled signal limit was exceeded.");
+        }
+
+        _scheduled.Add(new ScheduledSignal(due, value));
+    }
+
+    public bool TryTakeScheduled(out int value)
+    {
+        EnsureScheduleOpen();
+        value = 0;
+        if (_openTick is not int tick) return false;
+        var index = -1;
+        for (var i = 0; i < _scheduled.Count; i++)
+        {
+            if (_scheduled[i].DueTick <= tick && (index < 0 || _scheduled[i].DueTick < _scheduled[index].DueTick))
+                index = i;
+        }
+
+        if (index < 0) return false;
+        value = _scheduled[index].Value;
+        _scheduled.RemoveAt(index);
+        return true;
+    }
+
+    public int PendingScheduled
+    {
+        get
+        {
+            EnsureScheduleOpen();
+            return _scheduled.Count;
+        }
+    }
+
+    public void CancelScheduled() => _scheduled.Clear();
+
+    public long RequestWork(string name)
+    {
+        Charge();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (name.Length > 128)
+        {
+            Violate("Work names cannot exceed 128 characters.");
+        }
+
+        if (_openWork.Count + _finishedWork.Count >= _options.MaxWorkItems)
+        {
+            Violate("The work limit was exceeded.");
+        }
+
+        var id = ++_nextWork;
+        _openWork.Add(id, name);
+        return id;
+    }
+
+    public bool TryTakeWork(out long id, out int value, out bool succeeded)
+    {
+        Charge();
+        if (_finishedWork.Count == 0)
+        {
+            id = 0;
+            value = 0;
+            succeeded = false;
+            return false;
+        }
+
+        var finished = _finishedWork.Dequeue();
+        _finishedIds.Remove(finished.Id);
+        id = finished.Id;
+        value = finished.Value;
+        succeeded = finished.Succeeded;
+        return true;
+    }
+
+    public int PendingWork
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!_signalOpen)
+            {
+                throw new InvalidOperationException("The map callback is closed.");
+            }
+
+            return _openWork.Count + _finishedWork.Count;
+        }
+    }
+
+    public MapWorkInfo[] CopyPendingWork()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var copy = new MapWorkInfo[_openWork.Count];
+        var index = 0;
+        foreach (var (id, name) in _openWork)
+        {
+            copy[index++] = new MapWorkInfo(id, name);
+        }
+
+        return copy;
+    }
+
+    public void CompleteWork(long id, int value) => FinishWork(id, value, succeeded: true);
+
+    public void FailWork(long id, int reason) => FinishWork(id, reason, succeeded: false);
+
+    private void FinishWork(long id, int value, bool succeeded)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_finishedIds.Contains(id))
+        {
+            throw new InvalidOperationException("The work is already complete.");
+        }
+
+        if (!_openWork.Remove(id))
+        {
+            throw new ArgumentException("The work does not belong to this session.", nameof(id));
+        }
+
+        _finishedIds.Add(id);
+        _finishedWork.Enqueue(new FinishedWork(id, value, succeeded));
+    }
+
+    public void CancelWork()
+    {
+        _openWork.Clear();
+        _finishedWork.Clear();
+        _finishedIds.Clear();
     }
 
     public void CheckViolation()
@@ -39,6 +243,11 @@ internal sealed class MapContext : IMapContext, IDisposable
     public void Charge(int operations = 1)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!_signalOpen)
+        {
+            throw new InvalidOperationException("The map callback is closed.");
+        }
+
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(operations);
         CheckViolation();
         if (operations > _remainingOperations)
@@ -99,9 +308,33 @@ internal sealed class MapContext : IMapContext, IDisposable
             return;
         }
 
+        CancelScheduled();
+        CancelWork();
+        EndCallback();
         ReleasedEntities += _entities.Count;
         _entities.Clear();
         _disposed = true;
+    }
+
+    private void ChangeSignal(Action<int>? handler, bool add)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!_signalOpen)
+        {
+            throw new InvalidOperationException("The map signal is closed.");
+        }
+
+        if (add) _signal += handler;
+        else _signal -= handler;
+    }
+
+    private void EnsureScheduleOpen()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!_signalOpen)
+        {
+            throw new InvalidOperationException("The map schedule is closed.");
+        }
     }
 
     private void Violate(string message)
@@ -109,6 +342,10 @@ internal sealed class MapContext : IMapContext, IDisposable
         _violation ??= message;
         throw new MapLimitException(_violation);
     }
+
+    private readonly record struct ScheduledSignal(int DueTick, int Value);
+
+    private readonly record struct FinishedWork(long Id, int Value, bool Succeeded);
 }
 
 public sealed class MapLimitException(string message) : Exception(message);
