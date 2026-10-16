@@ -99,3 +99,5 @@ With OperationBudgetPerCallback set to 1, Charge(1) succeeds in OnStart, again i
 After OnStart spends its one operation, OnTick receives a fresh budget and Charge(2) still fails that tick. The failed tick is not counted. An empty OnStop does not add OnStop:. The error is only the cooperative operation budget. The next package still runs. Packaging tests passed 128/128. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
 With TickCount 2 and TickDuration 50 milliseconds, OnTick observes indexes 0 and 1 and Delta.Ticks 500000 for both. The session completes both ticks, and the next package still runs. Packaging tests passed 129/129. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
+With TickCount 0, OnStart and OnStop still run, and OnTick does not. The logs are start and stop. No tick is completed, and the next package still runs. Packaging tests passed 130/130. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
