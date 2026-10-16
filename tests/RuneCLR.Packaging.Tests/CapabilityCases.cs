@@ -95,6 +95,7 @@ internal static class CapabilityCases
         yield return ("A negative TickCount is rejected before the author runs", NegativeTickCountRejected);
         yield return ("A zero TickDuration is rejected before the author runs", ZeroTickDurationRejected);
         yield return ("A negative TickDuration is rejected before the author runs", NegativeTickDurationRejected);
+        yield return ("The default MapRunOptions run three 50 millisecond ticks", DefaultRunOptions);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -2064,6 +2065,36 @@ internal static class CapabilityCases
             && range.ParamName == "TickDuration"
             && (range.Message == prefix + "\n" + detail || range.Message == prefix + "\r\n" + detail),
             (caught?.GetType().FullName ?? "none") + " param=" + (range?.ParamName ?? "") + " message=[" + (caught?.Message ?? "") + "]");
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void DefaultRunOptions()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext context) { this.context = context; }
+                public void OnTick(MapTick tick) { context!.Log(tick.Index + ":" + tick.Delta.Ticks); }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "defaults"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions());
+        var error = result.Report.Error ?? "";
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && error.Length == 0
+            && result.Report.CompletedTicks == 3
+            && result.Report.Logs.SequenceEqual(new[] { "0:500000", "1:500000", "2:500000" })
+            && result.Report.CreatedEntities == 0
+            && result.Report.ReleasedEntities == 0
+            && result.Report.RemainingEntities == 0,
+            "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks);
+        Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
