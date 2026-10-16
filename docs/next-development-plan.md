@@ -239,6 +239,8 @@ Acceptance:
 
 ## 4. Publish interop and compatibility acceptance - #14 and #15
 
+The measured draft is [compatibility-matrix.md](compatibility-matrix.md). It does not close #14 or #15.
+
 Extend the small fixture with shared object identity, virtual/interface calls,
 delegates/events, generic methods/types and exceptions in both directions.
 Include a deliberately retained session object, followed by reference release

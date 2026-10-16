@@ -133,6 +133,7 @@ The experimental ReadyToRunCollectible switch was not retained; E:/runtime stays
 
 On 2026-10-16, simulator directory `rerun-a9164cd-20261016-10` was checked with `python3 eng/verify-ios-trusted-update.py`. The verifier exited 0 with `passed=true` and `nativeExecutionProven=true`. A and B both recorded `RUNECLR_EXIT=0` and `TRUSTED_UPDATE_SUCCESS result=216`. This is an iOS simulator receipt, not a physical-device result.
 A later clean checkout of c268026 reproduced that result as rerun-c268026-20261016-01. verify-ios-trusted-update.py exited 0 with passed=true and nativeExecutionProven=true. A and B both recorded RUNECLR_EXIT=0. Host.cs in that tree has no failure-type diagnostics. This is still an iOS 27 simulator receipt, not a physical-device result.
+Measured cells and explicit non-results are listed in [compatibility-matrix.md](compatibility-matrix.md).
 
 Proceed with the noncollectible native lane for iOS delivery. A first iOS run
 may launch separate processes selecting A and B, and must verify startup
