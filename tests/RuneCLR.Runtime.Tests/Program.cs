@@ -165,6 +165,8 @@ static void InvalidOptions()
         RunMap(new MapRunner(), Package("CounterMap"), new MapRunOptions { MaxScheduledSignals = 0 }));
     Expect<ArgumentOutOfRangeException>(() =>
         RunMap(new MapRunner(), Package("CounterMap"), new MapRunOptions { MaxWorkItems = 0 }));
+    Expect<ArgumentOutOfRangeException>(() =>
+        RunMap(new MapRunner(), Package("CounterMap"), new MapRunOptions { MaxResources = 0 }));
     // Invalid budgets must win over missing-file and unavailable-runtime failures.
     var missing = new MapPackage("invalid-budget", Path.Combine(Path.GetTempPath(), Guid.NewGuid()+".dll"), "Unused");
     foreach (var limit in new long[] { 0, -1, long.MinValue })
