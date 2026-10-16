@@ -25,3 +25,5 @@ A packaging fixture compiles an ordinary ref int method, then changes those byre
 An author ref struct compiles with the product compiler. The capability profile rejects that assembly because System.Runtime.CompilerServices.IsByRefLikeAttribute is not approved. This fixture does not reach the separate sentence Author byref-like types are unsupported. Packaging tests passed 89/89. Issue 5 stays open.
 
 An author instance constructor that stores 41 runs before OnStart. The session logs value=41, completes one tick, and the map context is collected. Packaging tests passed 90/90. Issue 5 stays open.
+
+An author static constructor that stores 41 also runs before OnStart. The session logs value=41, completes one tick, and the map context is collected. Packaging tests passed 91/91. Issue 5 stays open.
