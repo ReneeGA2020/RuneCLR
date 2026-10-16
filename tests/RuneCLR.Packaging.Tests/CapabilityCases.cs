@@ -1790,11 +1790,10 @@ internal static class CapabilityCases
             var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!),
                 new MapRunOptions { TickCount = 1 });
             var error = result.Report.Error ?? "";
-            var message = count == 0
-                ? "operations ('0') must be a non-negative and non-zero value. (Parameter 'operations')\r\nActual value was 0."
-                : "operations ('-1') must be a non-negative and non-zero value. (Parameter 'operations')\r\nActual value was -1.";
+            var prefix = "System.ArgumentOutOfRangeException: operations ('" + count + "') must be a non-negative and non-zero value. (Parameter 'operations')";
+            var detail = "Actual value was " + count + ".";
             Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
-                && error == "System.ArgumentOutOfRangeException: " + message
+                && (error == prefix + "\n" + detail || error == prefix + "\r\n" + detail)
                 && !result.Report.Logs.Contains("after")
                 && !result.Report.Logs.Contains("ticked")
                 && result.Report.CompletedTicks == 0
