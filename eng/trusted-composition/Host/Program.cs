@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -23,10 +24,15 @@ internal static class Program
             Check(!(interpreted && jit), "Conflicting execution expectations.");
             var host = new HostObject();
             var sessions = new List<SessionReport>();
+            long[] timing = new long[3];
             foreach (var spec in new[] { ("A", false), ("B", false), ("A", false), ("A", true), ("A", false) })
             {
-                SessionResult completed = RunSession(root, spec.Item1, spec.Item2, host, observe, interpreted, hostInterpreted, jit, collectible);
-                bool collected = collectible && Collect(completed.Context);
+                SessionResult completed = RunSession(root, spec.Item1, spec.Item2, host, observe, interpreted, hostInterpreted, jit, collectible, timing);
+                long boundaryStart = Stopwatch.GetTimestamp();
+                bool collected = false;
+                if (collectible)
+                    collected = Collect(completed.Context);
+                timing[2] += Stopwatch.GetTimestamp() - boundaryStart;
                 Check(!collectible || collected, "Retired context did not collect: " + spec.Item1);
                 sessions.Add(completed.Report with { Collected = collected });
             }
@@ -40,6 +46,9 @@ internal static class Program
                 JitControl = jit, Collectible = collectible,
                 HostTouches = host.Touches, InterfaceCalls = host.InterfaceCalls,
                 DelegateCalls = host.DelegateCalls, GenericCalls = host.GenericCalls, Sessions = sessions,
+                TimingStartupUs = timing[0] * 1_000_000L / Stopwatch.Frequency,
+                TimingCallbackUs = timing[1] * 1_000_000L / Stopwatch.Frequency,
+                TimingBoundaryUs = timing[2] * 1_000_000L / Stopwatch.Frequency,
                 Witnesses = ExecutionWitness.Drain()
             });
             return 0;
@@ -60,7 +69,7 @@ internal static class Program
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static SessionResult RunSession(string root, string version, bool fail, HostObject host,
-        bool observe, bool interpreted, bool hostInterpreted, bool jit, bool collectible)
+        bool observe, bool interpreted, bool hostInterpreted, bool jit, bool collectible, long[] timing)
     {
         string directory = Path.Combine(root, ".sessions", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -76,9 +85,15 @@ internal static class Program
         string? errorMessage = null;
         try
         {
+            var startup = Stopwatch.StartNew();
             Assembly assembly = context.LoadFromAssemblyPath(Path.Combine(directory,
                 $"TrustedComposition.Update.{version}.dll"));
             var module = (IUpdateModule)Activator.CreateInstance(assembly.GetType("TrustedComposition.UpdateModule", true)!)!;
+            startup.Stop();
+            timing[0] += startup.ElapsedTicks;
+            var callback = Stopwatch.StartNew();
+            try
+            {
             for (int i = 1; i <= (fail ? 1 : 2); i++)
             {
                 try
@@ -103,6 +118,12 @@ internal static class Program
                     errorType = error.GetType().FullName;
                     errorMessage = error.Message;
                 }
+            }
+            }
+            finally
+            {
+                callback.Stop();
+                timing[1] += callback.ElapsedTicks;
             }
             Check(!fail || errorType is not null, "Expected private failure was not copied.");
             if (observe)

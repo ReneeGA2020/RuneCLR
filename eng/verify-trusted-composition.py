@@ -270,9 +270,13 @@ def main():
             disabled = any('Ready to Run disabled - collectible module' in file.read_text(errors='replace') for file in logs)
             if collectible and r2r == '1' and not disabled:
                 raise RuntimeError('Collectible R2R refusal reason missing: ' + name)
+            for key in ('TimingStartupUs', 'TimingCallbackUs', 'TimingBoundaryUs'):
+                if key not in report:
+                    raise RuntimeError('Missing timing: ' + name + ' ' + key)
             results.append(dict(name=name, functional=True, collected=sum(session['Collected'] for session in report['Sessions']),
                                 native=native, helperInterpreter=not jit, helperDump=dump, interpreterEvidence=interpreter,
-                                collectibleR2RRefused=disabled))
+                                collectibleR2RRefused=disabled, timingStartupUs=report['TimingStartupUs'],
+                                timingCallbackUs=report['TimingCallbackUs'], timingBoundaryUs=report['TimingBoundaryUs']))
             save(output / 'lanes.json', results)
         execute('evidence-regressions', [sys.executable, '-B', ROOT / 'eng/verify-trusted-composition-evidence.py',
                                         '--evidence', output])
