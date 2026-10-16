@@ -64,6 +64,7 @@ internal static class CapabilityCases
         yield return ("A throwing OnStop is reported on its own and still releases the entity", OnStopFailureRecovery);
         yield return ("Custom delegates and async OnStart are rejected before run", RejectDelegateAndAsync);
         yield return ("An author exception filter runs, handles the failure, and the next package still runs", ExceptionFilterRecovery);
+        yield return ("The cooperative API budget stops a second log but not a computation loop", CooperativeBudgetDoesNotStopLoop);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -838,6 +839,64 @@ internal static class CapabilityCases
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
+    }
+    private static void CooperativeBudgetDoesNotStopLoop()
+    {
+        using var temp = new TempDirectory();
+        const string loop = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext value) { context = value; }
+                public void OnTick(MapTick tick)
+                {
+                    long sum = 0;
+                    for (var i = 0; i < 1000; i++) sum += i;
+                    context!.Log("sum=" + sum);
+                }
+                public void OnStop() { }
+            }
+            """;
+        var loopBuilt = Build(Path.Combine(temp.Path, "loop"), loop);
+        Check.Assert(loopBuilt.Succeeded, string.Join(" | ", loopBuilt.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var budget = new MapRunOptions { TickCount = 1, OperationBudgetPerCallback = 1 };
+        var loopResult = new MapRunner().Run(MapPackage.FromManifest(loopBuilt.ManifestPath!), budget);
+        Check.Assert(loopResult.Report.Outcome == MapRunOutcome.Completed
+            && loopResult.Report.Logs.SequenceEqual(new[] { "sum=499500" })
+            && loopResult.Report.CompletedTicks == 1,
+            (loopResult.Report.Error ?? "") + " logs=[" + string.Join(",", loopResult.Report.Logs) + "] " + loopResult.Report);
+        Check.Collected(loopResult);
+        var loopNext = Build(Path.Combine(temp.Path, "loop-next"));
+        Check.Assert(loopNext.Succeeded, "Next package failed to compile.");
+        RunSafe(loopNext.ManifestPath!);
+
+        const string logs = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext value) { context = value; }
+                public void OnTick(MapTick tick)
+                {
+                    context!.Log("one");
+                    context!.Log("two");
+                }
+                public void OnStop() { }
+            }
+            """;
+        var logBuilt = Build(Path.Combine(temp.Path, "logs"), logs);
+        Check.Assert(logBuilt.Succeeded, string.Join(" | ", logBuilt.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var logResult = new MapRunner().Run(MapPackage.FromManifest(logBuilt.ManifestPath!), budget);
+        Check.Assert(logResult.Report.Outcome == MapRunOutcome.Failed
+            && logResult.Report.Error?.Contains("The cooperative operation budget was exceeded.", StringComparison.Ordinal) == true
+            && logResult.Report.CompletedTicks == 0
+            && logResult.Report.Logs.SequenceEqual(new[] { "one" }),
+            (logResult.Report.Error ?? "") + " logs=[" + string.Join(",", logResult.Report.Logs) + "] " + logResult.Report);
+        Check.Collected(logResult);
+        var logNext = Build(Path.Combine(temp.Path, "logs-next"));
+        Check.Assert(logNext.Succeeded, "Next package failed to compile.");
+        RunSafe(logNext.ManifestPath!);
     }
     private static void RunSafe(string manifestPath)
     {
