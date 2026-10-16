@@ -26,9 +26,11 @@ internal static class Program
             var sessions = new List<SessionReport>();
             long[] timing = new long[3];
             var residentReuse = new List<int>();
+            var residentModules = new List<IUpdateModule>();
+            int? reactivation = null;
             foreach (var spec in new[] { ("A", false), ("B", false), ("A", false), ("A", true), ("A", false) })
             {
-                SessionResult completed = RunSession(root, spec.Item1, spec.Item2, host, observe, interpreted, hostInterpreted, jit, collectible, timing, residentReuse);
+                SessionResult completed = RunSession(root, spec.Item1, spec.Item2, host, observe, interpreted, hostInterpreted, jit, collectible, timing, residentReuse, residentModules);
                 long boundaryStart = Stopwatch.GetTimestamp();
                 bool collected = false;
                 if (collectible)
@@ -36,9 +38,15 @@ internal static class Program
                 timing[2] += Stopwatch.GetTimestamp() - boundaryStart;
                 Check(!collectible || collected, "Retired context did not collect: " + spec.Item1);
                 sessions.Add(completed.Report with { Collected = collected });
+                if (!collectible && sessions.Count == 2)
+                {
+                    UpdateOutcome returned = residentModules[0].Execute(host, false);
+                    Check(returned.StaticCount == 4 && returned.PrivateCount == 4, "Returning to the already loaded version did not keep its statics.");
+                    reactivation = returned.StaticCount;
+                }
             }
-            int reuseCalls = residentReuse.Count;
-            Check(host.Touches == 9 + reuseCalls && host.InterfaceCalls == 9 + reuseCalls && host.DelegateCalls == 9 + reuseCalls && host.GenericCalls == 18 + reuseCalls * 2,
+            int extraCalls = residentReuse.Count + (reactivation is null ? 0 : 1);
+            Check(host.Touches == 9 + extraCalls && host.InterfaceCalls == 9 + extraCalls && host.DelegateCalls == 9 + extraCalls && host.GenericCalls == 18 + extraCalls * 2,
                 "Host call totals differ.");
             Emit(args, new
             {
@@ -52,6 +60,7 @@ internal static class Program
                 TimingCallbackUs = timing[1] * 1_000_000L / Stopwatch.Frequency,
                 TimingBoundaryUs = timing[2] * 1_000_000L / Stopwatch.Frequency,
                 ResidentReuseStaticCounts = residentReuse,
+                ResidentReactivationStaticCount = reactivation,
                 Witnesses = ExecutionWitness.Drain()
             });
             return 0;
@@ -72,7 +81,7 @@ internal static class Program
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static SessionResult RunSession(string root, string version, bool fail, HostObject host,
-        bool observe, bool interpreted, bool hostInterpreted, bool jit, bool collectible, long[] timing, List<int> residentReuse)
+        bool observe, bool interpreted, bool hostInterpreted, bool jit, bool collectible, long[] timing, List<int> residentReuse, List<IUpdateModule> residentModules)
     {
         string directory = Path.Combine(root, ".sessions", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -148,6 +157,8 @@ internal static class Program
                 UpdateOutcome reused = again.Execute(host, false);
                 Check(reused.StaticCount == 3 && reused.PrivateCount == 3, "Resident module statics did not continue for a second instance.");
                 residentReuse.Add(reused.StaticCount);
+                if (residentModules.Count == 0)
+                    residentModules.Add(module);
             }
         }
         finally

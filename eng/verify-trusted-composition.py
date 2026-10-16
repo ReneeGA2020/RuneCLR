@@ -279,11 +279,17 @@ def main():
                     raise RuntimeError('Collectible lane reused a resident module: ' + name)
             elif reuse != [3, 3, 3, 3]:
                 raise RuntimeError('Resident statics did not continue: ' + name + ' ' + str(reuse))
+            again = report.get('ResidentReactivationStaticCount')
+            if collectible:
+                if again is not None:
+                    raise RuntimeError('Collectible lane reactivated a resident module: ' + name)
+            elif again != 4:
+                raise RuntimeError('Resident version statics reset on return: ' + name + ' ' + str(again))
             results.append(dict(name=name, functional=True, collected=sum(session['Collected'] for session in report['Sessions']),
                                 native=native, helperInterpreter=not jit, helperDump=dump, interpreterEvidence=interpreter,
                                 collectibleR2RRefused=disabled, timingStartupUs=report['TimingStartupUs'],
                                 timingCallbackUs=report['TimingCallbackUs'], timingBoundaryUs=report['TimingBoundaryUs'],
-                                residentReuseStaticCounts=reuse))
+                                residentReuseStaticCounts=reuse, residentReactivationStaticCount=again))
             save(output / 'lanes.json', results)
         execute('evidence-regressions', [sys.executable, '-B', ROOT / 'eng/verify-trusted-composition-evidence.py',
                                         '--evidence', output])
