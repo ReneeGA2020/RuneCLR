@@ -13,6 +13,7 @@ internal static class SessionTests
         yield return ("A host tick schedule survives the callback and stop cancels it", ScheduledSignal);
         yield return ("A repeating tick schedule stays one slot and a one-shot schedule does not repeat", RepeatingSchedule);
         yield return ("The host posts a subscribed event between callbacks and stop drops it", HostPostedEvent);
+        yield return ("Overlapping sessions do not share posted events", OverlappingPosts);
         yield return ("A closed callback cannot change host entities or logs", ClosedResources);
         yield return ("The host can copy live entities between callbacks", HostEntitySnapshot);
         yield return ("The host completes or fails work between callbacks and stop drops the rest", HostCompletedWork);
@@ -649,6 +650,30 @@ internal static class SessionTests
         var kept = map.GetField("Kept", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as IMapContext
             ?? throw new InvalidOperationException("The map did not retain its context.");
         return RejectClosed(() => kept.Subscribe(8));
+    }
+
+    private static void OverlappingPosts()
+    {
+        using var first = Start("PostedEventMap", new MapRunOptions { TickCount = 0 });
+        using var second = Start("PostedEventMap", new MapRunOptions { TickCount = 0 });
+        Check(first.Tick() && second.Tick(), "The overlapping subscriptions failed.");
+        first.Post(4, 9);
+        Check(first.Tick(), "The first session did not take its own post.");
+        Check(second.Tick(), "The second session failed before its own post.");
+        second.Post(4, 8);
+        Check(second.Tick(), "The second session did not take its own post.");
+        Check(first.Tick(), "The first session failed after the other post.");
+        var firstResult = first.Stop();
+        Check(second.IsRunning && second.Result is null, "Stopping one session stopped the other.");
+        var secondResult = second.Stop();
+        CheckCompleted(firstResult);
+        Check(firstResult.Report.Logs.SequenceEqual(["subscribed", "taken=4:9", "mismatch", "pending=0"]),
+            "The first session did not keep its own posted value.");
+        CheckReleased(firstResult);
+        CheckCompleted(secondResult);
+        Check(secondResult.Report.Logs.SequenceEqual(["subscribed", "mismatch", "taken=4:8", "pending=0"]),
+            "The second session saw the other post or missed its own.");
+        CheckReleased(secondResult);
     }
 
     private static void ConcurrentTicks()

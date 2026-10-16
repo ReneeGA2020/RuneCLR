@@ -538,7 +538,7 @@ public sealed class PostedEventMap : IMapScript
         }
 
         var taken = _context.TryTakePosted(out var id, out var value);
-        _context.Log(taken && id == 4 && value == 9 && _context.PendingPosted == 0 ? "taken=4:9" : "mismatch");
+        _context.Log(taken && id == 4 && value == 9 && _context.PendingPosted == 0 ? "taken=4:9" : taken && _context.PendingPosted == 0 ? "taken=" + id + ":" + value : "mismatch");
     }
 
     public void OnStop() => _context.Log("pending=" + _context.PendingPosted);
