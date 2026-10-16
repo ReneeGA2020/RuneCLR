@@ -5,6 +5,8 @@ same cumulative budget across separate host frame calls. Its explicit `-Pumped`
 Windows Release suite passes 16 cases/74 collections, alongside the synchronous
 15/73 control. Advancing a frame does not refill the native allowance.
 
+The cumulative allowance above is measured prototype evidence. The scheduled UGC product limit is different and is not implemented. Issue 16 tracks a coarse per-callback interpreter deadline for untrusted code only. It does not limit trusted code, and it does not turn host API quotas into the anti-freeze mechanism.
+
 On 2026-10-13, MapRunner's explicit prototype budget passed fifteen Windows x64
 Checked subprocess cases, including twenty failure/good-session pairs. All
 seventy-three actual contexts collected after Run returned, and all host-owned

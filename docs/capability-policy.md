@@ -84,6 +84,8 @@ allowed string/collection operations can allocate heavily or take excessive
 time; `Charge()` remains cooperative. Host framework and contract bytes are
 trusted inputs. Hashes record consistency, not server approval.
 
+A coarse per-callback interpreter deadline is the scheduled UGC anti-freeze limit, tracked by issue 16. It is not implemented. One untrusted synchronous callback should stop so it cannot wedge the player machine or a server thread. Exact milliseconds are not required. The host decides whether a cutoff drops that call or ends the match. Trusted code is not limited. API call quotas stay in the host. `Charge()` is not that limit.
+
 ## Reproduction
 
 Run `./eng/verify.ps1` with an explicitly selected compatible SDK. The executable

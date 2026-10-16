@@ -24,6 +24,8 @@ loop that catches the first quota exception. Run-time ownership, EH cleanup and
 finalizers are part of that goal. Wall-clock deadlines, arbitrary native-call
 interruption and allocation limits are separate work.
 
+Scheduled product direction, not implemented: issue 16. It narrows the UGC anti-freeze goal to a coarse per-callback interpreter deadline. That is not a cumulative instruction total and not an API call count. Exact milliseconds are not required, so this is not a precise wall-clock contract. The host decides how to treat a cutoff. Trusted code stays unlimited. Arbitrary native-call interruption and allocation limits remain separate. The prototype measurements in this plan remain evidence.
+
 ## Inspected source and actual anchors
 
 The inspected local worktree is E:/runtime-selection-20261013, tracked-clean on

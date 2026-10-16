@@ -1200,6 +1200,8 @@ requested change; the handoff does not authorize additional work on its own.
 
 ## Recommended next experiment
 
+Scheduled, not implemented: issue 16 tracks a coarse per-callback deadline for untrusted UGC interpreter calls. It is not a cumulative instruction quota, not an API call limit, and it does not apply to trusted code.
+
 Track future work in [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11).
 The desktop acceptance criteria of
 [#1: proven interpreter lifecycle execution](https://github.com/ReneeGA2020/RuneCLR/issues/1)
