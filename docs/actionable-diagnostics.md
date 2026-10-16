@@ -111,3 +111,5 @@ A negative TickDuration is rejected before the author runs. MapRunner.Run throws
 The default MapRunOptions run three ticks of 50 milliseconds. OnTick logs 0:500000, 1:500000, and 2:500000. The session completes, and the next package still runs. Packaging tests passed 134/134. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
 An entity spawned in OnStart is destroyed on the first tick. The next tick logs tick1 and then DestroyEntity fails because the entity is gone. That tick is not counted. An empty OnStop does not add OnStop:. The first entity is released, and the next package still runs. Packaging tests passed 135/135. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
+An entity spawned in OnStart and left alive is released when the session completes. The logs are made and tick. One tick completes, no error is reported, and the next package still runs. Packaging tests passed 136/136. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
