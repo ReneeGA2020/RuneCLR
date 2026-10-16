@@ -1337,6 +1337,8 @@ On 2026-10-16 packaging tests passed 134/134 at commit f894b2d. The default MapR
 
 On 2026-10-16 packaging tests passed 135/135 at commit 8909dc1. An entity spawned in OnStart is destroyed on the first tick. The next tick logs tick1 and then DestroyEntity fails because the entity is gone. That tick is not counted. CompletedTicks stays 1. An empty OnStop does not add OnStop:. The entity is released, and the next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
+On 2026-10-16 packaging tests passed 136/136 at commit 87ed913. An entity spawned in OnStart and left alive is released when the session completes. The logs are made and tick. One tick completes, created 1, released 1, remaining 0, and no error is reported. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
