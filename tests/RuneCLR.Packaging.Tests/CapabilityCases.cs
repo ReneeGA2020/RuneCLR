@@ -102,6 +102,7 @@ internal static class CapabilityCases
         yield return ("Destroying one entity leaves the other for session completion", PartialDestroyReleasesSurvivor);
         yield return ("OnStop can destroy an entity spawned in OnStart", OnStopDestroysLiveEntity);
         yield return ("A second destroy in OnStop keeps the completed tick", SecondDestroyInOnStop);
+        yield return ("An empty log string is stored", EmptyLogStringStored);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -2355,6 +2356,36 @@ internal static class CapabilityCases
             && result.Report.ReleasedEntities == 1
             && result.Report.RemainingEntities == 0,
             "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks + " created=" + result.Report.CreatedEntities + " released=" + result.Report.ReleasedEntities + " remaining=" + result.Report.RemainingEntities);
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void EmptyLogStringStored()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log(""); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "empty-log"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        var error = result.Report.Error ?? "";
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && error.Length == 0
+            && result.Report.CompletedTicks == 1
+            && result.Report.Logs.Count == 1
+            && result.Report.Logs[0] == ""
+            && result.Report.CreatedEntities == 0
+            && result.Report.ReleasedEntities == 0
+            && result.Report.RemainingEntities == 0,
+            "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join(",", result.Report.Logs) + "] count=" + result.Report.Logs.Count + " ticks=" + result.Report.CompletedTicks);
         Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
