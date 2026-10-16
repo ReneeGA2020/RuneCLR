@@ -60,6 +60,8 @@ internal static class CapabilityCases
         yield return ("A throwing instance field initializer fails before OnStart, and a static field initializer runs only once touched", ThrowingFieldInitializers);
         yield return ("A throwing OnStart keeps the log, releases the entity, and the next package still runs", OnStartFailureRecovery);
         yield return ("An entry that does not implement IMapScript is rejected before run", MissingInterfaceRejected);
+        yield return ("A throwing OnTick keeps the earlier log and the next package still runs", OnTickFailureRecovery);
+        yield return ("A throwing OnStop is reported on its own and still releases the entity", OnStopFailureRecovery);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -690,6 +692,78 @@ internal static class CapabilityCases
             throw new InvalidOperationException(details);
         });
         Check.Assert(error.Message.Contains("Entry 'GameScript' must directly implement RuneCLR.IMapScript from '", StringComparison.Ordinal), error.Message);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void OnTickFailureRecovery()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext value)
+                {
+                    context = value;
+                    value.Log("started");
+                    value.SpawnEntity("alive");
+                }
+                public void OnTick(MapTick tick)
+                {
+                    if (tick.Index == 1) throw new AuthorTickException();
+                    context!.Log("tick=" + tick.Index);
+                }
+                public void OnStop() { context!.Log("stopped"); }
+            }
+            public sealed class AuthorTickException : System.Exception { }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "faulty"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 2 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && result.Report.Error?.Contains("AuthorTickException", StringComparison.Ordinal) == true
+            && result.Report.CompletedTicks == 1
+            && result.Report.Logs.SequenceEqual(new[] { "started", "tick=0", "stopped" })
+            && result.Report.CreatedEntities == 1 && result.Report.ReleasedEntities == 1 && result.Report.RemainingEntities == 0,
+            (result.Report.Error ?? "") + " logs=[" + string.Join(",", result.Report.Logs) + "] created=" + result.Report.CreatedEntities + " released=" + result.Report.ReleasedEntities + " remaining=" + result.Report.RemainingEntities);
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+
+    private static void OnStopFailureRecovery()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext value)
+                {
+                    context = value;
+                    value.Log("started");
+                    value.SpawnEntity("alive");
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { throw new AuthorStopException(); }
+            }
+            public sealed class AuthorStopException : System.Exception { }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "faulty"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && result.Report.Error?.StartsWith("OnStop:", StringComparison.Ordinal) == true
+            && result.Report.Error.Contains("AuthorStopException", StringComparison.Ordinal)
+            && result.Report.CompletedTicks == 1
+            && result.Report.Logs.SequenceEqual(new[] { "started" })
+            && result.Report.CreatedEntities == 1 && result.Report.ReleasedEntities == 1 && result.Report.RemainingEntities == 0,
+            (result.Report.Error ?? "") + " logs=[" + string.Join(",", result.Report.Logs) + "] created=" + result.Report.CreatedEntities + " released=" + result.Report.ReleasedEntities + " remaining=" + result.Report.RemainingEntities);
+        Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
