@@ -49,6 +49,7 @@ internal static class Program
             Check(host.Touches == 9 + extraCalls && host.InterfaceCalls == 9 + extraCalls && host.DelegateCalls == 9 + extraCalls && host.GenericCalls == 18 + extraCalls * 2,
                 "Host call totals differ.");
             long managedBytes = GC.GetTotalMemory(false);
+            long workingSetBytes = Environment.WorkingSet;
             Emit(args, new
             {
                 Passed = true, Runtime = RuntimeInformation.FrameworkDescription,
@@ -63,6 +64,7 @@ internal static class Program
                 ResidentReuseStaticCounts = residentReuse,
                 ResidentReactivationStaticCount = reactivation,
                 ManagedBytes = managedBytes,
+                WorkingSetBytes = workingSetBytes,
                 Witnesses = ExecutionWitness.Drain()
             });
             return 0;

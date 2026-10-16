@@ -270,11 +270,13 @@ def main():
             disabled = any('Ready to Run disabled - collectible module' in file.read_text(errors='replace') for file in logs)
             if collectible and r2r == '1' and not disabled:
                 raise RuntimeError('Collectible R2R refusal reason missing: ' + name)
-            for key in ('TimingStartupUs', 'TimingCallbackUs', 'TimingBoundaryUs', 'ManagedBytes'):
+            for key in ('TimingStartupUs', 'TimingCallbackUs', 'TimingBoundaryUs', 'ManagedBytes', 'WorkingSetBytes'):
                 if key not in report:
                     raise RuntimeError('Missing timing: ' + name + ' ' + key)
             if not isinstance(report['ManagedBytes'], int) or report['ManagedBytes'] <= 0:
                 raise RuntimeError('Managed heap snapshot missing: ' + name)
+            if not isinstance(report['WorkingSetBytes'], int) or report['WorkingSetBytes'] <= 0:
+                raise RuntimeError('Working set snapshot missing: ' + name)
             reuse = report.get('ResidentReuseStaticCounts')
             if collectible:
                 if reuse not in (None, []):
@@ -291,7 +293,7 @@ def main():
                                 native=native, helperInterpreter=not jit, helperDump=dump, interpreterEvidence=interpreter,
                                 collectibleR2RRefused=disabled, timingStartupUs=report['TimingStartupUs'],
                                 timingCallbackUs=report['TimingCallbackUs'], timingBoundaryUs=report['TimingBoundaryUs'],
-                                residentReuseStaticCounts=reuse, residentReactivationStaticCount=again, managedBytes=report['ManagedBytes']))
+                                residentReuseStaticCounts=reuse, residentReactivationStaticCount=again, managedBytes=report['ManagedBytes'], workingSetBytes=report['WorkingSetBytes']))
             save(output / 'lanes.json', results)
         execute('evidence-regressions', [sys.executable, '-B', ROOT / 'eng/verify-trusted-composition-evidence.py',
                                         '--evidence', output])
