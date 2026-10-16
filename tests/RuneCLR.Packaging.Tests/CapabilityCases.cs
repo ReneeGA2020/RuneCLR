@@ -70,6 +70,7 @@ internal static class CapabilityCases
         yield return ("A Signal subscription is rejected because Action is not approved", RejectSignalSubscription);
         yield return ("The approved MapId accessor runs and the next package still runs", ApprovedMapId);
         yield return ("An author Charge call spends the cooperative budget and the next package still runs", AuthorCharge);
+        yield return ("An author DestroyEntity releases the entity and the next package still runs", AuthorDestroyEntity);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1075,6 +1076,38 @@ internal static class CapabilityCases
         var overNext = Build(Path.Combine(temp.Path, "over-next"));
         Check.Assert(overNext.Succeeded, "Next package failed to compile.");
         RunSafe(overNext.ManifestPath!);
+    }
+    private static void AuthorDestroyEntity()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context)
+                {
+                    var id = context.SpawnEntity("gone");
+                    context.DestroyEntity(id);
+                    context.Log("released");
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "destroy"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && result.Report.Logs.SequenceEqual(new[] { "released" })
+            && result.Report.CompletedTicks == 1
+            && result.Report.CreatedEntities == 1
+            && result.Report.ReleasedEntities == 1
+            && result.Report.RemainingEntities == 0,
+            result.Report + " logs=[" + string.Join(",", result.Report.Logs) + "]");
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
     }
     private static void RunSafe(string manifestPath)
     {
