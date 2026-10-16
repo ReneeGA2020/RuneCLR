@@ -122,6 +122,7 @@ internal static class CapabilityCases
         il[^1] = 0x2a;
         var error = Check.Throws<InvalidDataException>(() => Validate(image));
         Check.Assert(error.Message.Contains(name, StringComparison.OrdinalIgnoreCase), "The opcode rejection did not identify " + name + ".");
+        Check.Assert(error.Message.Contains("IL offset ", StringComparison.Ordinal), "The opcode rejection did not include an IL offset.");
     }
     private static void RejectedPublication()
     {

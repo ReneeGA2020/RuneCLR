@@ -390,17 +390,18 @@ public static class GameplayCapabilityPolicy
             var offset = 0;
             while (offset < bytes.Length)
             {
+                var start = offset;
                 ushort value = bytes[offset++];
                 if (value == 0xfe)
                 {
-                    if (offset == bytes.Length) throw Invalid("Truncated IL opcode.");
+                    if (offset == bytes.Length) throw Invalid($"Truncated IL opcode at IL offset {start}.");
                     value = (ushort)(0xfe00 | bytes[offset++]);
                 }
-                if (!Opcodes.TryGetValue(value, out var opcode)) throw Invalid("Unknown IL opcode.");
+                if (!Opcodes.TryGetValue(value, out var opcode)) throw Invalid($"Unknown IL opcode at IL offset {start}.");
                 if (opcode == OpCodes.Calli || opcode == OpCodes.Localloc || opcode == OpCodes.Jmp ||
                     opcode == OpCodes.Ldtoken || opcode == OpCodes.Mkrefany || opcode == OpCodes.Refanytype || opcode == OpCodes.Refanyval ||
                     opcode == OpCodes.Cpblk || opcode == OpCodes.Initblk)
-                    throw Invalid($"IL opcode '{opcode.Name}' is unsupported.");
+                    throw Invalid($"IL opcode '{opcode.Name}' is unsupported at IL offset {start}.");
                 var size = opcode.OperandType switch
                 {
                     OperandType.InlineNone => 0,
@@ -412,16 +413,16 @@ public static class GameplayCapabilityPolicy
                         OperandType.InlineSig or OperandType.InlineString or OperandType.InlineTok or OperandType.InlineType or OperandType.ShortInlineR => 4,
                     _ => throw Invalid("Unsupported IL operand encoding.")
                 };
-                if (size > bytes.Length - offset) throw Invalid("Truncated IL operand.");
+                if (size > bytes.Length - offset) throw Invalid($"Truncated IL operand at IL offset {offset}.");
                 offset += size;
             }
         }
 
         private static int SwitchSize(byte[] bytes, int offset)
         {
-            if (bytes.Length - offset < 4) throw Invalid("Truncated IL switch.");
+            if (bytes.Length - offset < 4) throw Invalid($"Truncated IL switch at IL offset {offset}.");
             var count = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset, 4));
-            if (count < 0 || count > (bytes.Length - offset - 4) / 4) throw Invalid("Invalid IL switch target count.");
+            if (count < 0 || count > (bytes.Length - offset - 4) / 4) throw Invalid($"Invalid IL switch target count at IL offset {offset}.");
             return checked(4 + count * 4);
         }
     }
