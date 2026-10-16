@@ -14,6 +14,8 @@ Compiler syntax, runtime behavior, framework API, platform/architecture, and the
 
 The source compiler follows the selected SDK compiler's latest stable C# version. There is no project-imposed C# 12 ceiling. That choice is not a measurement that every language feature or every framework API runs on every platform.
 
+| Desktop pumped sessions, tests/RuneCLR.Runtime.Tests 53/53 | Not a syntax measurement | Passed 53/53 in Release. Includes host-owned resource names, one-slot Repeat, and host-posted primitives. Not a wall-clock timer | Resource registration, Repeat, Subscribe, and Post are covered by that suite. Not a framework-wide API pass | Desktop. Not iOS and not a physical device | Not the restricted UGC profile. That profile still excludes resource registration, Repeat, and host-posted events |
+
 ## Untested
 
 These are untested. They are not implied by the rows above.

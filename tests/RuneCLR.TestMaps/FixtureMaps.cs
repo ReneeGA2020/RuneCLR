@@ -543,3 +543,35 @@ public sealed class PostedEventMap : IMapScript
 
     public void OnStop() => _context.Log("pending=" + _context.PendingPosted);
 }
+
+public sealed class PostedEventRejectMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        if (tick.Index != 0) return;
+        _context.Subscribe(4);
+        try
+        {
+            _context.Subscribe(4);
+        }
+        catch (InvalidOperationException exception) when (exception.Message == "The subscription is already registered.")
+        {
+            _context.Log("duplicate-rejected");
+        }
+
+        try
+        {
+            _context.Subscribe(-1);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            _context.Log("negative-rejected");
+        }
+    }
+
+    public void OnStop() => _context.Log("pending=" + _context.PendingPosted);
+}

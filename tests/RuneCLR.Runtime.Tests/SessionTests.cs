@@ -13,6 +13,7 @@ internal static class SessionTests
         yield return ("A host tick schedule survives the callback and stop cancels it", ScheduledSignal);
         yield return ("A repeating tick schedule stays one slot and a one-shot schedule does not repeat", RepeatingSchedule);
         yield return ("The host posts a subscribed event between callbacks and stop drops it", HostPostedEvent);
+        yield return ("Duplicate and negative subscriptions are rejected", PostedEventRejects);
         yield return ("Overlapping sessions do not share posted events", OverlappingPosts);
         yield return ("A closed callback cannot change host entities or logs", ClosedResources);
         yield return ("The host can copy live entities between callbacks", HostEntitySnapshot);
@@ -674,6 +675,17 @@ internal static class SessionTests
         Check(secondResult.Report.Logs.SequenceEqual(["subscribed", "mismatch", "taken=4:8", "pending=0"]),
             "The second session saw the other post or missed its own.");
         CheckReleased(secondResult);
+    }
+
+    private static void PostedEventRejects()
+    {
+        using var session = Start("PostedEventRejectMap", new MapRunOptions { TickCount = 0 });
+        Check(session.Tick(), "The subscription rejection tick failed.");
+        var result = session.Stop();
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["duplicate-rejected", "negative-rejected", "pending=0"]),
+            "Duplicate or negative subscriptions were accepted or left pending.");
+        CheckReleased(result);
     }
 
     private static void ConcurrentTicks()
