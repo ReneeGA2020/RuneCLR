@@ -2,7 +2,7 @@
 
 Draft of facts already measured in this repository. A blank or "untested" cell is not a pass. Launcher exit status is not a business-success signal. Only the desktop self-test sample row below records a duration. It is not a distribution, it does not close #13, and it is not iOS.
 
-Compiler syntax, runtime behavior, framework API, platform/architecture, and the restricted UGC policy are separate columns. A pass in one column does not fill another.
+Compiler syntax, runtime behavior, framework API, platform/architecture, and the restricted UGC policy are separate columns. A pass in one column does not fill another. Measured host and script reference facts are collected in [direct interop](direct-interop.md). That note does not close #14.
 
 | Record | Compiler syntax | Runtime feature | Framework API | Platform / architecture | Restricted UGC policy |
 | --- | --- | --- | --- | --- | --- |
