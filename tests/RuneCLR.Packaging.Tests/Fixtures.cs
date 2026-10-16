@@ -49,6 +49,22 @@ internal sealed class TempDirectory : IDisposable
         if (System.IO.Path.GetDirectoryName(fullPath) != System.IO.Path.GetFullPath(System.IO.Path.GetTempPath()).TrimEnd(System.IO.Path.DirectorySeparatorChar)
             || !System.IO.Path.GetFileName(fullPath).StartsWith("RuneCLR-packaging-", StringComparison.Ordinal))
             throw new InvalidOperationException("Temporary directory cleanup target is invalid.");
-        Directory.Delete(fullPath, recursive: true);
+        // LoadFromAssemblyPath can keep the file mapped until a loader finalizer runs, after the collectible context weak reference is already dead.
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                Directory.Delete(fullPath, recursive: true);
+                return;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                if (attempt == 5) throw;
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                Thread.Sleep(50);
+            }
+        }
     }
 }

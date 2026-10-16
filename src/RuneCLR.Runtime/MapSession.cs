@@ -345,7 +345,18 @@ public sealed class MapSession : IDisposable
             return typeName.Length <= 512 ? typeName : typeName[..512];
         }
 
-        try { return $"{typeName}: {exception.Message}"; }
+        try
+        {
+            var described = $"{typeName}: {exception.Message}";
+            if (exception is TypeInitializationException { InnerException: { } initializer })
+            {
+                string? innerName = null;
+                try { innerName = initializer.GetType().FullName; }
+                catch (Exception) { innerName = null; }
+                if (!string.IsNullOrEmpty(innerName)) described = $"{described} ({innerName})";
+            }
+            return described;
+        }
         catch (Exception) { return $"{typeName}: The exception message could not be read."; }
     }
 
