@@ -1329,6 +1329,8 @@ On 2026-10-16 packaging tests passed 129/129 at commit 700acaf. With TickCount 2
 
 On 2026-10-16 packaging tests passed 131/131 at commit 9642eee. With TickCount 0, OnStart and OnStop still run and OnTick does not. The logs are start and stop. A negative TickCount throws ArgumentOutOfRangeException with ParamName TickCount before the author runs. The Message is TickCount ('-1') must be a non-negative value. (Parameter 'TickCount'), then Actual value was -1. Windows separates that line with CRLF. Ubuntu and macOS separate it with LF. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
+On 2026-10-16 packaging tests passed 132/132 at commit 407dc0a. A zero TickDuration throws ArgumentOutOfRangeException with ParamName TickDuration before the author runs. The Message is TickDuration ('00:00:00') must be greater than '00:00:00'. (Parameter 'TickDuration'), then Actual value was 00:00:00. Windows separates that line with CRLF. Ubuntu and macOS separate it with LF. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
