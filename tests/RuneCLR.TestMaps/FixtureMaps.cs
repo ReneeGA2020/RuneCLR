@@ -575,3 +575,32 @@ public sealed class PostedEventRejectMap : IMapScript
 
     public void OnStop() => _context.Log("pending=" + _context.PendingPosted);
 }
+
+public sealed class PostedEventQueueMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        if (tick.Index == 0)
+        {
+            _context.Subscribe(4);
+            _context.Log("subscribed");
+            return;
+        }
+
+        var any = false;
+        while (_context.TryTakePosted(out var id, out var value))
+        {
+            any = true;
+            _context.Log("took=" + id + ":" + value);
+        }
+
+        if (!any)
+            _context.Log("empty");
+    }
+
+    public void OnStop() => _context.Log("pending=" + _context.PendingPosted);
+}

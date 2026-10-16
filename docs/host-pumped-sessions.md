@@ -109,7 +109,7 @@ Between callbacks, MapSession.CopyResources copies the current names into
 host-owned values. Stop clears the remaining names before OnStop. Copying after
 Stop throws InvalidOperationException ("The session has stopped."). A later
 session does not see them. The restricted profile does not include this surface.
-Desktop tests/RuneCLR.Runtime.Tests passed 53/53 in Release on 2026-10-16,
+Desktop tests/RuneCLR.Runtime.Tests passed 54/54 in Release on 2026-10-16,
 including this case, two live sessions that do not share names, and a caught MaxResources limit that stops the session. There is still no background thread, sleep, or wall-clock
 timer.
 
@@ -127,7 +127,7 @@ inside one. No thread, task, or wall-clock timer is started. Two live sessions d
 
 ## Host-posted events
 
-Subscribe(int id) runs only during OnStart, OnTick, or OnStop. A negative id is rejected. Subscribing the same id twice throws InvalidOperationException ("The subscription is already registered."). Between callbacks, MapSession.Post(id, value) enqueues one primitive for a subscribed id. An unknown id throws ArgumentException. The script reads it with TryTakePosted on a later callback. PendingPosted uses the same closed-callback rejection ("The map callback is closed."). Stop clears subscriptions and untaken posts before OnStop. Posting after Stop throws InvalidOperationException ("The session has stopped."). The restricted profile does not include this surface. Desktop tests/RuneCLR.Runtime.Tests passed 53/53 in Release on 2026-10-16, including this case. Two live sessions do not share posts. A duplicate id and a negative id are rejected. There is still no background thread, sleep, or wall-clock timer.
+Subscribe(int id) runs only during OnStart, OnTick, or OnStop. A negative id is rejected. Subscribing the same id twice throws InvalidOperationException ("The subscription is already registered."). Between callbacks, MapSession.Post(id, value) enqueues one primitive for a subscribed id. An unknown id throws ArgumentException. The script reads it with TryTakePosted on a later callback. PendingPosted uses the same closed-callback rejection ("The map callback is closed."). Stop clears subscriptions and untaken posts before OnStop. Posting after Stop throws InvalidOperationException ("The session has stopped."). The restricted profile does not include this surface. Desktop tests/RuneCLR.Runtime.Tests passed 54/54 in Release on 2026-10-16, including this case. Two live sessions do not share posts. A duplicate id and a negative id are rejected. Two posts to the same id are taken in FIFO order. There is still no background thread, sleep, or wall-clock timer.
 ## Budgets and execution policy
 
 Cooperative host API quota resets for each callback; an observed violation is
