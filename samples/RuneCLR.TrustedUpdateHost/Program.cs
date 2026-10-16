@@ -7,11 +7,14 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using RuneCLR.TrustedUpdate;
 
+var timingStartup = System.Diagnostics.Stopwatch.StartNew();
 const string HostRuntime = "net11.0";
 var hostTarget = new TrustedUpdateTarget(HostRuntime, HostArchitecture());
 
 if (args is ["--self-test"])
     return SelfTest();
+if (args is ["--timings"])
+    return TimeOneTick(hostTarget, timingStartup);
 if (args is ["--host-loaded", var hostMode, var hostDirectory, var hostStore])
     return HostLoaded(hostMode, hostDirectory, hostStore, hostTarget);
 if (args is ["--tick", var tickDirectory, var tickStore])
@@ -614,7 +617,7 @@ static void WriteManifest(string directory, string version, string hash)
     File.WriteAllText(Path.Combine(directory, "trusted-update.json"), JsonSerializer.Serialize(file));
 }
 
-static int TickSample(string directory, string store, TrustedUpdateTarget hostTarget)
+static int TickSample(string directory, string store, TrustedUpdateTarget hostTarget, System.Diagnostics.Stopwatch? timingStartup = null)
 {
     if (!TryReadCandidate(directory, out var candidate) || !TryReadApproval(directory, out var approval) || approval is null)
     {
@@ -630,11 +633,15 @@ static int TickSample(string directory, string store, TrustedUpdateTarget hostTa
     }
     process.OpenSession();
     var calls = 0;
+    timingStartup?.Stop();
+    var timingCallback = timingStartup is null ? null : System.Diagnostics.Stopwatch.StartNew();
     var tick = process.TryTick(1, new SampleEcho(value =>
     {
         calls++;
         return value + 1;
     }));
+    timingCallback?.Stop();
+    var timingBoundary = timingStartup is null ? null : System.Diagnostics.Stopwatch.StartNew();
     Console.WriteLine(tick.Succeeded ? "TICK " + tick.Value : "TICK " + tick.Failure);
     var closed = false;
     try
@@ -651,7 +658,46 @@ static int TickSample(string directory, string store, TrustedUpdateTarget hostTa
         closed = true;
     }
     Console.WriteLine(closed && calls == 1 ? "LATE-CLOSED" : "LATE-OPEN");
+    if (timingStartup is not null && timingCallback is not null && timingBoundary is not null)
+    {
+        Console.Out.Flush();
+        timingBoundary.Stop();
+        Console.WriteLine("TIMING_STARTUP_MS " + timingStartup.ElapsedMilliseconds);
+        Console.WriteLine("TIMING_CALLBACK_MS " + timingCallback.ElapsedMilliseconds);
+        Console.WriteLine("TIMING_BOUNDARY_MS " + timingBoundary.ElapsedMilliseconds);
+        Console.WriteLine("scope=one-desktop-self-test-sample");
+    }
     return tick.Value == 5 && closed && calls == 1 ? 0 : 1;
+}
+
+static int TimeOneTick(TrustedUpdateTarget hostTarget, System.Diagnostics.Stopwatch timingStartup)
+{
+    var root = Path.Combine(Path.GetTempPath(), "runeclr-timings-" + Guid.NewGuid().ToString("n"));
+    Directory.CreateDirectory(root);
+    try
+    {
+        var tickDirectory = Path.Combine(root, "tick");
+        Directory.CreateDirectory(tickDirectory);
+        var tickAssembly = Path.Combine(tickDirectory, "TrustedUpdate.SampleCandidate.dll");
+        WriteTickAssembly(tickAssembly);
+        var tickHash = Hash(tickAssembly);
+        WriteManifest(tickDirectory, "tick", tickHash);
+        WriteApproval(tickDirectory, "tick", tickHash);
+        return TickSample(tickDirectory, Path.Combine(root, "tick-store.json"), hostTarget, timingStartup);
+    }
+    finally
+    {
+        try
+        {
+            Directory.Delete(root, true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
 }
 
 static int GenericSample(string directory, string store, TrustedUpdateTarget hostTarget)
