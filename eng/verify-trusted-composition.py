@@ -273,10 +273,17 @@ def main():
             for key in ('TimingStartupUs', 'TimingCallbackUs', 'TimingBoundaryUs'):
                 if key not in report:
                     raise RuntimeError('Missing timing: ' + name + ' ' + key)
+            reuse = report.get('ResidentReuseStaticCounts')
+            if collectible:
+                if reuse not in (None, []):
+                    raise RuntimeError('Collectible lane reused a resident module: ' + name)
+            elif reuse != [3, 3, 3, 3]:
+                raise RuntimeError('Resident statics did not continue: ' + name + ' ' + str(reuse))
             results.append(dict(name=name, functional=True, collected=sum(session['Collected'] for session in report['Sessions']),
                                 native=native, helperInterpreter=not jit, helperDump=dump, interpreterEvidence=interpreter,
                                 collectibleR2RRefused=disabled, timingStartupUs=report['TimingStartupUs'],
-                                timingCallbackUs=report['TimingCallbackUs'], timingBoundaryUs=report['TimingBoundaryUs']))
+                                timingCallbackUs=report['TimingCallbackUs'], timingBoundaryUs=report['TimingBoundaryUs'],
+                                residentReuseStaticCounts=reuse))
             save(output / 'lanes.json', results)
         execute('evidence-regressions', [sys.executable, '-B', ROOT / 'eng/verify-trusted-composition-evidence.py',
                                         '--evidence', output])

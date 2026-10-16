@@ -25,9 +25,10 @@ internal static class Program
             var host = new HostObject();
             var sessions = new List<SessionReport>();
             long[] timing = new long[3];
+            var residentReuse = new List<int>();
             foreach (var spec in new[] { ("A", false), ("B", false), ("A", false), ("A", true), ("A", false) })
             {
-                SessionResult completed = RunSession(root, spec.Item1, spec.Item2, host, observe, interpreted, hostInterpreted, jit, collectible, timing);
+                SessionResult completed = RunSession(root, spec.Item1, spec.Item2, host, observe, interpreted, hostInterpreted, jit, collectible, timing, residentReuse);
                 long boundaryStart = Stopwatch.GetTimestamp();
                 bool collected = false;
                 if (collectible)
@@ -36,7 +37,8 @@ internal static class Program
                 Check(!collectible || collected, "Retired context did not collect: " + spec.Item1);
                 sessions.Add(completed.Report with { Collected = collected });
             }
-            Check(host.Touches == 9 && host.InterfaceCalls == 9 && host.DelegateCalls == 9 && host.GenericCalls == 18,
+            int reuseCalls = residentReuse.Count;
+            Check(host.Touches == 9 + reuseCalls && host.InterfaceCalls == 9 + reuseCalls && host.DelegateCalls == 9 + reuseCalls && host.GenericCalls == 18 + reuseCalls * 2,
                 "Host call totals differ.");
             Emit(args, new
             {
@@ -49,6 +51,7 @@ internal static class Program
                 TimingStartupUs = timing[0] * 1_000_000L / Stopwatch.Frequency,
                 TimingCallbackUs = timing[1] * 1_000_000L / Stopwatch.Frequency,
                 TimingBoundaryUs = timing[2] * 1_000_000L / Stopwatch.Frequency,
+                ResidentReuseStaticCounts = residentReuse,
                 Witnesses = ExecutionWitness.Drain()
             });
             return 0;
@@ -69,7 +72,7 @@ internal static class Program
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static SessionResult RunSession(string root, string version, bool fail, HostObject host,
-        bool observe, bool interpreted, bool hostInterpreted, bool jit, bool collectible, long[] timing)
+        bool observe, bool interpreted, bool hostInterpreted, bool jit, bool collectible, long[] timing, List<int> residentReuse)
     {
         string directory = Path.Combine(root, ".sessions", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -138,6 +141,13 @@ internal static class Program
                 Assembly helper = context.Assemblies.Single(a => a.GetName().Name == "TrustedComposition.IlOnlyHelper");
                 entries.Add(Capture(helper.GetType("TrustedComposition.IlOnlyHelper")!.GetMethod("Compute")!,
                     !jit, evidence + "; helper arithmetic checked"));
+            }
+            if (!collectible && !fail)
+            {
+                var again = (IUpdateModule)Activator.CreateInstance(module.GetType())!;
+                UpdateOutcome reused = again.Execute(host, false);
+                Check(reused.StaticCount == 3 && reused.PrivateCount == 3, "Resident module statics did not continue for a second instance.");
+                residentReuse.Add(reused.StaticCount);
             }
         }
         finally
