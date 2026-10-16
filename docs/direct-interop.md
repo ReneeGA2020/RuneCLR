@@ -23,3 +23,7 @@ The gameplay profile allows IMapContext members get_MapId, SpawnEntity, DestroyE
 ## Calls the selector does not make
 
 Desktop selector tests EchoInstanceOnlyIsNotCalled, EchoInheritedIsNotCalled, and EchoPrivateOnlyIsNotCalled require OBJECT-SAME to be absent. Those tests record ECHO ActivationFailed, leave the echo counters at 0, and do not print OBJECT-SAME. This is not a complete list of unsupported shapes, and it does not close #14.
+
+## Echo payload
+
+The successful OBJECT-SAME case is GenericSample in samples/RuneCLR.TrustedUpdateHost/Program.cs. It passes new object() to TryEchoGenericObject. EchoGeneric returns that argument unchanged, and the host checks ReferenceEquals. System.Object has no instance fields and no writable properties. The same sample also echoes a string, which is immutable. An in-place field mutation is not demonstrated. This does not close #14.
