@@ -23,3 +23,5 @@ The product compiler defaults allowUnsafe to false. Author pointer source is the
 A packaging fixture compiles an ordinary ref int method, then changes those byref markers to pointer markers without loading the image. GameplayCapabilityPolicy reports Pointer signatures are unsupported. Packaging tests passed 88/88. The unsafe-compile fixtures still stop because SecurityAction is not approved and do not reach that sentence. Issue 5 stays open.
 
 An author ref struct compiles with the product compiler. The capability profile rejects that assembly because System.Runtime.CompilerServices.IsByRefLikeAttribute is not approved. This fixture does not reach the separate sentence Author byref-like types are unsupported. Packaging tests passed 89/89. Issue 5 stays open.
+
+An author instance constructor that stores 41 runs before OnStart. The session logs value=41, completes one tick, and the map context is collected. Packaging tests passed 90/90. Issue 5 stays open.

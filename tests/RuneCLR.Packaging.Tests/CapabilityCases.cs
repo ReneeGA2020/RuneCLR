@@ -51,6 +51,7 @@ internal static class CapabilityCases
         yield return ("Capability inspection rejects a framework reference with a spoofed public-key token", FrameworkIdentitySpoof);
         yield return ("Capability inspection binds private references by full identity instead of simple name", PrivateIdentityBinding);
         yield return ("Allowed collections, arithmetic and author exceptions retain clean session lifecycle", SafeLifecycle);
+        yield return ("An author constructor runs before OnStart and the session still retires", AuthorConstructor);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -306,6 +307,28 @@ internal static class CapabilityCases
         }
         public sealed class AuthorException : Exception { public AuthorException(string message) : base(message) { } }
         """;
+    private static void AuthorConstructor()
+{
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private readonly int value;
+                public GameScript() { value = 41; }
+                public void OnStart(IMapContext context) { context.Log("value=" + value); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "package"), source);
+        Check.Assert(built.Succeeded, "Author constructor failed compilation.");
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed, result.Report.Error ?? "Constructor script did not finish.");
+        Check.Assert(result.Report.Logs.SequenceEqual(new[] { "value=41" }), "Constructor value was not observed.");
+        Check.Collected(result);
+}
+
     private static void SafeLifecycle()
     {
         using var temp = new TempDirectory(); var built = Build(Path.Combine(temp.Path, "package"));
