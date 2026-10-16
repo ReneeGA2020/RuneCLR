@@ -56,6 +56,7 @@ internal static class CapabilityCases
         yield return ("A throwing author constructor fails before OnStart and the next package still runs", AuthorConstructorFailure);
         yield return ("A throwing author static constructor fails before OnStart and the next package still runs", AuthorStaticConstructorFailure);
         yield return ("Generic, nested, abstract, internal and inherited entry shapes are rejected before run", UnsupportedEntryShapes);
+        yield return ("Parameterized constructors and overloaded, explicit, or generic callbacks are rejected before run", UnsupportedCallbackShapes);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -483,6 +484,66 @@ internal static class CapabilityCases
             }
             public sealed class GameScript : BaseScript { }
             """, "Entry 'GameScript' must directly extend System.Object; inherited entry implementations are unsupported.");
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+
+    private static void UnsupportedCallbackShapes()
+    {
+        using var temp = new TempDirectory();
+        void Reject(string directory, string source, string expected)
+        {
+            var error = Check.Throws<InvalidDataException>(() =>
+            {
+                var built = Build(Path.Combine(temp.Path, directory), source);
+                var details = built.Diagnostics.Length == 0
+                    ? "Build returned without an exception. Succeeded=" + built.Succeeded
+                    : string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message));
+                throw new InvalidOperationException(details);
+            });
+            Check.Assert(error.Message.Contains(expected, StringComparison.Ordinal), error.Message);
+        }
+
+        Reject("ctor", """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public GameScript(int value) { }
+                public void OnStart(IMapContext context) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """, "Entry 'GameScript' needs exactly one public instance parameterless constructor.");
+        Reject("overload", """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { }
+                public void OnStart(int value) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """, "Entry callback 'OnStart' must be one public nongeneric instance method; explicit/inherited/overloaded callbacks are unsupported.");
+        Reject("explicit", """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { }
+                void IMapScript.OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """, "Entry callback 'OnTick' must be one public nongeneric instance method; explicit/inherited/overloaded callbacks are unsupported.");
+        Reject("generic", """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public void OnStop<T>() { }
+            }
+            """, "Entry callback 'OnStop' must be one public nongeneric instance method; explicit/inherited/overloaded callbacks are unsupported.");
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
