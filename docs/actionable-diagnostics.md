@@ -69,3 +69,5 @@ A null log and a 2049-character log both fail during OnStart. The null log error
 The first log is kept and the second fails with The session log limit was exceeded. The first entity is created and the second fails with The entity limit was exceeded. That entity is released when the session stops. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Packaging tests passed 113/113. Issue 5 stays open.
 
 After the author catches the second log at the host limit, the session still fails. The first log one remains, no tick is completed, and the next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Packaging tests passed 114/114. Issue 5 stays open.
+
+After the author catches the second entity at the host limit, the session still fails. One entity is created and released when the session stops. No log is written, no tick is completed, and the next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Packaging tests passed 115/115. Issue 5 stays open.
