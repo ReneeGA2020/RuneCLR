@@ -508,7 +508,8 @@ static int SelfTest()
             || !generic.Output.Contains("STRING-SAME", StringComparison.Ordinal)
             || generic.Output.Contains("STRING-DIFFERENT", StringComparison.Ordinal)
             || !generic.Output.Contains("INT 11", StringComparison.Ordinal)
-            || !generic.Output.Contains("CALLS 3", StringComparison.Ordinal))
+            || !generic.Output.Contains("CALLS 3", StringComparison.Ordinal)
+            || !generic.Output.Contains("MUTATE-SAME", StringComparison.Ordinal))
             return 1;
         var orderDirectory = Path.Combine(root, "work-order");
         Directory.CreateDirectory(orderDirectory);
@@ -740,7 +741,10 @@ static int GenericSample(string directory, string store, TrustedUpdateTarget hos
     Console.WriteLine(number.Succeeded ? "INT " + number.Value : "INT " + number.Failure);
     var calls = (int)entry.GetField("Calls")!.GetValue(null)!;
     Console.WriteLine("CALLS " + calls);
-    return rejected && before == 0 && echoed.SameReference && textEcho.SameReference && number.Value == 11 && calls == 3 ? 0 : 1;
+    var data = new int[1];
+    var mutated = process.TryMutateFirst(data);
+    Console.WriteLine(mutated ? "MUTATE-SAME" : "MUTATE-DIFFERENT");
+    return rejected && before == 0 && echoed.SameReference && textEcho.SameReference && number.Value == 11 && calls == 3 && mutated ? 0 : 1;
 }
 
 static void WriteGenericAssembly(string path)
@@ -766,6 +770,14 @@ static void WriteGenericAssembly(string path)
     il.Emit(OpCodes.Stsfld, calls);
     il.Emit(OpCodes.Ldarg_0);
     il.Emit(OpCodes.Ret);
+    var mutate = type.DefineMethod("MutateFirst", MethodAttributes.Public | MethodAttributes.Static, typeof(int[]), new[] { typeof(int[]) });
+    var mutateIl = mutate.GetILGenerator();
+    mutateIl.Emit(OpCodes.Ldarg_0);
+    mutateIl.Emit(OpCodes.Ldc_I4_0);
+    mutateIl.Emit(OpCodes.Ldc_I4_7);
+    mutateIl.Emit(OpCodes.Stelem_I4);
+    mutateIl.Emit(OpCodes.Ldarg_0);
+    mutateIl.Emit(OpCodes.Ret);
     type.CreateType();
     builder.Save(path);
 }

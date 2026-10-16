@@ -27,3 +27,7 @@ Desktop selector tests EchoInstanceOnlyIsNotCalled, EchoInheritedIsNotCalled, an
 ## Echo payload
 
 The successful OBJECT-SAME case is GenericSample in samples/RuneCLR.TrustedUpdateHost/Program.cs. It passes new object() to TryEchoGenericObject. EchoGeneric returns that argument unchanged, and the host checks ReferenceEquals. System.Object has no instance fields and no writable properties. The same sample also echoes a string, which is immutable. An in-place field mutation is not demonstrated. This does not close #14.
+
+## In-place mutation
+
+GenericSample calls MutateFirst with a one-element int array after the existing echo checks. The update writes 7 into element 0 and returns the same array. The desktop self-test prints MUTATE-SAME together with OBJECT-SAME and CALLS 3. The trusted-update selector suite passed in that Release run. This is one array store, not an arbitrary host class, and it does not close #14. It is not an iOS result.

@@ -213,6 +213,36 @@ public sealed class TrustedUpdateProcess
 
     bool SessionIsOpen() => selectedVersionName is not null && openSession is { Closed: false } && entryType is not null;
 
+    public bool TryMutateFirst(int[] values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (values.Length == 0 || !SessionIsOpen() || entryType is null)
+            return false;
+        MethodInfo? method = null;
+        foreach (var item in entryType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
+        {
+            var parameters = item.GetParameters();
+            if (item.Name == "MutateFirst" && !item.IsGenericMethodDefinition && parameters.Length == 1
+                && parameters[0].ParameterType == typeof(int[]) && item.ReturnType == typeof(int[]))
+            {
+                method = item;
+                break;
+            }
+        }
+
+        if (method is null)
+            return false;
+        try
+        {
+            var returned = method.Invoke(null, new object[] { values });
+            return ReferenceEquals(returned, values) && values[0] == 7;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     MethodInfo? FindGenericEcho()
     {
         if (!SessionIsOpen() || entryType is null)
