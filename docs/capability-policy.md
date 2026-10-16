@@ -76,6 +76,8 @@ execution policy. Runtime constructors, generic instances, framework native
 calls and private dependencies need execution-selection/accounting coverage in
 #5/#6; static rejection does not supply that coverage.
 
+The packaging suite through 101/101, commit 76852ad, measures stock desktop JIT. That is not interpreter evidence and it is not an iOS result. The exception-filter case added after that measurement is also desktop JIT only.
+
 The allowlist reduces accidental access to unsupported process APIs for
 controlled authors. It does not make arbitrary public hostile IL safe. Even
 allowed string/collection operations can allocate heavily or take excessive

@@ -63,6 +63,7 @@ internal static class CapabilityCases
         yield return ("A throwing OnTick keeps the earlier log and the next package still runs", OnTickFailureRecovery);
         yield return ("A throwing OnStop is reported on its own and still releases the entity", OnStopFailureRecovery);
         yield return ("Custom delegates and async OnStart are rejected before run", RejectDelegateAndAsync);
+        yield return ("An author exception filter runs, handles the failure, and the next package still runs", ExceptionFilterRecovery);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -797,6 +798,43 @@ internal static class CapabilityCases
         var asyncError = Check.Throws<InvalidDataException>(() => Validate(Compile(asyncSource)));
         Check.Assert(asyncError.Message.Contains("Type 'System.Type' is not approved.", StringComparison.Ordinal), asyncError.Message);
         using var temp = new TempDirectory();
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void ExceptionFilterRecovery()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private static int misses;
+                private static int hits;
+                public void OnStart(IMapContext context)
+                {
+                    try { throw new AuthorFilterException("no"); }
+                    catch (AuthorFilterException) when (Miss()) { context.Log("wrong"); }
+                    catch (AuthorFilterException) when (Hit()) { context.Log("misses=" + misses + ";hits=" + hits); }
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                private static bool Miss() { misses++; return false; }
+                private static bool Hit() { hits++; return true; }
+            }
+            public sealed class AuthorFilterException : System.Exception
+            {
+                public AuthorFilterException(string message) : base(message) { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "faulty"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && result.Report.Logs.SequenceEqual(new[] { "misses=1;hits=1" })
+            && result.Report.CompletedTicks == 1,
+            (result.Report.Error ?? "") + " " + result.Report + " logs=[" + string.Join(",", result.Report.Logs) + "]");
+        Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
