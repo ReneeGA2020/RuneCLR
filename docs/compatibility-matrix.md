@@ -48,6 +48,8 @@ The source compiler follows the selected SDK compiler's latest stable C# version
 
 | Android 15 x64 emulator restricted UGC packages, 8/8, 2026-10-12 | Not a syntax measurement | Official .NET 11 RC1 android-x64 passed 8/8 additional package cases, exit code 0. The lifecycle suite stayed 22/22. Source, imported IL, and source again collected. An ordinary author exception released its entity, then a valid package succeeded. Rehashed forbidden GC.Collect was rejected. No positive interpreter execution evidence was collected | Not a framework-wide API pass | Android 15 x64 emulator, JIT-capable. R2R and tiering disabled. Not a physical device and not iOS | managed-il-gameplay-v1. Not a hostile-code sandbox. Issue 5 stays open |
 
+| Desktop stock SDK controlled-package native budget preflight | Not a syntax measurement | NATIVE_BUDGET_UNAVAILABLE beforeAuthorFile=true collectibleBefore=0 collectibleAfter=0 authorLoads=0. Exit code 2. The preflight happened before an author file was read. It does not establish the controlled-package and native instruction-budget combination | Not a framework-wide API pass | Installed desktop SDK. Not iOS and not a physical device | Not a managed-il-gameplay-v1 pass. Issue 5 stays open. Issue 6 stays open |
+
 ## Untested
 
 These are untested. They are not implied by the rows above.
