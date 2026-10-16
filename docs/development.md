@@ -1343,6 +1343,8 @@ On 2026-10-16 packaging tests passed 137/137 at commit dbb8868. The author catch
 
 On 2026-10-16 packaging tests passed 138/138 at commit 5721b5a. Destroying one entity leaves the other alive until session completion. The logs are made and tick. One tick completes, created 2, released 2, remaining 0, and no error is reported. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
+On 2026-10-16 packaging tests passed 139/139 at commit 88c32f1. OnStop can destroy an entity spawned in OnStart. The logs are made, tick, and stopped. One tick completes, created 1, released 1, remaining 0, and no error is reported. The next package still runs. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
