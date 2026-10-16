@@ -94,6 +94,7 @@ internal static class CapabilityCases
         yield return ("TickCount 0 runs OnStart and OnStop without calling OnTick", TickCountZeroSkipsOnTick);
         yield return ("A negative TickCount is rejected before the author runs", NegativeTickCountRejected);
         yield return ("A zero TickDuration is rejected before the author runs", ZeroTickDurationRejected);
+        yield return ("A negative TickDuration is rejected before the author runs", NegativeTickDurationRejected);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -2034,6 +2035,31 @@ internal static class CapabilityCases
         var range = caught as ArgumentOutOfRangeException;
         const string prefix = "TickDuration ('00:00:00') must be greater than '00:00:00'. (Parameter 'TickDuration')";
         const string detail = "Actual value was 00:00:00.";
+        Check.Assert(range is not null
+            && range.ParamName == "TickDuration"
+            && (range.Message == prefix + "\n" + detail || range.Message == prefix + "\r\n" + detail),
+            (caught?.GetType().FullName ?? "none") + " param=" + (range?.ParamName ?? "") + " message=[" + (caught?.Message ?? "") + "]");
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void NegativeTickDurationRejected()
+    {
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "negative-duration"));
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        Exception? caught = null;
+        try
+        {
+            new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickDuration = TimeSpan.FromTicks(-1) });
+        }
+        catch (Exception exception)
+        {
+            caught = exception;
+        }
+        var range = caught as ArgumentOutOfRangeException;
+        const string prefix = "TickDuration ('-00:00:00.0000001') must be greater than '00:00:00'. (Parameter 'TickDuration')";
+        const string detail = "Actual value was -00:00:00.0000001.";
         Check.Assert(range is not null
             && range.ParamName == "TickDuration"
             && (range.Message == prefix + "\n" + detail || range.Message == prefix + "\r\n" + detail),
