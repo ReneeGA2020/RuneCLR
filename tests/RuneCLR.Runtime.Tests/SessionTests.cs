@@ -29,6 +29,7 @@ internal static class SessionTests
         yield return ("Author error message failures cannot interrupt pumped cleanup", ThrowingErrorMessage);
         yield return ("Overlapping pumped sessions keep independent state", OverlappingSessions);
         yield return ("Overlapping sessions keep independent host work", OverlappingWork);
+        yield return ("Overlapping sessions do not share registered resources", OverlappingResources);
         yield return ("Concurrent host ticks are serialized", ConcurrentTicks);
         yield return ("A retained stopped session does not retain author code", RetainedSession);
         yield return ("Pumped required interpretation rejects before author loading", RequiredPolicy);
@@ -513,6 +514,34 @@ internal static class SessionTests
             }
         }
     }
+
+    private static void OverlappingResources()
+    {
+        using var first = Start("HostResourceMap", new MapRunOptions { TickCount = 0 });
+        using var second = Start("HostResourceMap", new MapRunOptions { TickCount = 0 });
+        Check(first.Tick() && second.Tick(), "The overlapping resource registrations failed.");
+        Check(Names(first).Order().SequenceEqual(["alpha", "beta"]), "The first session did not register both names.");
+        Check(Names(second).Order().SequenceEqual(["alpha", "beta"]), "The second session did not register both names.");
+        Check(first.Tick(), "The first session did not release its own resource.");
+        Check(Names(first).SequenceEqual(["beta"]), "Release removed another session's resource or the wrong name.");
+        Check(Names(second).Order().SequenceEqual(["alpha", "beta"]), "The other session changed while the first released a name.");
+        var firstResult = first.Stop();
+        Expect<InvalidOperationException>(() => first.CopyResources());
+        Check(second.IsRunning && second.Result is null, "Stopping one session stopped the other.");
+        Check(Names(second).Order().SequenceEqual(["alpha", "beta"]), "Stopping one session dropped the other's resources.");
+        var secondResult = second.Stop();
+        Expect<InvalidOperationException>(() => second.CopyResources());
+        CheckCompleted(firstResult);
+        CheckCompleted(secondResult);
+        Check(firstResult.Report.Logs.SequenceEqual(["registered", "pending=1", "pending=0"]),
+            "The releasing session did not keep its own resource log.");
+        Check(secondResult.Report.Logs.SequenceEqual(["registered", "pending=0"]),
+            "The untouched session released a name or kept one after Stop.");
+        CheckReleased(firstResult);
+        CheckReleased(secondResult);
+    }
+
+    private static string[] Names(MapSession session) => session.CopyResources().Select(item => item.Name).ToArray();
 
     private static void OverlappingWork()
     {
