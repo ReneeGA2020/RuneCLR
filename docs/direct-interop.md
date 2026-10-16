@@ -54,7 +54,7 @@ Desktop selector tests EchoInstanceOnlyIsNotCalled, EchoInheritedIsNotCalled, an
 
 ## Echo payload
 
-The successful OBJECT-SAME case is GenericSample in samples/RuneCLR.TrustedUpdateHost/Program.cs. It passes new object() to TryEchoGenericObject. EchoGeneric returns that argument unchanged, and the host checks ReferenceEquals. System.Object has no instance fields and no writable properties. The same sample also echoes a string, which is immutable. An in-place field mutation is not demonstrated. This does not close #14.
+The successful OBJECT-SAME case is GenericSample in samples/RuneCLR.TrustedUpdateHost/Program.cs. It passes new object() to TryEchoGenericObject. EchoGeneric returns that argument unchanged, and the host checks ReferenceEquals. System.Object has no instance fields and no writable properties. The same sample also echoes a string, which is immutable. The following sections measure an in-place array element and TrustedUpdateMutableBox. This does not close #14.
 
 ## In-place mutation
 

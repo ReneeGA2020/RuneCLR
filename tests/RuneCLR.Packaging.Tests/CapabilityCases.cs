@@ -68,6 +68,7 @@ internal static class CapabilityCases
         yield return ("Schedule, resource, and posted-event APIs are rejected before run", RejectHostSchedulingApis);
         yield return ("Remaining schedule, work, and resource accessors are rejected before run", RejectRemainingHostAccessors);
         yield return ("A Signal subscription is rejected because Action is not approved", RejectSignalSubscription);
+        yield return ("The approved MapId accessor runs and the next package still runs", ApprovedMapId);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -998,6 +999,30 @@ internal static class CapabilityCases
         Check.Assert(error.Message.Contains("Capability profile 'managed-il-gameplay-v1':", StringComparison.Ordinal)
             && error.Message.Contains("Type 'System.Action`1' is not approved.", StringComparison.Ordinal),
             error.Message);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void ApprovedMapId()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log(context.MapId); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "map-id"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && result.Report.Logs.SequenceEqual(new[] { "CapabilityGame" })
+            && result.Report.CompletedTicks == 1,
+            (result.Report.Error ?? "") + " logs=[" + string.Join(",", result.Report.Logs) + "]");
+        Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
