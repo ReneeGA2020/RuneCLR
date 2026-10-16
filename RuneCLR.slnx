@@ -22,6 +22,8 @@
     <Project Path="tests/RuneCLR.Packaging.Tests/RuneCLR.Packaging.Tests.csproj" />
     <Project Path="tests/RuneCLR.PackageExecution.Tests/RuneCLR.PackageExecution.Tests.csproj" />
     <Project Path="tests/RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" />
+    <Project Path="tests/TrustedUpdate.Good/TrustedUpdate.Good.csproj" />
+    <Project Path="tests/TrustedUpdate.Throwing/TrustedUpdate.Throwing.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/RuneCLR.PackageTool/RuneCLR.PackageTool.csproj" />
