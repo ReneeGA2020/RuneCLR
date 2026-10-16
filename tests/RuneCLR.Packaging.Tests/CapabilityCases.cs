@@ -74,6 +74,7 @@ internal static class CapabilityCases
         yield return ("Destroying an unknown entity fails before OnStart and the next package still runs", DestroyUnknownEntity);
         yield return ("A blank or overlong entity name fails before OnStart and the next package still runs", RejectBadEntityNames);
         yield return ("A null or overlong log fails before OnStart and the next package still runs", RejectBadLogs);
+        yield return ("A second log or entity at the host limit fails and the next package still runs", HostCountLimits);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1207,6 +1208,61 @@ internal static class CapabilityCases
 
         Run("null-log", "context.Log(null!);", "Value cannot be null");
         Run("overlong-log", "context.Log(new string('a', 2049));", "The session log limit was exceeded.");
+    }
+    private static void HostCountLimits()
+    {
+        using var temp = new TempDirectory();
+        const string logs = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("one"); context.Log("two"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var logBuilt = Build(Path.Combine(temp.Path, "logs"), logs);
+        Check.Assert(logBuilt.Succeeded, string.Join(" | ", logBuilt.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var logResult = new MapRunner().Run(MapPackage.FromManifest(logBuilt.ManifestPath!),
+            new MapRunOptions { TickCount = 1, MaxLogMessages = 1 });
+        Check.Assert(logResult.Report.Outcome == MapRunOutcome.Failed
+            && logResult.Report.Error?.Contains("The session log limit was exceeded.", StringComparison.Ordinal) == true
+            && logResult.Report.Logs.SequenceEqual(new[] { "one" })
+            && logResult.Report.CompletedTicks == 0
+            && logResult.Report.CreatedEntities == 0
+            && logResult.Report.ReleasedEntities == 0
+            && logResult.Report.RemainingEntities == 0,
+            (logResult.Report.Error ?? "") + " logs=[" + string.Join(",", logResult.Report.Logs) + "] created=" + logResult.Report.CreatedEntities + " released=" + logResult.Report.ReleasedEntities + " remaining=" + logResult.Report.RemainingEntities);
+        Check.Collected(logResult);
+        var logNext = Build(Path.Combine(temp.Path, "logs-next"));
+        Check.Assert(logNext.Succeeded, "Next package failed to compile.");
+        RunSafe(logNext.ManifestPath!);
+
+        const string entities = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.SpawnEntity("a"); context.SpawnEntity("b"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var entityBuilt = Build(Path.Combine(temp.Path, "entities"), entities);
+        Check.Assert(entityBuilt.Succeeded, string.Join(" | ", entityBuilt.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var entityResult = new MapRunner().Run(MapPackage.FromManifest(entityBuilt.ManifestPath!),
+            new MapRunOptions { TickCount = 1, MaxEntities = 1 });
+        Check.Assert(entityResult.Report.Outcome == MapRunOutcome.Failed
+            && entityResult.Report.Error?.Contains("The entity limit was exceeded.", StringComparison.Ordinal) == true
+            && entityResult.Report.Logs.Count == 0
+            && entityResult.Report.CreatedEntities == 1
+            && entityResult.Report.ReleasedEntities == 1
+            && entityResult.Report.RemainingEntities == 0
+            && entityResult.Report.CompletedTicks == 0,
+            (entityResult.Report.Error ?? "") + " logs=[" + string.Join(",", entityResult.Report.Logs) + "] created=" + entityResult.Report.CreatedEntities + " released=" + entityResult.Report.ReleasedEntities + " remaining=" + entityResult.Report.RemainingEntities);
+        Check.Collected(entityResult);
+        var entityNext = Build(Path.Combine(temp.Path, "entities-next"));
+        Check.Assert(entityNext.Succeeded, "Next package failed to compile.");
+        RunSafe(entityNext.ManifestPath!);
     }
     private static void RunSafe(string manifestPath)
     {
