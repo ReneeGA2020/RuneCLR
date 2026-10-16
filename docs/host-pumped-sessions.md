@@ -106,8 +106,8 @@ Between callbacks, MapSession.CopyResources copies the current names into
 host-owned values. Stop clears the remaining names before OnStop. Copying after
 Stop throws InvalidOperationException ("The session has stopped."). A later
 session does not see them. The restricted profile does not include this surface.
-Desktop tests/RuneCLR.Runtime.Tests passed 48/48 in Release on 2026-10-16,
-including this case and two live sessions that do not share names. There is still no background thread, sleep, or wall-clock
+Desktop tests/RuneCLR.Runtime.Tests passed 49/49 in Release on 2026-10-16,
+including this case, two live sessions that do not share names, and a caught MaxResources limit that stops the session. There is still no background thread, sleep, or wall-clock
 timer.
 
 

@@ -242,10 +242,17 @@ internal sealed class MapContext : IMapContext, IDisposable
             Violate("Resource names cannot exceed 128 characters.");
         }
 
-        if (!_resources.Add(name))
+        if (_resources.Contains(name))
         {
             throw new InvalidOperationException("The resource is already registered.");
         }
+
+        if (_resources.Count >= _options.MaxResources)
+        {
+            Violate("The resource limit was exceeded.");
+        }
+
+        _resources.Add(name);
     }
 
     public bool ReleaseResource(string name)

@@ -399,6 +399,31 @@ public sealed class CatchingScheduleLimitMap : IMapScript
     }
 }
 
+public sealed class CatchingResourceLimitMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context)
+    {
+        _context = context;
+        context.RegisterResource("kept");
+        try
+        {
+            context.RegisterResource("extra");
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    public void OnTick(MapTick tick) { }
+
+    public void OnStop()
+    {
+        if (_context.PendingResources != 0) throw new InvalidOperationException("pending-resource");
+    }
+}
+
 public sealed class HostResourceMap : IMapScript
 {
     public static IMapContext? Kept;

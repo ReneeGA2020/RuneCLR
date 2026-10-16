@@ -19,6 +19,7 @@ internal static class SessionTests
         yield return ("A retired session does not block the next session's work", NextSessionAfterFailedWork);
         yield return ("A retired session does not leave scheduled signals for the next session", NextSessionAfterFailedSchedule);
         yield return ("Caught work and schedule limits still stop the session", CaughtResourceLimits);
+        yield return ("A caught resource limit stops the session and drops the accepted name", CaughtResourceLimit);
         yield return ("Invalid tick deltas leave the session active", InvalidDelta);
         yield return ("Stopping and disposing sessions are idempotent", StopAndDispose);
         yield return ("Failed startup stops and releases a pumped session", StartupFailure);
@@ -385,6 +386,18 @@ internal static class SessionTests
         }
 
         return false;
+    }
+
+    private static void CaughtResourceLimit()
+    {
+        using var session = Start("CatchingResourceLimitMap", new MapRunOptions { MaxResources = 1, TickCount = 0 });
+        Check(!session.IsRunning && session.CompletedTicks == 0, "A caught resource limit left the session active.");
+        var result = session.Result ?? throw new InvalidOperationException("Caught resource limit has no result.");
+        CheckFailed(result, "resource limit");
+        Check(result.Report.Error?.Contains("pending-resource", StringComparison.Ordinal) != true, "The accepted resource survived the limit.");
+        Check(result.Report.Error?.Contains("OnStop:", StringComparison.Ordinal) != true, "A successful OnStop was reported as a stop failure.");
+        Expect<InvalidOperationException>(() => session.CopyResources());
+        CheckReleased(result);
     }
 
     private static void InvalidDelta()

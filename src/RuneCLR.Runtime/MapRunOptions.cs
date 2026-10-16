@@ -20,6 +20,7 @@ public sealed record MapRunOptions
     public int MaxLogMessages { get; init; } = 128;
     public int MaxScheduledSignals { get; init; } = 128;
     public int MaxWorkItems { get; init; } = 128;
+    public int MaxResources { get; init; } = 128;
 
     internal void Validate()
     {
@@ -36,6 +37,7 @@ public sealed record MapRunOptions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxLogMessages);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxScheduledSignals);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxWorkItems);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxResources);
     }
 }
 
