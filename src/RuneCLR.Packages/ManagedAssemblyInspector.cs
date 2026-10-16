@@ -129,45 +129,45 @@ public static class ManagedAssemblyInspector
             if (name.Length == 0) throw Invalid("A method definition has an empty name.");
             if ((method.Attributes & MethodAttributes.PinvokeImpl) != 0 ||
                 (method.ImplAttributes & MethodImplAttributes.InternalCall) != 0)
-                throw Invalid($"Method '{name}' uses P/Invoke or InternalCall, unsupported in managed-il-v1.");
+                throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} uses P/Invoke or InternalCall, unsupported in managed-il-v1.");
             if ((method.ImplAttributes & MethodImplAttributes.CodeTypeMask) != MethodImplAttributes.IL ||
                 (method.ImplAttributes & (MethodImplAttributes.Unmanaged | MethodImplAttributes.ForwardRef)) != 0)
-                throw Invalid($"Method '{name}' has a non-IL/unmanaged/forward implementation, unsupported in managed-il-v1.");
+                throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has a non-IL/unmanaged/forward implementation, unsupported in managed-il-v1.");
             var signature = metadata.GetBlobReader(method.Signature);
             var header = signature.ReadSignatureHeader();
             if (header.Kind != SignatureKind.Method)
-                throw Invalid($"Method '{name}' has a malformed signature header.");
+                throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has a malformed signature header.");
             if (header.IsGeneric && signature.ReadCompressedInteger() != method.GetGenericParameters().Count)
-                throw Invalid($"Method '{name}' has inconsistent generic signature metadata.");
+                throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has inconsistent generic signature metadata.");
             var parameterCount = signature.ReadCompressedInteger();
             if (parameterCount < 0 || parameterCount > ushort.MaxValue || signature.RemainingBytes == 0)
-                throw Invalid($"Method '{name}' has an invalid parameter count or missing return type.");
+                throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has an invalid parameter count or missing return type.");
             foreach (var parameterHandle in method.GetParameters())
             {
                 var parameter = metadata.GetParameter(parameterHandle);
                 if (parameter.SequenceNumber > parameterCount)
-                    throw Invalid($"Method '{name}' has a parameter row outside its signature.");
+                    throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has a parameter row outside its signature.");
                 _ = metadata.GetString(parameter.Name);
             }
             var isAbstract = (method.Attributes & MethodAttributes.Abstract) != 0;
             if (isAbstract)
             {
                 if (method.RelativeVirtualAddress != 0)
-                    throw Invalid($"Abstract method '{name}' unexpectedly contains a method body.");
+                    throw Invalid($"Abstract method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} unexpectedly contains a method body.");
                 continue;
             }
             if (method.RelativeVirtualAddress <= 0)
-                throw Invalid($"Managed method '{name}' is missing its IL body.");
+                throw Invalid($"Managed method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} is missing its IL body.");
             var body = pe.GetMethodBody(method.RelativeVirtualAddress);
             var code = body.GetILBytes();
             if (code is null || code.Length == 0 ||
                 pe.GetSectionData(method.RelativeVirtualAddress).Length < body.Size)
-                throw Invalid($"Method '{name}' has an empty or out-of-bounds IL body.");
+                throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has an empty or out-of-bounds IL body.");
             if (!body.LocalSignature.IsNil)
             {
                 var locals = metadata.GetBlobReader(metadata.GetStandaloneSignature(body.LocalSignature).Signature);
                 if (locals.ReadSignatureHeader().Kind != SignatureKind.LocalVariables)
-                    throw Invalid($"Method '{name}' has an invalid local signature.");
+                    throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has an invalid local signature.");
             }
             foreach (var region in body.ExceptionRegions)
             {
@@ -177,7 +177,7 @@ public static class ManagedAssemblyInspector
                     (long)region.HandlerOffset + region.HandlerLength > code.Length ||
                     (region.Kind == ExceptionRegionKind.Filter &&
                         (region.FilterOffset < 0 || region.FilterOffset >= code.Length)))
-                    throw Invalid($"Method '{name}' has an exception region outside its IL body.");
+                    throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has an exception region outside its IL body.");
                 if (region.Kind == ExceptionRegionKind.Catch)
                     ValidateTypeHandle(metadata, region.CatchType, name);
             }

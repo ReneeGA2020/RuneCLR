@@ -44,8 +44,8 @@ internal static class IntakeCases
         yield return ("IL intake rejects an author-marked native CLR vtable directory", () =>
             Rejected(Mutate((bytes, pe, _) => Write32(bytes, pe.PEHeaders.CorHeaderStartOffset + 48, 1)), "vtable"));
         yield return ("IL intake rejects PInvoke method metadata", () =>
-            Rejected(MethodMutation((bytes, offset, method) => Write16(bytes, offset + 6,
-                (ushort)(method.Attributes | MethodAttributes.PinvokeImpl))), "P/Invoke"));
+            RejectedAll(MethodMutation((bytes, offset, method) => Write16(bytes, offset + 6,
+                (ushort)(method.Attributes | MethodAttributes.PinvokeImpl))), "P/Invoke", "token 0x"));
         yield return ("IL intake rejects InternalCall method metadata", () =>
             Rejected(MethodMutation((bytes, offset, method) => Write16(bytes, offset + 4,
                 (ushort)(method.ImplAttributes | MethodImplAttributes.InternalCall))), "InternalCall"));
@@ -199,6 +199,14 @@ internal static class IntakeCases
             bytes[offset + 2] = 0x08; // Structurally decodable return type changed from void to int32.
         });
         EntryRejected(mutated, ContractIdentity(), "signature");
+    }
+
+    private static void RejectedAll(byte[] image, params string[] reasons)
+    {
+        var exception = Check.Throws<InvalidDataException>(() => ManagedAssemblyInspector.Inspect(image));
+        foreach (var reason in reasons)
+            Check.Assert(exception.Message.Contains(reason, StringComparison.OrdinalIgnoreCase),
+                "Expected '" + reason + "' in: " + exception.Message);
     }
 
     private static void Rejected(byte[] image, params string[] reasons)
