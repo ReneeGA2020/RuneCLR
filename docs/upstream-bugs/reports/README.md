@@ -5,6 +5,12 @@ Prepared on 2026-10-15. These reports have **not** been submitted to
 the content starting at `### Description` into the issue body. Each report
 follows the upstream bug-report template and can be filed independently.
 
+Filed on 2026-10-16. Do not file either report again.
+RCLR-UP-001 is https://github.com/dotnet/runtime/issues/135848.
+RCLR-UP-002 is https://github.com/dotnet/runtime/issues/135849.
+Both issues were open when this note was added. An open issue is not an
+upstream fix.
+
 | Report | Scope | Suggested areas |
 | --- | --- | --- |
 | [RCLR-UP-001](001-collectible-cid-lifetime.md) | Native CID crash after collectible context retirement, including a dynamic implementation-owner control | CoreCLR VM / interpreter / iOS |

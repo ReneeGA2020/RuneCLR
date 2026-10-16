@@ -3,8 +3,8 @@
 Created 2026-10-13. Record defects in official dotnet/runtime separately from
 RuneCLR implementation errors, unsupported APIs and experimental hosting choices.
 Prepare local fixes or workarounds first where evidence supports them; retain
-the original failure and controls. Reports are prepared locally for future
-submission to https://github.com/dotnet/runtime/issues, not already submitted.
+the original failure and controls. RCLR-UP-001 and RCLR-UP-002 are filed; see
+Filed - 2026-10-16. RCLR-UP-003 is not submitted.
 
 ## Tracked findings
 
@@ -16,8 +16,8 @@ execution acceptance and official-fix review requirements.
 
 | ID | Finding | Attribution | Local disposition | Upstream report |
 | --- | --- | --- | --- | --- |
-| RCLR-UP-001 | [Collectible cached-interface lifetime](collectible-cid-lifetime.md) | Confirmed failure in unmodified pinned CoreCLR; reduced fixture needs no RuneCLR runtime assemblies | Private conservative native candidate; Debug and matching Release simulator acceptance | [Ready-to-paste report](reports/001-collectible-cid-lifetime.md), not submitted |
-| RCLR-UP-002 | [Apple simulator test-generator mapping](apple-simulator-test-generator.md) | Confirmed official generator omission and generated false condition; complete official mobile runner integration remains unverified | Private two-arm source fix passes 21/21 actual-generator/model-body checks; validated TargetOS=ios experiment workaround retained | [Ready-to-paste report](reports/002-apple-simulator-test-generator.md), not submitted |
+| RCLR-UP-001 | [Collectible cached-interface lifetime](collectible-cid-lifetime.md) | Confirmed failure in unmodified pinned CoreCLR; reduced fixture needs no RuneCLR runtime assemblies | Private conservative native candidate; Debug and matching Release simulator acceptance | [Ready-to-paste report](reports/001-collectible-cid-lifetime.md), [dotnet/runtime #135848](https://github.com/dotnet/runtime/issues/135848) |
+| RCLR-UP-002 | [Apple simulator test-generator mapping](apple-simulator-test-generator.md) | Confirmed official generator omission and generated false condition; complete official mobile runner integration remains unverified | Private two-arm source fix passes 21/21 actual-generator/model-body checks; validated TargetOS=ios experiment workaround retained | [Ready-to-paste report](reports/002-apple-simulator-test-generator.md), [dotnet/runtime #135849](https://github.com/dotnet/runtime/issues/135849) |
 | RCLR-UP-003 | [Full-framework interpreter assertion](full-framework-interpreter-assert.md) | Suspected upstream interpreter issue; minimal repro and root cause pending | Continue supported selective mode 1 experiments; no assertion bypass | Investigation, not ready to submit |
 
 The confirmed affected source is official main commit
@@ -43,6 +43,15 @@ The actual pinned-source generator probe was freshly rebuilt and rerun on
 Windows: zero build warnings/errors and 19/19 expected-baseline checks,
 reproducing the skipped simulator bodies. No mobile runtime experiment was
 replayed for this preparation. RCLR-UP-003 remains an investigation.
+
+## Filed - 2026-10-16
+
+RCLR-UP-001 is filed as [dotnet/runtime #135848](https://github.com/dotnet/runtime/issues/135848)
+and RCLR-UP-002 as [dotnet/runtime #135849](https://github.com/dotnet/runtime/issues/135849).
+Both were open when recorded. Filing is not an upstream fix and does not
+retire the private candidates. RCLR-UP-003 was not filed. The 2026-10-15
+preparation section above still describes the state before these issue
+numbers existed.
 
 ## Do not classify as an official defect without more evidence
 

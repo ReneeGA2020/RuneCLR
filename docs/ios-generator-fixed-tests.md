@@ -138,5 +138,7 @@ python3 ios-generator-fixed-tests.py --root /path/to/experiment-root --output /p
 The [earlier workaround evidence](ios-r2r-official-managed-tests.md) remains
 unchanged. [RCLR-UP-002](upstream-bugs/apple-simulator-test-generator.md) records
 this source-fixed standalone result separately from full official-lane and
-future upstream-fix acceptance. No upstream issue or PR was submitted.
+future upstream-fix acceptance. On 2026-10-16 the report was filed as
+[dotnet/runtime #135849](https://github.com/dotnet/runtime/issues/135849);
+that open issue is not an upstream fix.
 

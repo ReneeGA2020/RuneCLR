@@ -3,6 +3,8 @@
 Status on 2026-10-13: confirmed pinned-upstream defect; local candidate validated;
 upstream report not submitted; latest upstream fix status unknown.
 
+Filed on 2026-10-16: [dotnet/runtime #135848](https://github.com/dotnet/runtime/issues/135848). The issue was open when recorded. Filing does not prove an upstream fix.
+
 ## Attribution and impact
 
 Unmodified official CoreCLR at

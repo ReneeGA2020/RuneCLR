@@ -270,9 +270,13 @@ Review public naming separately; existing `Map` names do not limit the host mode
 ## Maintenance alongside the milestone
 
 The two [upstream reports](upstream-bugs/reports/README.md) and combined evidence
-ZIP are prepared. No upstream issue URL has been recorded. After actual filing,
-record the URLs in the defect register. Keep private CID/generator fixes until
-official replacements pass their recorded regression gates. Do not expand the
+ZIP are prepared. On 2026-10-16 RCLR-UP-001 is
+[dotnet/runtime #135848](https://github.com/dotnet/runtime/issues/135848) and
+RCLR-UP-002 is
+[dotnet/runtime #135849](https://github.com/dotnet/runtime/issues/135849).
+Both were open when recorded. Filing is not an upstream fix. Do not file
+either report again. Keep private CID/generator fixes until official
+replacements pass their recorded regression gates. Do not expand the
 unreduced mode-3 assertion investigation unless it blocks the chosen fixture.
 
 At implementation start, check both repository states and run the relevant

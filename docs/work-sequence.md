@@ -240,8 +240,9 @@ fast-dispatch coverage and further execution-boundary controls remain open.
   [explicit interface regressions](ios-r2r-patched-regressions.md) and
   [matching Release package acceptance](ios-r2r-release-packages.md). The
   [upstream defect register](upstream-bugs/README.md) tracks this confirmed
-  official-source defect as RCLR-UP-001 with a local fix and an unsubmitted
-  report draft; official-fix replacement still requires independent regression
+  official-source defect as RCLR-UP-001 with a local fix. The report is
+  [dotnet/runtime #135848](https://github.com/dotnet/runtime/issues/135848);
+  official-fix replacement still requires independent regression
   review. This does not establish physical-device acceptance.
 
 - [#5](https://github.com/ReneeGA2020/RuneCLR/issues/5): the

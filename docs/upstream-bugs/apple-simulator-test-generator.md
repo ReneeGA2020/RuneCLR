@@ -5,6 +5,8 @@ the pinned source; validated local source fix, actual source-fixed standalone
 simulator execution and earlier configuration workaround; not reported upstream.
 Complete official simulator runner integration and latest upstream fix status remain unknown.
 
+Filed on 2026-10-16: [dotnet/runtime #135849](https://github.com/dotnet/runtime/issues/135849). The issue was open when recorded. Filing does not prove an upstream fix.
+
 ## Official source inconsistency
 
 At 0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de, the official

@@ -171,5 +171,6 @@ and Checked acceptance remain open. Additional interface results are recorded in
 The execution strategy and physical-device requirement remain as recorded in
 [CoreCLR integration](coreclr.md) and
 [iOS controlled packages](ios-controlled-packages.md).
-Track future upstream reporting and replacement in
-[RCLR-UP-001](upstream-bugs/collectible-cid-lifetime.md).
+Track upstream reporting and replacement in
+[RCLR-UP-001](upstream-bugs/collectible-cid-lifetime.md), filed as
+[dotnet/runtime #135848](https://github.com/dotnet/runtime/issues/135848).

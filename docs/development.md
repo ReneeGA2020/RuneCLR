@@ -1179,8 +1179,11 @@ and separate runtime commit. Keep the validated private CID patch and
 managed-target workaround until an
 official replacement passes the record's regression gates. Record the actual
 upstream fix commit and revalidate without overlapping private changes before
-adoption; a newer version or closed issue is insufficient. Reports remain
-local drafts, not submitted GitHub issues.
+adoption; a newer version or closed issue is insufficient. On 2026-10-13 the
+reports were local drafts. On 2026-10-16 RCLR-UP-001 and RCLR-UP-002 were filed
+as [dotnet/runtime #135848](https://github.com/dotnet/runtime/issues/135848)
+and [dotnet/runtime #135849](https://github.com/dotnet/runtime/issues/135849);
+RCLR-UP-003 was not filed.
 
 ## Resume in a new session
 
