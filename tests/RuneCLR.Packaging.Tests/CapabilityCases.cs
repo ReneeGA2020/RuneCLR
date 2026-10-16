@@ -57,6 +57,7 @@ internal static class CapabilityCases
         yield return ("A throwing author static constructor fails before OnStart and the next package still runs", AuthorStaticConstructorFailure);
         yield return ("Generic, nested, abstract, internal and inherited entry shapes are rejected before run", UnsupportedEntryShapes);
         yield return ("Parameterized constructors and overloaded, explicit, or generic callbacks are rejected before run", UnsupportedCallbackShapes);
+        yield return ("A throwing instance field initializer fails before OnStart, and a static field initializer runs only once touched", ThrowingFieldInitializers);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -549,6 +550,88 @@ internal static class CapabilityCases
         RunSafe(next.ManifestPath!);
     }
 
+    private static void ThrowingFieldInitializers()
+    {
+        {
+            const string source = """
+                using RuneCLR;
+                public sealed class GameScript : IMapScript
+                {
+                    private readonly int value = Fail();
+                    private static int Fail() => throw new AuthorFieldException();
+                    public void OnStart(IMapContext context) { context.Log("started"); }
+                    public void OnTick(MapTick tick) { }
+                    public void OnStop() { }
+                }
+                public sealed class AuthorFieldException : System.Exception { }
+                """;
+            using var temp = new TempDirectory();
+            var built = Build(Path.Combine(temp.Path, "faulty"), source);
+            Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+            var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+            Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+                && result.Report.Error?.Contains("AuthorFieldException", StringComparison.Ordinal) == true
+                && result.Report.Logs.Count == 0
+                && result.Report.CreatedEntities == 0 && result.Report.RemainingEntities == 0,
+                result.Report.Error ?? result.Report.ToString());
+            Check.Collected(result);
+            var next = Build(Path.Combine(temp.Path, "next"));
+            Check.Assert(next.Succeeded, "Next package failed to compile.");
+            RunSafe(next.ManifestPath!);
+        }
+        {
+            const string source = """
+                using RuneCLR;
+                public sealed class GameScript : IMapScript
+                {
+                    private static readonly int value = Fail();
+                    private readonly int copy = value;
+                    private static int Fail() => throw new AuthorStaticFieldException();
+                    public void OnStart(IMapContext context) { context.Log("started"); }
+                    public void OnTick(MapTick tick) { }
+                    public void OnStop() { }
+                }
+                public sealed class AuthorStaticFieldException : System.Exception { }
+                """;
+            using var temp = new TempDirectory();
+            var built = Build(Path.Combine(temp.Path, "faulty"), source);
+            Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+            var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+            Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+                && result.Report.Error?.Contains("TypeInitializationException", StringComparison.Ordinal) == true
+                && result.Report.Error.Contains("AuthorStaticFieldException", StringComparison.Ordinal)
+                && result.Report.Logs.Count == 0
+                && result.Report.CreatedEntities == 0 && result.Report.RemainingEntities == 0,
+                result.Report.Error ?? result.Report.ToString());
+            Check.Collected(result);
+            var next = Build(Path.Combine(temp.Path, "next"));
+            Check.Assert(next.Succeeded, "Next package failed to compile.");
+            RunSafe(next.ManifestPath!);
+        }
+        {
+            const string source = """
+                using RuneCLR;
+                public sealed class GameScript : IMapScript
+                {
+                    private static readonly int value = Fail();
+                    private static int Fail() => throw new AuthorStaticFieldException();
+                    public void OnStart(IMapContext context) { context.Log("started"); }
+                    public void OnTick(MapTick tick) { }
+                    public void OnStop() { }
+                }
+                public sealed class AuthorStaticFieldException : System.Exception { }
+                """;
+            using var temp = new TempDirectory();
+            var built = Build(Path.Combine(temp.Path, "unread"), source);
+            Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+            var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+            Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+                && result.Report.Logs.SequenceEqual(new[] { "started" })
+                && result.Report.CompletedTicks == 1,
+                result.Report.Error ?? result.Report.ToString());
+            Check.Collected(result);
+        }
+    }
     private static void RunSafe(string manifestPath)
     {
         var result = new MapRunner().Run(MapPackage.FromManifest(manifestPath), new MapRunOptions { TickCount = 1 });
