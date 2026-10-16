@@ -1361,6 +1361,8 @@ On 2026-10-16 packaging tests passed 144/144 at commit 8d093b9. A log of exactly
 
 On 2026-10-16 one Windows run at artifacts/trusted-composition-timing-20261016 exited 0 and printed PASS five functional/execution controls. controlsPassed=true, milestoneComplete=false, and status=blocked-collectible-r2r. Startup, callback, and boundary microseconds accumulated across the sessions in that one process were il-collectible 47279/226526/13186, r2r-collectible 47760/222400/13389, r2r-native 44706/222359/0, il-jit-control 45633/345580/11850, and r2r-disabled-control 164025/282338/2. The same noncollectible semantics are r2r-disabled-control, with ReadyToRun off so the update module runs as interpreter IL, and r2r-native, which is noncollectible R2R. Their boundary totals are 2 and 0 microseconds. A total of 0 is under 1 microsecond. il-collectible and r2r-collectible are not noncollectible R2R. Collectible R2R remains refused by upstream. These figures are not a distribution across processes and not an iOS result. Issue 3 stays open. Issue 13 stays open.
 
+On 2026-10-16 the owner deferred a four-platform performance pass. Windows, macOS, iOS, and Android still need performance measurements, but that pass is not current work. The Windows composition timing above is one process aggregate and does not cover macOS, iOS, or Android. Do not start a runtime build, simulator, or emulator only to open that pass. Simulator and physical-device results stay separate. Physical iOS remains paused because the only phone is an iPhone XR locked to iOS 18.7. Issue 3 stays open.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
