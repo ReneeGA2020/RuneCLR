@@ -1319,6 +1319,8 @@ Windows session-policy worktree; later meter source/build evidence is retained
 separately.
 See [CoreCLR integration](coreclr.md) and [roadmap](roadmap.md).
 
+On 2026-10-16 the desktop restricted UGC packaging suite passed 124/124 at commit c196707. A caught host limit fails the session at the end of that callback: OnTick does not run after OnStart fails, and a later tick does not run after the first tick fails. The failed tick is not counted. An empty OnStop does not add an OnStop: prefix. Reading MapId during that OnStop does not throw. A charging host call in OnStop raises the latched limit again and adds OnStop:. If OnTick catches the limit and then throws an author exception, the latched limit is appended after the author failure without an OnStop: prefix. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open. The earlier 85/85 packaging sentence remains the historical RC1 result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
