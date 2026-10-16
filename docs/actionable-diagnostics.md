@@ -13,3 +13,5 @@ These checks throw InvalidDataException. Callers distinguish them by message pre
 A capability denial is not an identity mismatch, and neither prefix means the package ran. Source-location and symbol mappings are not described here. Full .NET and arbitrary NuGet compatibility are not accepted. Physical iOS was not run.
 
 Author-facing InvalidDataException messages do not include a source file line or an IL offset. GameplayCapabilityPolicy.cs reports "IL opcode '...' is unsupported." and "Truncated IL opcode." without the byte offset it used internally. ManagedAssemblyInspector.cs can include the method name, as in "Method '...' uses P/Invoke or InternalCall, unsupported in managed-il-v1.", but not a source line. Source-location diagnostics remain a #15 gap.
+
+Source compilation is separate. SourceCompiler.ConvertDiagnostic copies Roslyn's diagnostic id, invariant message, severity, and, when the location is in source, the file plus a 1-based line and column into CompilationDiagnostic. It uses GetLineSpan and does not honor an author #line remap. That source path does not add an IL offset to the package inspector exceptions above.
