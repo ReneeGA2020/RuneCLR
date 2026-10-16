@@ -66,6 +66,8 @@ or IL; controlled builds create runnable packages. Trusted host/framework R2R
 remains allowed. Later native UGC needs equivalent restrictions and is separate
 from trusted same-source builds.
 
+The current IMapContext entity surface is a prototype host. A game does not need entities to use the UGC mechanism. The mechanism is script loading, capability limits, execution, and unload. A host-defined API is not implemented here. See the product direction.
+
 Current UGC evidence includes [controlled packaging](controlled-packaging.md),
 [capability policy](capability-policy.md), [required interpretation](session-execution-policy.md),
 [Windows controlled-package pumped budgets](controlled-package-native-budget.md)
