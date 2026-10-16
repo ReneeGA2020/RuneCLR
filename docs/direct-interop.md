@@ -14,8 +14,23 @@ On 2026-10-16, eng/verify.ps1 exited 0 and did not start a simulator.
 
 ## Not accepted from these facts
 
-No matrix yet lists every supported and unsupported type or call shape. An arbitrary host class with in-place field mutation is not a general contract beyond the echo cases above. Physical iOS was not run. The iPhone XR on iOS 18.7 is not a target of the iOS 27 runtime. Full .NET and arbitrary NuGet are not accepted. This document does not close #14.
+The shape table below is not every supported or unsupported type. TrustedUpdateMutableBox is one measured host class, not a general contract for arbitrary classes. Physical iOS was not run. The iPhone XR on iOS 18.7 is not a target of the iOS 27 runtime. Full .NET and arbitrary NuGet are not accepted. This document does not close #14.
 
+
+## Measured shapes
+
+These rows are desktop results already recorded. A blank shape is not a pass.
+
+| Shape | Recorded result |
+| --- | --- |
+| System.Object through EchoGeneric | OBJECT-SAME. ReferenceEquals is true. The type has no writable fields. |
+| string through EchoGeneric | STRING-SAME. The string is immutable. |
+| int through EchoGeneric | INT 11. This is a value, not a reference-identity claim. |
+| int[] through MutateFirst | MUTATE-SAME. Element 0 becomes 7 and the array reference is unchanged. CALLS stays 3. |
+| TrustedUpdateMutableBox through MutateBox | BOX-SAME. Value becomes 7 and the instance is unchanged. |
+| A value passed to the object echo | VALUE-REJECTED. The echo is not called. |
+| Instance-only, inherited, or private-only echo | ECHO ActivationFailed. Counters stay 0. OBJECT-SAME is absent. |
+| Trusted composition delegates | Desktop composition recorded DelegateCalls=9 and HostIdentity=true. Not a UGC grant. |
 ## Restricted UGC
 
 The gameplay profile allows IMapContext members get_MapId, SpawnEntity, DestroyEntity, Log, and Charge. It still excludes Signal, RaiseSignal, the tick schedule, Repeat, host-completed work, resource registration, and host-posted events. Delegate callbacks stay denied. Trusted updates are not limited to this profile.
