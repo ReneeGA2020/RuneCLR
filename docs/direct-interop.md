@@ -14,7 +14,7 @@ On 2026-10-16, eng/verify.ps1 exited 0 and did not start a simulator.
 
 ## Not accepted from these facts
 
-The shape table below is not every supported or unsupported type. TrustedUpdateMutableBox is one measured host class, not a general contract for arbitrary classes. Physical iOS was not run. The iPhone XR on iOS 18.7 is not a target of the iOS 27 runtime. Full .NET and arbitrary NuGet are not accepted. This document does not close #14.
+The shape table below is not every supported or unsupported type. TrustedUpdateMutableBox is one measured host class, not a general contract for arbitrary classes. A retained update field keeping one host object alive is measured. A script reference keeping a collectible context alive is not. Physical iOS was not run. The iPhone XR on iOS 18.7 is not a target of the iOS 27 runtime. Full .NET and arbitrary NuGet are not accepted. This document does not close #14.
 
 
 ## Measured shapes
@@ -33,6 +33,7 @@ These rows are desktop results already recorded. A blank shape is not a pass.
 | Interface callback | Desktop composition recorded nine interface callbacks and HostIdentity=true. Not a UGC grant. |
 | Trusted composition delegates | Desktop composition recorded nine delegate calls and HostIdentity=true. The host report retains neither the exception nor author metadata, delegates, or objects. Not a UGC grant. |
 | Released host input and held object | EchoDifferentStillSucceeds records INPUT-COLLECTED and HELD-COLLECTED, and does not record INPUT-ALIVE or HELD-ALIVE. |
+| Update static reference | RetainedIdentityStaysAlive records BEFORE-ALIVE while the update Held field stores the host object, and AFTER-COLLECTED after ReleaseHeldObjects. |
 
 ## Restricted UGC
 

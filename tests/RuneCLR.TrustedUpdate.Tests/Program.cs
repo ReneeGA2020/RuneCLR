@@ -38,6 +38,8 @@ if (args is ["--child-host-api-fault", var apiFaultPath, var apiFaultHash, var a
     return ChildHostApiFault(apiFaultPath, apiFaultHash, apiFaultStore);
 if (args is ["--child-identity", var identityPath, var identityHash, var identityStore])
     return ChildIdentity(identityPath, identityHash, identityStore);
+if (args is ["--child-identity-alive", var alivePath, var aliveHash, var aliveStore])
+    return ChildIdentityAlive(alivePath, aliveHash, aliveStore);
 if (args is ["--child-identity-throw", var identityThrowPath, var identityThrowHash, var identityThrowStore])
     return ChildIdentityThrow(identityThrowPath, identityThrowHash, identityThrowStore);
 if (args is ["--child-echo-different", var echoDifferentPath, var echoDifferentHash, var echoDifferentStore])
@@ -560,6 +562,7 @@ var tests = new (string Name, Action Run)[]
     ("Host interface fault returns a host error and keeps the version", TickHostApiFault),
     ("Host object identity survives the update and can be collected after release", HostObjectIdentity),
     ("A throwing object echo keeps the session open and can release the object", HostObjectEchoThrowKeepsSession),
+    ("A retained update reference keeps the host object alive until release", RetainedIdentityStaysAlive),
     ("A different returned object is still a successful echo", EchoDifferentStillSucceeds),
     ("Generic echo preserves an object reference and an int", GenericEcho),
     ("A throwing generic echo keeps the session open", GenericEchoThrowKeepsSession),
@@ -1159,6 +1162,23 @@ void TickHostFault()
     Check(output.Contains("NO-EXCEPTION", StringComparison.Ordinal), output);
     Check(!output.Contains(PrivateFailure, StringComparison.Ordinal), output);
     Check(!IsLoaded("TrustedUpdate.TickHostFault"), "parent loaded the host-fault update");
+}
+
+void RetainedIdentityStaysAlive()
+{
+    using var directory = new TestDirectory();
+    var dll = Path.Combine(directory.Path, "TrustedUpdate.Identity.dll");
+    WriteIdentity(dll);
+    var output = RunChild(null, "--child-identity-alive", dll, Hash(dll), directory.Store);
+    Check(output.Contains("SELECTED identity", StringComparison.Ordinal), output);
+    Check(output.Contains("SAME", StringComparison.Ordinal), output);
+    Check(output.Contains("NO-HOLD", StringComparison.Ordinal), output);
+    Check(output.Contains("BEFORE-ALIVE", StringComparison.Ordinal), output);
+    Check(!output.Contains("BEFORE-COLLECTED", StringComparison.Ordinal), output);
+    Check(output.Contains("RELEASED", StringComparison.Ordinal) && !output.Contains("NOT-RELEASED", StringComparison.Ordinal), output);
+    Check(output.Contains("AFTER-COLLECTED", StringComparison.Ordinal), output);
+    Check(!output.Contains("AFTER-ALIVE", StringComparison.Ordinal), output);
+    Check(!IsLoaded("TrustedUpdate.Identity"), "parent loaded the identity update");
 }
 
 void HostObjectIdentity()
@@ -24467,6 +24487,34 @@ static void WriteGeneric(string path)
     il.Emit(OpCodes.Ret);
     type.CreateType();
     builder.Save(path);
+}
+
+static int ChildIdentityAlive(string path, string hash, string store)
+{
+    var process = new TrustedUpdateProcess();
+    var selected = process.TrySelectCandidate(
+        new TrustedUpdateCandidate("identity", hash, path, "TrustedUpdate.Identity.Entry", "Activate", new TrustedUpdateTarget("net11.0", "x64")),
+        new TrustedUpdateTarget("net11.0", "x64"), store, Approve("identity", hash));
+    Console.WriteLine(selected.Succeeded ? "SELECTED " + selected.SelectedVersionName : "REJECTED " + selected.Failure);
+    process.OpenSession();
+    var (same, holds, weak) = EchoIdentity(process);
+    Console.WriteLine(same ? "SAME" : "DIFFERENT");
+    Console.WriteLine(holds ? "HOLDS" : "NO-HOLD");
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+    var aliveBefore = weak.IsAlive;
+    Console.WriteLine(aliveBefore ? "BEFORE-ALIVE" : "BEFORE-COLLECTED");
+    var released = process.TryReleaseHeldObjects();
+    Console.WriteLine(released.Succeeded ? "RELEASED" : "NOT-RELEASED");
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+    var aliveAfter = weak.IsAlive;
+    Console.WriteLine(aliveAfter ? "AFTER-ALIVE" : "AFTER-COLLECTED");
+    var residency = process.DescribeResidency();
+    Console.WriteLine(residency is { VersionName: "identity", ResidentUntilProcessExit: true, UnloadSupported: false } ? "RESIDENT" : "NOT-RESIDENT");
+    return selected.Succeeded && same && !holds && aliveBefore && released.Succeeded && !aliveAfter ? 0 : 1;
 }
 
 static int ChildIdentity(string path, string hash, string store)
