@@ -48,6 +48,8 @@ These rows are desktop results already recorded. A blank shape is not a pass.
 
 The gameplay profile allows IMapContext members get_MapId, SpawnEntity, DestroyEntity, Log, and Charge. It still excludes Signal, RaiseSignal, the tick schedule, Repeat, host-completed work, resource registration, and host-posted events. Delegate callbacks stay denied. Trusted updates are not limited to this profile.
 
+This profile is the current prototype host allowlist. It does not define the UGC mechanism, and it does not require a game to have entities. Trusted updates remain outside this profile. A host-defined API is not implemented here.
+
 ## Calls the selector does not make
 
 Desktop selector tests EchoInstanceOnlyIsNotCalled, EchoInheritedIsNotCalled, and EchoPrivateOnlyIsNotCalled require OBJECT-SAME to be absent. Those tests record ECHO ActivationFailed, leave the echo counters at 0, and do not print OBJECT-SAME. This is not a complete list of unsupported shapes, and it does not close #14.
