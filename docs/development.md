@@ -1323,6 +1323,8 @@ On 2026-10-16 the desktop restricted UGC packaging suite passed 124/124 at commi
 
 On 2026-10-16 packaging tests passed 126/126 at commit 215663d. Charge(0) and Charge(-1) fail in OnStart with System.ArgumentOutOfRangeException before OnTick. Charge(int.MaxValue) fails with the cooperative operation budget, not ArgumentOutOfRangeException, and does not wrap. An empty OnStop does not add OnStop:. The 125/125 strict text was confirmed by a later Release run. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
+On 2026-10-16 packaging tests passed 128/128 at commit 5ca90e0. With OperationBudgetPerCallback set to 1, Charge(1) succeeds in OnStart, OnTick, and OnStop, and the session completes one tick. After OnStart spends that one operation, OnTick still receives a fresh budget, and Charge(2) fails that tick without counting it. An empty OnStop does not add OnStop:. Refill does not disable the per-callback cap. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
