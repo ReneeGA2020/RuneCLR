@@ -58,6 +58,8 @@ internal static class CapabilityCases
         yield return ("Generic, nested, abstract, internal and inherited entry shapes are rejected before run", UnsupportedEntryShapes);
         yield return ("Parameterized constructors and overloaded, explicit, or generic callbacks are rejected before run", UnsupportedCallbackShapes);
         yield return ("A throwing instance field initializer fails before OnStart, and a static field initializer runs only once touched", ThrowingFieldInitializers);
+        yield return ("A throwing OnStart keeps the log, releases the entity, and the next package still runs", OnStartFailureRecovery);
+        yield return ("An entry that does not implement IMapScript is rejected before run", MissingInterfaceRejected);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -631,6 +633,66 @@ internal static class CapabilityCases
                 result.Report.Error ?? result.Report.ToString());
             Check.Collected(result);
         }
+    }
+    private static void OnStartFailureRecovery()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext value)
+                {
+                    context = value;
+                    value.Log("before");
+                    value.SpawnEntity("before-start-error");
+                    throw new AuthorStartException();
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { context!.Log("stopped"); }
+            }
+            public sealed class AuthorStartException : System.Exception { }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "faulty"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && result.Report.Error?.Contains("AuthorStartException", StringComparison.Ordinal) == true
+            && result.Report.CompletedTicks == 0
+            && result.Report.Logs.SequenceEqual(new[] { "before", "stopped" })
+            && result.Report.CreatedEntities == 1 && result.Report.ReleasedEntities == 1 && result.Report.RemainingEntities == 0,
+            result.Report + " logs=[" + string.Join(",", result.Report.Logs) + "]");
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+
+    private static void MissingInterfaceRejected()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript
+            {
+                public void OnStart(IMapContext context) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var error = Check.Throws<InvalidDataException>(() =>
+        {
+            var built = Build(Path.Combine(temp.Path, "missing"), source);
+            var details = built.Diagnostics.Length == 0
+                ? "Build returned without an exception. Succeeded=" + built.Succeeded
+                : string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message));
+            throw new InvalidOperationException(details);
+        });
+        Check.Assert(error.Message.Contains("Entry 'GameScript' must directly implement RuneCLR.IMapScript from '", StringComparison.Ordinal), error.Message);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
     }
     private static void RunSafe(string manifestPath)
     {
