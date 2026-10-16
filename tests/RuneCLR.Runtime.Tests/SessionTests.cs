@@ -38,6 +38,7 @@ internal static class SessionTests
         yield return ("Overlapping sessions do not share registered resources", OverlappingResources);
         yield return ("Concurrent host ticks are serialized", ConcurrentTicks);
         yield return ("A retained stopped session does not retain author code", RetainedSession);
+        yield return ("A retained script instance keeps the collectible context alive", RetainedScriptKeepsContext);
         yield return ("Pumped required interpretation rejects before author loading", RequiredPolicy);
     }
 
@@ -712,6 +713,48 @@ internal static class SessionTests
         Check(result.Report.CompletedTicks == 20 && result.Report.Logs.Skip(1).Take(20).SequenceEqual(Enumerable.Range(0, 20).Select(index => $"tick={index}")),
             "Concurrent ticks overlapped or lost tick indices.");
         CheckReleased(result);
+    }
+
+    private static void RetainedScriptKeepsContext()
+    {
+        MapRunResult result;
+        object script;
+        using (var session = Start("PublishSelfMap", new MapRunOptions { TickCount = 0 }))
+        {
+            Check(session.Tick(), "The script did not publish itself.");
+            script = ReadPublishedScript();
+            result = session.Stop();
+        }
+
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["published"]), "The script did not record publication.");
+        Collect();
+        GC.KeepAlive(script);
+        Check(!result.Unload.IsCollected, "The collectible context unloaded while the test retained the script instance.");
+        script = null!;
+        for (var attempt = 0; attempt < 10 && !result.Unload.IsCollected; attempt++)
+            Collect();
+        Check(result.Unload.IsCollected, "Dropping the script instance did not let the collectible context unload.");
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static object ReadPublishedScript()
+    {
+        var map = CollectibleTestMaps().GetType("RuneCLR.TestMaps.PublishSelfMap")
+            ?? throw new InvalidOperationException("PublishSelfMap was not loaded.");
+        return map.GetField("Self", BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
+            ?? throw new InvalidOperationException("The script did not publish itself.");
+    }
+
+    private static Assembly CollectibleTestMaps() => AssemblyLoadContext.All
+        .SelectMany(context => context.Assemblies)
+        .Single(item => item.IsCollectible && item.GetName().Name == "RuneCLR.TestMaps");
+
+    private static void Collect()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
     }
 
     private static void RetainedSession()

@@ -604,3 +604,19 @@ public sealed class PostedEventQueueMap : IMapScript
 
     public void OnStop() => _context.Log("pending=" + _context.PendingPosted);
 }
+
+public sealed class PublishSelfMap : IMapScript
+{
+    public static object? Self;
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        Self = this;
+        _context.Log("published");
+    }
+
+    public void OnStop() { }
+}
