@@ -243,6 +243,37 @@ public sealed class TrustedUpdateProcess
         }
     }
 
+    public bool TryMutateBox(TrustedUpdateMutableBox box)
+    {
+        ArgumentNullException.ThrowIfNull(box);
+        if (!SessionIsOpen() || entryType is null)
+            return false;
+        MethodInfo? method = null;
+        foreach (var item in entryType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
+        {
+            var parameters = item.GetParameters();
+            if (item.Name == "MutateBox" && !item.IsGenericMethodDefinition && parameters.Length == 1
+                && parameters[0].ParameterType == typeof(TrustedUpdateMutableBox)
+                && item.ReturnType == typeof(TrustedUpdateMutableBox))
+            {
+                method = item;
+                break;
+            }
+        }
+
+        if (method is null)
+            return false;
+        try
+        {
+            var returned = method.Invoke(null, new object[] { box });
+            return ReferenceEquals(returned, box) && box.Value == 7;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     MethodInfo? FindGenericEcho()
     {
         if (!SessionIsOpen() || entryType is null)

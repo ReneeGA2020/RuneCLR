@@ -195,3 +195,8 @@ public sealed class TrustedUpdateSession
     }
 }
 
+
+public sealed class TrustedUpdateMutableBox
+{
+    public int Value { get; set; }
+}

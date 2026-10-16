@@ -31,3 +31,7 @@ The successful OBJECT-SAME case is GenericSample in samples/RuneCLR.TrustedUpdat
 ## In-place mutation
 
 GenericSample calls MutateFirst with a one-element int array after the existing echo checks. The update writes 7 into element 0 and returns the same array. The desktop self-test prints MUTATE-SAME together with OBJECT-SAME and CALLS 3. The trusted-update selector suite passed in that Release run. This is one array store, not an arbitrary host class, and it does not close #14. It is not an iOS result.
+
+## Host class mutation
+
+PersistedAssemblyBuilder in WriteGenericAssembly is constructed with typeof(object).Assembly. Its only constructor does not take a reference list, so RuneCLR.TrustedUpdate.dll cannot be supplied as the core assembly. MutateBox still names TrustedUpdateMutableBox in its signature, and the emitter records that reference. The method sets Value to 7 and returns the same instance. The desktop self-test prints BOX-SAME together with OBJECT-SAME, MUTATE-SAME, and CALLS 3. The trusted-update selector suite passed in that Release run. This is one host class, not every type shape, and it does not close #14. It is not an iOS result.

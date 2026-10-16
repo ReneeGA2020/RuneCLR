@@ -509,7 +509,8 @@ static int SelfTest()
             || generic.Output.Contains("STRING-DIFFERENT", StringComparison.Ordinal)
             || !generic.Output.Contains("INT 11", StringComparison.Ordinal)
             || !generic.Output.Contains("CALLS 3", StringComparison.Ordinal)
-            || !generic.Output.Contains("MUTATE-SAME", StringComparison.Ordinal))
+            || !generic.Output.Contains("MUTATE-SAME", StringComparison.Ordinal)
+            || !generic.Output.Contains("BOX-SAME", StringComparison.Ordinal))
             return 1;
         var orderDirectory = Path.Combine(root, "work-order");
         Directory.CreateDirectory(orderDirectory);
@@ -744,7 +745,10 @@ static int GenericSample(string directory, string store, TrustedUpdateTarget hos
     var data = new int[1];
     var mutated = process.TryMutateFirst(data);
     Console.WriteLine(mutated ? "MUTATE-SAME" : "MUTATE-DIFFERENT");
-    return rejected && before == 0 && echoed.SameReference && textEcho.SameReference && number.Value == 11 && calls == 3 && mutated ? 0 : 1;
+    var box = new TrustedUpdateMutableBox();
+    var boxMutated = process.TryMutateBox(box);
+    Console.WriteLine(boxMutated ? "BOX-SAME" : "BOX-DIFFERENT");
+    return rejected && before == 0 && echoed.SameReference && textEcho.SameReference && number.Value == 11 && calls == 3 && mutated && boxMutated ? 0 : 1;
 }
 
 static void WriteGenericAssembly(string path)
@@ -778,6 +782,14 @@ static void WriteGenericAssembly(string path)
     mutateIl.Emit(OpCodes.Stelem_I4);
     mutateIl.Emit(OpCodes.Ldarg_0);
     mutateIl.Emit(OpCodes.Ret);
+    var boxType = typeof(TrustedUpdateMutableBox);
+    var mutateBox = type.DefineMethod("MutateBox", MethodAttributes.Public | MethodAttributes.Static, boxType, new[] { boxType });
+    var boxIl = mutateBox.GetILGenerator();
+    boxIl.Emit(OpCodes.Ldarg_0);
+    boxIl.Emit(OpCodes.Ldc_I4_7);
+    boxIl.Emit(OpCodes.Callvirt, boxType.GetProperty("Value")!.SetMethod!);
+    boxIl.Emit(OpCodes.Ldarg_0);
+    boxIl.Emit(OpCodes.Ret);
     type.CreateType();
     builder.Save(path);
 }
