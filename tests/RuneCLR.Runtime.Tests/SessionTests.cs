@@ -14,6 +14,7 @@ internal static class SessionTests
         yield return ("A closed callback cannot change host entities or logs", ClosedResources);
         yield return ("The host can copy live entities between callbacks", HostEntitySnapshot);
         yield return ("The host completes or fails work between callbacks and stop drops the rest", HostCompletedWork);
+        yield return ("The host copies registered resources between callbacks and stop drops them", HostRegisteredResources);
         yield return ("Author failure cancels work the host has not finished", AuthorFailureCancelsWork);
         yield return ("A retired session does not block the next session's work", NextSessionAfterFailedWork);
         yield return ("A retired session does not leave scheduled signals for the next session", NextSessionAfterFailedSchedule);
@@ -222,6 +223,30 @@ internal static class SessionTests
         CheckReleased(result);
     }
 
+    private static void HostRegisteredResources()
+    {
+        using var session = Start("HostResourceMap", new MapRunOptions { TickCount = 0 });
+        Check(session.CopyResources().Length == 0, "Startup published a resource.");
+        Check(session.Tick(), "The resource registration tick failed.");
+        Check(LateRegisteredResourceRejected(), "A closed callback accepted another resource.");
+        var names = session.CopyResources().Select(item => item.Name).ToArray();
+        Check(names.Length == 2 && names.Contains("alpha") && names.Contains("beta"),
+            "The host did not see both registered resources.");
+        Check(session.Tick(), "The resource release tick failed.");
+        var left = session.CopyResources();
+        Check(left.Length == 1 && left[0].Name == "beta", "Release did not keep the other resource.");
+        var result = session.Stop();
+        Expect<InvalidOperationException>(() => session.CopyResources());
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["registered", "pending=1", "pending=0"]),
+            "Stop did not drop the remaining resource before OnStop.");
+        CheckReleased(result);
+
+        using var next = Start("HostResourceMap", new MapRunOptions { TickCount = 0 });
+        Check(next.CopyResources().Length == 0, "The next session saw a retired resource.");
+        next.Stop();
+    }
+
     private static void AuthorFailureCancelsWork()
     {
         using var session = Start("FaultingWorkMap", new MapRunOptions { TickCount = 0 });
@@ -333,6 +358,21 @@ internal static class SessionTests
         }
 
         return false;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool LateRegisteredResourceRejected()
+    {
+        var assembly = AssemblyLoadContext.All
+            .SelectMany(context => context.Assemblies)
+            .Single(item => item.IsCollectible && item.GetName().Name == "RuneCLR.TestMaps");
+        var map = assembly.GetType("RuneCLR.TestMaps.HostResourceMap")
+            ?? throw new InvalidOperationException("HostResourceMap was not loaded.");
+        var kept = map.GetField("Kept", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as IMapContext
+            ?? throw new InvalidOperationException("The map did not retain its context.");
+        return RejectClosed(() => kept.RegisterResource("late"))
+            && RejectClosed(() => kept.ReleaseResource("late"))
+            && RejectClosed(() => _ = kept.PendingResources);
     }
 
     private static bool RejectClosed(Action call)

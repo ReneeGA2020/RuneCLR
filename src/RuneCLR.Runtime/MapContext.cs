@@ -18,6 +18,7 @@ internal sealed class MapContext : IMapContext, IDisposable
     private readonly Queue<FinishedWork> _finishedWork = [];
     private readonly HashSet<long> _finishedIds = [];
     private long _nextWork;
+    private readonly HashSet<string> _resources = new(StringComparer.Ordinal);
 
     public MapContext(string mapId, MapRunOptions options)
     {
@@ -232,6 +233,57 @@ internal sealed class MapContext : IMapContext, IDisposable
         _finishedIds.Clear();
     }
 
+    public void RegisterResource(string name)
+    {
+        Charge();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (name.Length > 128)
+        {
+            Violate("Resource names cannot exceed 128 characters.");
+        }
+
+        if (!_resources.Add(name))
+        {
+            throw new InvalidOperationException("The resource is already registered.");
+        }
+    }
+
+    public bool ReleaseResource(string name)
+    {
+        Charge();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return _resources.Remove(name);
+    }
+
+    public int PendingResources
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!_signalOpen)
+            {
+                throw new InvalidOperationException("The map callback is closed.");
+            }
+
+            return _resources.Count;
+        }
+    }
+
+    public MapResourceInfo[] CopyResources()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var copy = new MapResourceInfo[_resources.Count];
+        var index = 0;
+        foreach (var name in _resources)
+        {
+            copy[index++] = new MapResourceInfo(name);
+        }
+
+        return copy;
+    }
+
+    public void CancelResources() => _resources.Clear();
+
     public void CheckViolation()
     {
         if (_violation is not null)
@@ -310,6 +362,7 @@ internal sealed class MapContext : IMapContext, IDisposable
 
         CancelScheduled();
         CancelWork();
+        CancelResources();
         EndCallback();
         ReleasedEntities += _entities.Count;
         _entities.Clear();

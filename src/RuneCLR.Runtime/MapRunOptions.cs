@@ -77,6 +77,8 @@ public readonly record struct MapEntityInfo(EntityId Id, string Name);
 
 public readonly record struct MapWorkInfo(long Id, string Name);
 
+public readonly record struct MapResourceInfo(string Name);
+
 public sealed class UnloadTicket
 {
     private readonly WeakReference _context;

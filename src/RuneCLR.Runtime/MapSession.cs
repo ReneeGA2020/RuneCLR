@@ -86,6 +86,16 @@ public sealed class MapSession : IDisposable
         }
     }
 
+    /// <summary>Copies resource names the script has registered. Call it between callbacks.</summary>
+    public MapResourceInfo[] CopyResources()
+    {
+        lock (_gate)
+        {
+            if (_result is not null) throw new InvalidOperationException("The session has stopped.");
+            return _context!.CopyResources();
+        }
+    }
+
     /// <summary>Supplies a primitive success value for one open request. The script can take it on a later callback.</summary>
     public void CompleteWork(long id, int value) => FinishWork(id, value, fail: false);
 
@@ -208,6 +218,7 @@ public sealed class MapSession : IDisposable
         {
             context.CancelScheduled();
             context.CancelWork();
+            context.CancelResources();
             try
             {
                 if (_script is not null)

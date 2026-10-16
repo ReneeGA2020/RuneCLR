@@ -398,3 +398,44 @@ public sealed class CatchingScheduleLimitMap : IMapScript
         if (_context.PendingScheduled != 0) throw new InvalidOperationException("pending-schedule");
     }
 }
+
+public sealed class HostResourceMap : IMapScript
+{
+    public static IMapContext? Kept;
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        Kept = _context;
+        if (tick.Index == 0)
+        {
+            _context.RegisterResource("alpha");
+            _context.RegisterResource("beta");
+            if (_context.ReleaseResource("missing"))
+            {
+                throw new InvalidOperationException("A missing resource was released.");
+            }
+
+            var duplicate = false;
+            try { _context.RegisterResource("alpha"); duplicate = true; }
+            catch (InvalidOperationException) { }
+            var blank = false;
+            try { _context.RegisterResource(" "); blank = true; }
+            catch (ArgumentException) { }
+            _context.Log(!duplicate && !blank ? "registered" : "rejected-wrong");
+            return;
+        }
+
+        if (!_context.ReleaseResource("alpha"))
+        {
+            _context.Log("mismatch");
+            return;
+        }
+
+        _context.Log("pending=" + _context.PendingResources);
+    }
+
+    public void OnStop() => _context.Log("pending=" + _context.PendingResources);
+}

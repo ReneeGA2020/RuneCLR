@@ -95,6 +95,21 @@ change it. Copying after Stop throws InvalidOperationException. Call it between
 callbacks, not from inside one, because the session lock is already held there.
 This is not an asynchronous resource API.
 
+## Registered resource names
+
+RegisterResource and ReleaseResource run only during OnStart, OnTick, or OnStop.
+A blank name is rejected. A name longer than 128 characters hits the callback
+limit. Registering the same ordinal name twice throws InvalidOperationException.
+ReleaseResource returns false when that name is not registered. PendingResources
+uses the same closed-callback rejection, "The map callback is closed."
+Between callbacks, MapSession.CopyResources copies the current names into
+host-owned values. Stop clears the remaining names before OnStop. Copying after
+Stop throws InvalidOperationException ("The session has stopped."). A later
+session does not see them. The restricted profile does not include this surface.
+Desktop tests/RuneCLR.Runtime.Tests passed 47/47 in Release on 2026-10-16,
+including this case. There is still no background thread, sleep, or wall-clock
+timer.
+
 
 ## Host-completed work
 
@@ -204,5 +219,5 @@ fixture adds no controlled-package mobile or physical-device acceptance. Old
 mobile input preparers/controllers remain frozen at their original 15/73
 contracts.
 
-Next host work is game-facing event/resource ownership, mobile execution of the
+Next host work is a game-facing event or wall-clock timer, mobile execution of the
 controlled-package combination, and physical-device acceptance.

@@ -34,6 +34,12 @@ public interface IMapContext
     long RequestWork(string name);
     bool TryTakeWork(out long id, out int value, out bool succeeded);
     int PendingWork { get; }
+
+    // Host-owned resource names. Accepted only while a callback is running.
+    // The host can copy them between callbacks. Stopping the session drops the rest.
+    void RegisterResource(string name);
+    bool ReleaseResource(string name);
+    int PendingResources { get; }
 }
 
 public readonly record struct EntityId(long Value);
