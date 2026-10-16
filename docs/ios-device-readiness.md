@@ -239,3 +239,13 @@ identity and not a device-plus-development-identity profile. The
 [sanitized receipt](../artifacts/device-readiness/20261015-144324Z/results.json)
 retains only counts and capability states. No application was installed, and
 no signing material or device setting was changed.
+
+## Owner phone — 2026-10-16
+
+The only phone available to the project is an iPhone XR locked to iOS 18.7.
+The current private CoreCLR and trusted-update probe use the iOS 27 simulator
+runtime and Xcode 27 / iphoneos SDK 27.0. That XR is not a target for this
+runtime. Do not start an iphoneos build or install for it. An iOS 18.7 device
+runtime is future work after commit c268026 is reproduced on the iOS 27
+simulator. Hot-update DLLs are not built per iOS version. This note does not
+change the earlier cached iPad readiness counts.

@@ -6,6 +6,8 @@ The tracker is [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11).
 An issue stays open until its acceptance evidence exists. Scheduling a task does
 not establish that an unperformed experiment has passed.
 
+On 2026-10-16 the only available phone is an iPhone XR locked to iOS 18.7. Do not build an iphoneos runtime for it. The next simulator task is to reproduce commit c268026, which does not include the temporary failure-type logs used by rerun-a9164cd-20261016-10.
+
 ## Current contribution order - 2026-10-15
 
 The [next-session development plan](next-development-plan.md) gives the concrete
