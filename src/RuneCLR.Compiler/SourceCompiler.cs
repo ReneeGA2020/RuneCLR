@@ -24,7 +24,7 @@ public static class SourceCompiler
     private const int MaximumReferences = 256;
 
     public static CompilationResult Compile(string assemblyName, IReadOnlyList<SourceFile> sources,
-        IReadOnlyList<string> approvedReferencePaths)
+        IReadOnlyList<string> approvedReferencePaths, bool allowUnsafe = false)
     {
         InputIdentity[] compilerIdentities = [];
         try
@@ -75,7 +75,7 @@ public static class SourceCompiler
             var trees = sources.Select(source => CSharpSyntaxTree.ParseText(
                 SourceText.From(source.Text, Encoding.UTF8), ParseOptions, source.Name)).ToArray();
             var options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
-                optimizationLevel: OptimizationLevel.Release, allowUnsafe: false,
+                optimizationLevel: OptimizationLevel.Release, allowUnsafe: allowUnsafe,
                 platform: Platform.AnyCpu, deterministic: true, nullableContextOptions: NullableContextOptions.Enable,
                 metadataReferenceResolver: null, sourceReferenceResolver: null, xmlReferenceResolver: null);
             var compilation = CSharpCompilation.Create(assemblyName, trees, references, options);

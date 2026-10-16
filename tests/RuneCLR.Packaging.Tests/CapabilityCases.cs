@@ -28,6 +28,8 @@ internal static class CapabilityCases
         }
         yield return ("Capability profile rejects forbidden calls in unused helpers and constructors", HiddenMethods);
         yield return ("Capability profile rejects forbidden signature-only and generic argument types", ForbiddenSignatures);
+        yield return ("Capability profile rejects unsafe pointer IL because SecurityAction is not approved", PointerSignature);
+        yield return ("Capability profile rejects unsafe function-pointer IL because SecurityAction is not approved", FunctionPointerSignature);
         yield return ("Capability profile rejects finalizers, module initializers and ThreadStatic state", UnsupportedLifecycle);
         yield return ("Capability profile rejects threading and IO even with explicit wider references", WiderReferences);
         foreach (var (name, opcode) in new (string, byte[])[]
@@ -85,6 +87,24 @@ internal static class CapabilityCases
         RejectSource(Script("", "public GameScript() { System.GC.Collect(); }"));
         RejectSource(Script("", "private static int Value = Read(); private static int Read() => System.Environment.TickCount;"));
     }
+    private static void PointerSignature() =>
+        RejectUnsafe("public static class Probe { public static unsafe int* Read(int* value) => value; }",
+            "System.Security.Permissions.SecurityAction");
+
+    private static void FunctionPointerSignature() =>
+        RejectUnsafe("public static class Probe { public static unsafe int Call(delegate*<int, int> value, int input) => value(input); }",
+            "System.Security.Permissions.SecurityAction");
+
+    private static void RejectUnsafe(string source, string expected)
+    {
+        var result = SourceCompiler.Compile("PointerProbe", [new SourceFile("pointer.cs", source)],
+            CompilerFixture.ApprovedReferences().ToArray(), allowUnsafe: true);
+        Check.Assert(result.Succeeded && result.Assembly is not null,
+            "Unsafe fixture did not compile: " + string.Join("; ", result.Diagnostics.Select(item => item.Message)));
+        var error = Check.Throws<InvalidDataException>(() => Validate(result.Assembly!));
+        Check.Assert(error.Message.Contains(expected, StringComparison.Ordinal), error.Message);
+    }
+
     private static void ForbiddenSignatures()
     {
         RejectSource(Script("", "public System.Type? Value;"));
