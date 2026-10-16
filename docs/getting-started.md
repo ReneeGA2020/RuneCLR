@@ -31,7 +31,11 @@ until GC runs. Forced GC is not a frame scheduling strategy.
 
 ## Write a script
 
-The prototype uses `Map` terminology; scripts need not be maps. Reference
+The prototype uses `Map` terminology; scripts need not be maps.
+
+SpawnEntity belongs to this prototype host sample. Using the UGC mechanism does not require an entity API. A game without entities supplies its own host API; that extension point is not implemented here. See the product direction.
+
+Reference
 `RuneCLR.Abstractions` from a `net11.0` class library:
 
 ```csharp
