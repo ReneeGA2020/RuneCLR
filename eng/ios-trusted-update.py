@@ -70,7 +70,14 @@ def link(obj, dylib, log):
     run(["codesign", "--force", "--sign", "-", dylib], str(log) + ".sign.log")
 
 def managed_refs(base):
-    return [path for path in sorted((base / "original").glob("*.dll")) if not path.name.startswith(("RuneCLR.", "HarnessBridge"))]
+    app = base / "app" / "RuneCLRPinnedHarness.app"
+    refs = []
+    for path in sorted((base / "original").glob("*.dll")):
+        if path.name.startswith(("RuneCLR.", "HarnessBridge")):
+            continue
+        override = app / path.name
+        refs.append(override if override.is_file() else path)
+    return refs
 
 def instrument_wrapper(source):
     """Record the actual Apple native-code callback identity."""
@@ -759,10 +766,12 @@ def build(args):
     for path in app.glob("*.dll"):
         if path.name.startswith(("HarnessBridge", "RuneCLR.TestMaps")) or path.name not in ref_names: path.unlink()
     contract = out / "input/TrustedUpdate.Contract.dll"; host = out / "input/TrustedUpdate.Host.dll"; entry = out / "input/TrustedUpdate.Entry.dll"
+    trusted = out / "input/RuneCLR.TrustedUpdate.dll"
     compile_managed(sdk, csc, contract, [FIXTURE / "Contract.cs"], refs, log=out / "logs/contract.compile.log")
-    compile_managed(sdk, csc, host, [FIXTURE / "Host.cs"], refs + [contract], log=out / "logs/host.compile.log")
-    compile_managed(sdk, csc, entry, [FIXTURE / "Entry.cs"], refs + [contract, host], "exe", out / "logs/entry.compile.log")
-    for path in (contract, host, entry): shutil.copy2(path, app / path.name)
+    compile_managed(sdk, csc, trusted, [PROJECT / "src/RuneCLR.TrustedUpdate/TrustedUpdateContracts.cs", PROJECT / "src/RuneCLR.TrustedUpdate/TrustedUpdateProcess.cs"], refs, log=out / "logs/trusted-update.compile.log")
+    compile_managed(sdk, csc, host, [FIXTURE / "Host.cs"], refs + [contract, trusted], log=out / "logs/host.compile.log")
+    compile_managed(sdk, csc, entry, [FIXTURE / "Entry.cs"], refs + [contract, trusted, host], "exe", out / "logs/entry.compile.log")
+    for path in (contract, host, entry, trusted): shutil.copy2(path, app / path.name)
     obj = out / "host/TrustedUpdate.host.obj"; crossgen(crossgen2, obj, [contract, host, entry], refs, out / "host", "host"); link(obj, app / "TrustedUpdate.host.dylib", out / "logs/host-link.log")
     for name in ("main.m", "util.h", "coreclrhost.h", "host_runtime_contract.h"): shutil.copy2(base / name, out / "host" / name)
     wrapper = instrument_wrapper((base / "runtime.m").read_text(encoding="utf-8").replace("HarnessBridge.dll", "TrustedUpdate.Entry.dll")); (out / "host/runtime.m").write_text(wrapper, encoding="utf-8")
@@ -784,9 +793,11 @@ def compile_updates(out, sdk, csc, crossgen2, base):
         update = lane / "TrustedUpdate.Update.dll"
         anchor_host = lane / "TrustedUpdate.AnchorHost.dll"
         anchor_entry = lane / "TrustedUpdate.AnchorEntry.dll"
+        trusted = lane / "RuneCLR.TrustedUpdate.dll"
         compile_managed(sdk, csc, contract, [FIXTURE / "Contract.cs"], refs, log=lane / "contract.compile.log")
-        compile_managed(sdk, csc, anchor_host, [FIXTURE / "Host.cs"], refs + [contract], log=lane / "anchor-host.compile.log")
-        compile_managed(sdk, csc, anchor_entry, [FIXTURE / "Entry.cs"], refs + [contract, anchor_host], "exe", lane / "anchor-entry.compile.log")
+        compile_managed(sdk, csc, trusted, [PROJECT / "src/RuneCLR.TrustedUpdate/TrustedUpdateContracts.cs", PROJECT / "src/RuneCLR.TrustedUpdate/TrustedUpdateProcess.cs"], refs, log=lane / "trusted-update.compile.log")
+        compile_managed(sdk, csc, anchor_host, [FIXTURE / "Host.cs"], refs + [contract, trusted], log=lane / "anchor-host.compile.log")
+        compile_managed(sdk, csc, anchor_entry, [FIXTURE / "Entry.cs"], refs + [contract, trusted, anchor_host], "exe", lane / "anchor-entry.compile.log")
         compile_managed(sdk, csc, helper, [FIXTURE / "IlOnlyHelper.cs"], refs, log=lane / "helper.compile.log")
         compile_managed(sdk, csc, private, [FIXTURE / "PrivateLogic.cs", FIXTURE / value_source], refs, log=lane / "private.compile.log")
         compile_managed(sdk, csc, update, [FIXTURE / "Business.cs", FIXTURE / "Update.cs"], refs + [contract], log=lane / "update.compile.log")

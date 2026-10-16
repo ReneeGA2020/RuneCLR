@@ -55,8 +55,8 @@ paused. Windows independent IL/R2R
 composition is recorded below. Simulator A and B now each have a combined
 receipt: Business.Execute at the downloaded owner base plus 5472, and
 TRUSTED_UPDATE_SUCCESS result=216 on the console log, using the rebuilt host.
-Physical iOS still waits for the user to connect an iPhone XR. Do not start a
-device install. The desktop selector is the step-3 loop: one version for the
+The only available phone is an iPhone XR locked to iOS 18.7. That is not the
+iOS 27 runtime used here, so do not start a physical-device build or install. The desktop selector is the step-3 loop: one version for the
 process, next-start rollback, and no same-process switch or native unload.
 
 On 2026-10-16 the iOS 27 simulator reran the experiment host after rebuilding
@@ -130,6 +130,8 @@ and no runtime patch was made.
 On 2026-10-16, `py -3 eng/verify-trusted-composition.py --runtime E:/runtime --output artifacts/trusted-composition-20261016-desktop --allow-known-collectible-blocker` completed with standard output `PASS five functional/execution controls; BLOCKED combined collectible R2R acceptance`. Its `result.json` recorded `controlsPassed=true`, `milestoneComplete=false`, and `status=blocked-collectible-r2r`; the `r2r-native` report had `Passed=true` and the IL-only helper was interpreted. The object-identity sessions used version sequence `A,B,A,A,A` with `HostTouches=9`, `InterfaceCalls=9`, `DelegateCalls=9`, `GenericCalls=18`, and `HostIdentity=true`. Loader controls recorded `passed=true`, `rejected=2`, `recoveryContextsCollected=10`, and `originalInputsUnchanged=true`. The runtime was `runeclr/interpreter-baseline` at `0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de`. This is not native R2R for collectible modules and is not iOS or physical-device evidence; launcher exit status is not a business-success signal.
 The collectible rejection is ReadyToRunInfo::Initialize in src/coreclr/vm/readytoruninfo.cpp, which logs Ready to Run disabled - collectible module and returns NULL; ReadyToRun, InterpMode, and ReadyToRunExcludeList do not enable collectible modules alone. On that measured result, RuneCLR does not pursue unloadable hot-update R2R: an update that must be unloaded stays interpreted, and ordinary first-party execution does not repeatedly unload old assemblies.
 The experimental ReadyToRunCollectible switch was not retained; E:/runtime stays the clean pinned commit 0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de, and the installed dotnet was not replaced.
+
+On 2026-10-16, simulator directory `rerun-a9164cd-20261016-10` was checked with `python3 eng/verify-ios-trusted-update.py`. The verifier exited 0 with `passed=true` and `nativeExecutionProven=true`. A and B both recorded `RUNECLR_EXIT=0` and `TRUSTED_UPDATE_SUCCESS result=216`. This is an iOS simulator receipt, not a physical-device result.
 
 Proceed with the noncollectible native lane for iOS delivery. A first iOS run
 may launch separate processes selecting A and B, and must verify startup
