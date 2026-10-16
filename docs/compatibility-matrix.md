@@ -36,6 +36,10 @@ The source compiler follows the selected SDK compiler's latest stable C# version
 
 | Desktop execution-selection probe, 2026-10-13, artifacts/execution-selection/20261013-015010-f556c2e16b104e7f83403b4c6fd96411 | Not a syntax measurement | SDK control passed 20/20 sessions and 20/20 collected contexts. Private unpatched Checked CoreCLR mode 1 passed the same 20/20 and 20/20. All 17 returned values matched. The interpreter lane recorded no SelectionUGC JIT fallback and 26 bytecode groups, 20 dumps each, 520 total. Paths included constructor counts, a property getter, generic methods, a capturing delegate, virtual and default interface bodies, and an evaluated exception filter. Mode 1 also interprets this fixture's non-CoreLib host. This is not the 102/102 packaging suite | Not a framework-wide API pass | Windows x64. Runtime base 0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de, no runtime patch. Not iOS and not a physical device | Not the managed-il-gameplay-v1 packaging profile. Not an author-resistant interpreter sandbox. Issue 5 stays open |
 
+| iOS 27 simulator restricted UGC packages, 15/15, 2026-10-12 | Not a syntax measurement | Unpatched source .NET 12 Debug CoreCLR passed 15/15 managed-il-gameplay-v1 package cases. CORECLR_EXECUTE_HRESULT=0x0 and RUNECLR_EXIT=0. Source, imported IL, and source again collected. An ordinary author exception was host-owned text, then the next package succeeded. Rehashed forbidden entry and private helper were rejected, then a valid package succeeded. Successful interpreter dumps: GameScript:OnStart 11, GameScript:OnTick 10, GameScript:OnStop 11, SharedHelper:Read 5, GenericCounter generic helper 5. DynamicCodeCompiled=False. This is not the desktop 102/102 suite | Not a framework-wide API pass | ARM64 iOS 27.0 simulator. Runtime base 0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de, no runtime patch. Not a physical device | managed-il-gameplay-v1. Not a hostile-code sandbox. Issue 5 stays open |
+
+| Android 15 x64 emulator restricted UGC packages, 8/8, 2026-10-12 | Not a syntax measurement | Official .NET 11 RC1 android-x64 passed 8/8 additional package cases, exit code 0. The lifecycle suite stayed 22/22. Source, imported IL, and source again collected. An ordinary author exception released its entity, then a valid package succeeded. Rehashed forbidden GC.Collect was rejected. No positive interpreter execution evidence was collected | Not a framework-wide API pass | Android 15 x64 emulator, JIT-capable. R2R and tiering disabled. Not a physical device and not iOS | managed-il-gameplay-v1. Not a hostile-code sandbox. Issue 5 stays open |
+
 ## Untested
 
 These are untested. They are not implied by the rows above.
@@ -45,6 +49,6 @@ These are untested. They are not implied by the rows above.
 - Native R2R for a collectible module. The desktop composition result stays `blocked-collectible-r2r`.
 - Full .NET, or an arbitrary NuGet package.
 - Interpreter execution of these 102/102 restricted UGC paths. Untested. The 2026-10-13 execution-selection probe is a different fixture and does not supply that evidence.
-- Android interpreter execution. Untested. Existing Android evidence is an x64 emulator that uses JIT.
+- Android interpreter execution. Untested. Existing Android evidence is an x64 emulator that uses JIT. The 8/8 package result is that emulator and is not interpreter evidence.
 - Any physical iphoneos device run. Untested. The iPhone XR on iOS 18.7 is not the iOS 27 runtime used here.
 - Issue 16 coarse-grained callback timeout. Scheduled, not implemented. It is not a cumulative instruction quota and not an API call-count limit.
