@@ -294,3 +294,5 @@ On 2026-10-16 the desktop session suite passed 53/53 in Release after adding hos
 On 2026-10-16, after the host-session additions, desktop samples/RuneCLR.SampleHost Release --pump exited 0. hello, arena, and hello each Completed with ticks=3. Without --collect, unload stayed pending. With --pump --collect, all three were collected. --pump --require-interpreter on the installed SDK exited 1 before any map ran, because CoreLib lacks RuneCLR_CreateInterpreterRequired. That rejection is not interpreter execution and not an iOS result.
 
 On 2026-10-16 dotnet build RuneCLR.slnx -c Release exited 0 with 0 warnings and 0 errors. The trusted-update selector suite then passed in Release with the same count already recorded. This is not an iOS result and does not close #8, #12, or #13.
+
+On 2026-10-16 the controlled package player passed 15/15 without --pump and 22/22 with --pump --include-pumped fixtures. Both used a new artifacts/package-execution directory and the Release player. Packaging tests passed 85/85 in the same Release build. This is desktop only and does not close #4 or #8.
