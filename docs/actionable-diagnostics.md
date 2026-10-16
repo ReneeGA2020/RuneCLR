@@ -119,3 +119,5 @@ The author catches a second DestroyEntity of the same id. The session still comp
 Destroying one entity leaves the other alive until session completion. The logs are made and tick. One tick completes, both entities are released, and the next package still runs. Packaging tests passed 138/138. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
 OnStop can destroy an entity spawned in OnStart. The logs are made, tick, and stopped. One tick completes, the entity is released, and the next package still runs. Packaging tests passed 139/139. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
+Destroying an already removed entity in OnStop fails and adds OnStop:. The completed tick remains. The logs are made and tick, not stopped. The entity stays released, and the next package still runs. Packaging tests passed 140/140. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
