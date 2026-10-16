@@ -62,6 +62,7 @@ internal static class CapabilityCases
         yield return ("An entry that does not implement IMapScript is rejected before run", MissingInterfaceRejected);
         yield return ("A throwing OnTick keeps the earlier log and the next package still runs", OnTickFailureRecovery);
         yield return ("A throwing OnStop is reported on its own and still releases the entity", OnStopFailureRecovery);
+        yield return ("Custom delegates and async OnStart are rejected before run", RejectDelegateAndAsync);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -764,6 +765,38 @@ internal static class CapabilityCases
             && result.Report.CreatedEntities == 1 && result.Report.ReleasedEntities == 1 && result.Report.RemainingEntities == 0,
             (result.Report.Error ?? "") + " logs=[" + string.Join(",", result.Report.Logs) + "] created=" + result.Report.CreatedEntities + " released=" + result.Report.ReleasedEntities + " remaining=" + result.Report.RemainingEntities);
         Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void RejectDelegateAndAsync()
+    {
+        const string delegates = """
+            using RuneCLR;
+            public delegate void AuthorCallback(int value);
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var delegateError = Check.Throws<InvalidDataException>(() => Validate(Compile(delegates)));
+        Check.Assert(delegateError.Message.Contains("Capability profile 'managed-il-gameplay-v1':", StringComparison.Ordinal)
+            && delegateError.Message.Contains("Type 'System.MulticastDelegate' is not approved.", StringComparison.Ordinal),
+            delegateError.Message);
+        const string asyncSource = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public async void OnStart(IMapContext context) { await System.Threading.Tasks.Task.Yield(); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var asyncError = Check.Throws<InvalidDataException>(() => Validate(Compile(asyncSource)));
+        Check.Assert(asyncError.Message.Contains("Type 'System.Type' is not approved.", StringComparison.Ordinal), asyncError.Message);
+        using var temp = new TempDirectory();
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
