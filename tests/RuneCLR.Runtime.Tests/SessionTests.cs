@@ -12,6 +12,7 @@ internal static class SessionTests
         yield return ("A map signal closes when its callback returns", ClosedMapSignal);
         yield return ("A host tick schedule survives the callback and stop cancels it", ScheduledSignal);
         yield return ("A repeating tick schedule stays one slot and a one-shot schedule does not repeat", RepeatingSchedule);
+        yield return ("The host posts a subscribed event between callbacks and stop drops it", HostPostedEvent);
         yield return ("A closed callback cannot change host entities or logs", ClosedResources);
         yield return ("The host can copy live entities between callbacks", HostEntitySnapshot);
         yield return ("The host completes or fails work between callbacks and stop drops the rest", HostCompletedWork);
@@ -611,6 +612,43 @@ internal static class SessionTests
                 "Overlapping sessions shared a work result.");
             CheckReleased(result);
         }
+    }
+
+    private static void HostPostedEvent()
+    {
+        using var session = Start("PostedEventMap", new MapRunOptions { TickCount = 0 });
+        Check(session.Tick(), "The subscribe tick failed.");
+        Check(LateSubscribeRejected(), "A closed callback accepted another subscription.");
+        Expect<ArgumentException>(() => session.Post(5, 1));
+        session.Post(4, 9);
+        Check(session.Tick(), "The posted event tick failed.");
+        var result = session.Stop();
+        try
+        {
+            session.Post(4, 1);
+            throw new InvalidOperationException("Post after stop succeeded.");
+        }
+        catch (InvalidOperationException exception) when (exception.Message == "The session has stopped.")
+        {
+        }
+
+        CheckCompleted(result);
+        Check(result.Report.Logs.SequenceEqual(["subscribed", "taken=4:9", "pending=0"]),
+            "A posted event was delivered without a subscription, kept after stop, or left pending.");
+        CheckReleased(result);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool LateSubscribeRejected()
+    {
+        var assembly = AssemblyLoadContext.All
+            .SelectMany(context => context.Assemblies)
+            .Single(item => item.IsCollectible && item.GetName().Name == "RuneCLR.TestMaps");
+        var map = assembly.GetType("RuneCLR.TestMaps.PostedEventMap")
+            ?? throw new InvalidOperationException("PostedEventMap was not loaded.");
+        var kept = map.GetField("Kept", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as IMapContext
+            ?? throw new InvalidOperationException("The map did not retain its context.");
+        return RejectClosed(() => kept.Subscribe(8));
     }
 
     private static void ConcurrentTicks()

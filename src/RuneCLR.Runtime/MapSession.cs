@@ -96,6 +96,16 @@ public sealed class MapSession : IDisposable
         }
     }
 
+    /// <summary>Posts one primitive event for a subscription. Call it between callbacks.</summary>
+    public void Post(int id, int value)
+    {
+        lock (_gate)
+        {
+            if (_result is not null) throw new InvalidOperationException("The session has stopped.");
+            _context!.Post(id, value);
+        }
+    }
+
     /// <summary>Supplies a primitive success value for one open request. The script can take it on a later callback.</summary>
     public void CompleteWork(long id, int value) => FinishWork(id, value, fail: false);
 
@@ -219,6 +229,7 @@ public sealed class MapSession : IDisposable
             context.CancelScheduled();
             context.CancelWork();
             context.CancelResources();
+            context.CancelPosted();
             try
             {
                 if (_script is not null)

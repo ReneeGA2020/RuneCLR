@@ -19,6 +19,8 @@ internal sealed class MapContext : IMapContext, IDisposable
     private readonly HashSet<long> _finishedIds = [];
     private long _nextWork;
     private readonly HashSet<string> _resources = new(StringComparer.Ordinal);
+    private readonly HashSet<int> _subscriptions = [];
+    private readonly Queue<PostedEvent> _posted = [];
 
     public MapContext(string mapId, MapRunOptions options)
     {
@@ -333,6 +335,62 @@ internal sealed class MapContext : IMapContext, IDisposable
     }
 
     public void CancelResources() => _resources.Clear();
+    public void Subscribe(int id)
+    {
+        Charge();
+        ArgumentOutOfRangeException.ThrowIfNegative(id);
+        if (!_subscriptions.Add(id))
+        {
+            throw new InvalidOperationException("The subscription is already registered.");
+        }
+    }
+
+    public bool TryTakePosted(out int id, out int value)
+    {
+        Charge();
+        if (_posted.Count == 0)
+        {
+            id = 0;
+            value = 0;
+            return false;
+        }
+
+        var posted = _posted.Dequeue();
+        id = posted.Id;
+        value = posted.Value;
+        return true;
+    }
+
+    public int PendingPosted
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!_signalOpen)
+            {
+                throw new InvalidOperationException("The map callback is closed.");
+            }
+
+            return _posted.Count;
+        }
+    }
+
+    public void Post(int id, int value)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!_subscriptions.Contains(id))
+        {
+            throw new ArgumentException("The subscription does not belong to this session.", nameof(id));
+        }
+
+        _posted.Enqueue(new PostedEvent(id, value));
+    }
+
+    public void CancelPosted()
+    {
+        _subscriptions.Clear();
+        _posted.Clear();
+    }
 
     public void CheckViolation()
     {
@@ -413,6 +471,7 @@ internal sealed class MapContext : IMapContext, IDisposable
         CancelScheduled();
         CancelWork();
         CancelResources();
+        CancelPosted();
         EndCallback();
         ReleasedEntities += _entities.Count;
         _entities.Clear();
@@ -449,6 +508,7 @@ internal sealed class MapContext : IMapContext, IDisposable
     private readonly record struct ScheduledSignal(int DueTick, int Value, int EveryTicks);
 
     private readonly record struct FinishedWork(long Id, int Value, bool Succeeded);
+    private readonly record struct PostedEvent(int Id, int Value);
 }
 
 public sealed class MapLimitException(string message) : Exception(message);

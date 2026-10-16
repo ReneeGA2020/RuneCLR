@@ -519,3 +519,27 @@ public sealed class OneShotMap : IMapScript
 
     public void OnStop() => _context.Log("stop=" + _context.PendingScheduled);
 }
+
+public sealed class PostedEventMap : IMapScript
+{
+    public static IMapContext? Kept;
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        Kept = _context;
+        if (tick.Index == 0)
+        {
+            _context.Subscribe(4);
+            _context.Log("subscribed");
+            return;
+        }
+
+        var taken = _context.TryTakePosted(out var id, out var value);
+        _context.Log(taken && id == 4 && value == 9 && _context.PendingPosted == 0 ? "taken=4:9" : "mismatch");
+    }
+
+    public void OnStop() => _context.Log("pending=" + _context.PendingPosted);
+}

@@ -109,7 +109,7 @@ Between callbacks, MapSession.CopyResources copies the current names into
 host-owned values. Stop clears the remaining names before OnStop. Copying after
 Stop throws InvalidOperationException ("The session has stopped."). A later
 session does not see them. The restricted profile does not include this surface.
-Desktop tests/RuneCLR.Runtime.Tests passed 50/50 in Release on 2026-10-16,
+Desktop tests/RuneCLR.Runtime.Tests passed 51/51 in Release on 2026-10-16,
 including this case, two live sessions that do not share names, and a caught MaxResources limit that stops the session. There is still no background thread, sleep, or wall-clock
 timer.
 
@@ -125,6 +125,9 @@ the same id twice throws. Stop drops both open requests and results the script
 has not taken, before OnStop. Author failure stops the session too, so the host cannot complete or fail a request it already observed. Pending tick-schedule values are cleared at the same time. Catching a work or schedule limit does not leave the session running, and the request or signal already accepted is cleared before OnStop. A latched limit is not labeled as an OnStop failure when OnStop returns. Call the host methods between callbacks, not from
 inside one. No thread, task, or wall-clock timer is started. Two live sessions do not share requests: completing one does not finish the other, and stopping one leaves the other running. After a session fails and releases its context, the next session can reuse the same work id and complete its own request.
 
+## Host-posted events
+
+Subscribe(int id) runs only during OnStart, OnTick, or OnStop. A negative id is rejected. Subscribing the same id twice throws InvalidOperationException ("The subscription is already registered."). Between callbacks, MapSession.Post(id, value) enqueues one primitive for a subscribed id. An unknown id throws ArgumentException. The script reads it with TryTakePosted on a later callback. PendingPosted uses the same closed-callback rejection ("The map callback is closed."). Stop clears subscriptions and untaken posts before OnStop. Posting after Stop throws InvalidOperationException ("The session has stopped."). The restricted profile does not include this surface. Desktop tests/RuneCLR.Runtime.Tests passed 51/51 in Release on 2026-10-16, including this case. There is still no background thread, sleep, or wall-clock timer.
 ## Budgets and execution policy
 
 Cooperative host API quota resets for each callback; an observed violation is

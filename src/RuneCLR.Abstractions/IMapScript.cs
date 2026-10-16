@@ -42,6 +42,12 @@ public interface IMapContext
     void RegisterResource(string name);
     bool ReleaseResource(string name);
     int PendingResources { get; }
+
+    // Host-posted primitive events. Subscribe during a callback.
+    // The host posts between callbacks. Stopping the session drops the rest.
+    void Subscribe(int id);
+    bool TryTakePosted(out int id, out int value);
+    int PendingPosted { get; }
 }
 
 public readonly record struct EntityId(long Value);
