@@ -81,6 +81,7 @@ internal static class CapabilityCases
         yield return ("An empty OnStop after a caught entity limit adds no OnStop error and the next package still runs", EmptyOnStopAfterCaughtEntityLimit);
         yield return ("A latched log limit is raised again from OnStop but not from an empty OnStop", LatchedLogLimitOnStop);
         yield return ("A latched entity limit blocks SpawnEntity in OnStop and the next package still runs", LatchedLimitBlocksSpawnInOnStop);
+        yield return ("A latched log limit blocks SpawnEntity in OnStop and the next package still runs", LatchedLogLimitBlocksSpawnInOnStop);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1529,6 +1530,47 @@ internal static class CapabilityCases
             && result.Report.CompletedTicks == 0
             && result.Report.CreatedEntities == 1
             && result.Report.ReleasedEntities == 1
+            && result.Report.RemainingEntities == 0,
+            result.Report + " logs=[" + string.Join(",", result.Report.Logs) + "]");
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void LatchedLogLimitBlocksSpawnInOnStop()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext value)
+                {
+                    context = value;
+                    try
+                    {
+                        context.Log("one");
+                        context.Log("two");
+                    }
+                    catch (System.Exception) { }
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { context!.SpawnEntity("c"); }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "log-spawn-stop"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!),
+            new MapRunOptions { TickCount = 1, MaxLogMessages = 1 });
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && result.Report.Error?.Contains("The session log limit was exceeded.", StringComparison.Ordinal) == true
+            && result.Report.Error?.Contains("OnStop:", StringComparison.Ordinal) == true
+            && result.Report.Error?.Contains("The entity limit was exceeded.", StringComparison.Ordinal) != true
+            && result.Report.Logs.SequenceEqual(new[] { "one" })
+            && result.Report.CompletedTicks == 0
+            && result.Report.CreatedEntities == 0
+            && result.Report.ReleasedEntities == 0
             && result.Report.RemainingEntities == 0,
             result.Report + " logs=[" + string.Join(",", result.Report.Logs) + "]");
         Check.Collected(result);
