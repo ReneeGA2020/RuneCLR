@@ -65,6 +65,7 @@ internal static class CapabilityCases
         yield return ("Custom delegates and async OnStart are rejected before run", RejectDelegateAndAsync);
         yield return ("An author exception filter runs, handles the failure, and the next package still runs", ExceptionFilterRecovery);
         yield return ("The cooperative API budget stops a second log but not a computation loop", CooperativeBudgetDoesNotStopLoop);
+        yield return ("Schedule, resource, and posted-event APIs are rejected before run", RejectHostSchedulingApis);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -897,6 +898,40 @@ internal static class CapabilityCases
         var logNext = Build(Path.Combine(temp.Path, "logs-next"));
         Check.Assert(logNext.Succeeded, "Next package failed to compile.");
         RunSafe(logNext.ManifestPath!);
+    }
+    private static void RejectHostSchedulingApis()
+    {
+        using var temp = new TempDirectory();
+        void Reject(string directory, string call, string member)
+        {
+            var source = $$"""
+                using RuneCLR;
+                public sealed class GameScript : IMapScript
+                {
+                    public void OnStart(IMapContext context) { {{call}} }
+                    public void OnTick(MapTick tick) { }
+                    public void OnStop() { }
+                }
+                """;
+            var error = Check.Throws<InvalidDataException>(() =>
+            {
+                var built = Build(Path.Combine(temp.Path, directory), source);
+                var details = built.Diagnostics.Length == 0
+                    ? "Build returned without an exception. Succeeded=" + built.Succeeded
+                    : string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message));
+                throw new InvalidOperationException(details);
+            });
+            Check.Assert(error.Message.Contains("Capability profile 'managed-il-gameplay-v1':", StringComparison.Ordinal)
+                && error.Message.Contains(member, StringComparison.Ordinal), error.Message);
+        }
+
+        Reject("repeat", "context.Repeat(1, 1);", "Member 'RuneCLR.IMapContext.Repeat' is not approved.");
+        Reject("resource", "context.RegisterResource(\"a\");", "Member 'RuneCLR.IMapContext.RegisterResource' is not approved.");
+        Reject("posted", "context.Subscribe(1);", "Member 'RuneCLR.IMapContext.Subscribe' is not approved.");
+        Reject("work", "context.RequestWork(\"a\");", "Member 'RuneCLR.IMapContext.RequestWork' is not approved.");
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
     }
     private static void RunSafe(string manifestPath)
     {
