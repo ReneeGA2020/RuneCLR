@@ -88,6 +88,7 @@ internal static class CapabilityCases
         yield return ("A caught log limit is appended after an author tick failure and the next package still runs", AuthorTickThenLatchedLogLimit);
         yield return ("A non-positive Charge fails before OnTick and the next package still runs", NonPositiveCharge);
         yield return ("An author Charge of int.MaxValue exceeds the callback budget before OnTick and the next package still runs", ChargeMaxValueExceedsBudget);
+        yield return ("The cooperative budget refills for OnStart, OnTick, and OnStop", CallbackBudgetRefills);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1840,6 +1841,41 @@ internal static class CapabilityCases
             && result.Report.ReleasedEntities == 0
             && result.Report.RemainingEntities == 0,
             error + " logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks);
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void CallbackBudgetRefills()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                public void OnStart(IMapContext context)
+                {
+                    this.context = context;
+                    context.Charge(1);
+                }
+                public void OnTick(MapTick tick) { context!.Charge(1); }
+                public void OnStop() { context!.Charge(1); }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "refill"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!),
+            new MapRunOptions { TickCount = 1, OperationBudgetPerCallback = 1 });
+        var error = result.Report.Error ?? "";
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Completed
+            && error.Length == 0
+            && result.Report.CompletedTicks == 1
+            && result.Report.Logs.Count == 0
+            && result.Report.CreatedEntities == 0
+            && result.Report.ReleasedEntities == 0
+            && result.Report.RemainingEntities == 0,
+            "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks);
         Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
