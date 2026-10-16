@@ -32,6 +32,7 @@ restricted UGC. The custom-map analogy is one integration model.
   naming review: the Warcraft map analogy should not constrain public API and
   package terminology. Existing `Map` names remain until a separate coherent
   rename; no replacement term has been selected.
+- On 2026-10-16 the project owner confirmed that using UGC does not require MapContext.SpawnEntity or an entity concept. Those rules belong to the current prototype host. The framework mechanism is session loading, capability limits, execution, and unload. A host-defined API is the intended boundary. No extension point is implemented by this note, and no rename is selected.
 - Execution strategy accepted on 2026-10-12: interpret UGC map code/private
   dependencies across all target platforms first; explore UGC JIT after
   interpreter recovery and real-game evidence mature. Trusted host/framework
@@ -1352,6 +1353,8 @@ On 2026-10-16 packaging tests passed 141/141 at commit ced0bbb. An empty log str
 On 2026-10-16 packaging tests passed 142/142 at commit a49b9a8. A log of one space is stored unchanged. It is not rejected as whitespace. The session completes one tick, and the next package still runs. Entity names still reject whitespace. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
 On 2026-10-16 packaging tests passed 143/143 at commit 1d990e4. An entity name of one space is rejected. No entity is created, no tick completes, and the next package still runs. A log of one space is still stored. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
+
+On 2026-10-16 packaging tests passed 144/144 at commit 8d093b9. A log of exactly 2048 characters is stored. The session completes one tick, and the next package still runs. A log of 2049 characters still exceeds the limit. This is stock desktop JIT, not interpreter evidence and not iOS. Issue 5 stays open. Issue 8 stays open.
 
 ## Preserve experiment evidence
 

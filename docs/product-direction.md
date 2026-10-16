@@ -107,6 +107,8 @@ for a trusted developer's first hot-update integration. Server-authoritative
 gameplay describes the current examples and UGC pilot; it is not a universal
 embedding requirement. Deterministic lockstep is not a runtime milestone.
 
+On 2026-10-16 the project owner confirmed that the UGC mechanism must not require an entity API. SpawnEntity, entity names, and the other current IMapContext members are rules of the prototype host session. A game without entities can use script loading, capability limits, execution, and unload through its own host API. That separation is not yet an implemented extension point, and no rename is selected.
+
 Dedicated acceptance issues: [trusted integration #12](https://github.com/ReneeGA2020/RuneCLR/issues/12),
 [same-source builds #13](https://github.com/ReneeGA2020/RuneCLR/issues/13),
 [object interoperability #14](https://github.com/ReneeGA2020/RuneCLR/issues/14) and
