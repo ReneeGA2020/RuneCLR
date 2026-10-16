@@ -464,3 +464,58 @@ public sealed class HostResourceMap : IMapScript
 
     public void OnStop() => _context.Log("pending=" + _context.PendingResources);
 }
+
+public sealed class RepeatMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        if (tick.Index == 0)
+        {
+            _context.Repeat(1, 3);
+            if (_context.TryTakeScheduled(out _)) throw new InvalidOperationException("early");
+            _context.Log("t0 pending=" + _context.PendingScheduled);
+            return;
+        }
+
+        if (tick.Index is 1 or 2)
+        {
+            if (!_context.TryTakeScheduled(out var value) || value != 3) throw new InvalidOperationException("miss");
+            _context.Log("t" + tick.Index + " pending=" + _context.PendingScheduled);
+        }
+    }
+
+    public void OnStop() => _context.Log("stop=" + _context.PendingScheduled);
+}
+
+public sealed class OneShotMap : IMapScript
+{
+    private IMapContext _context = null!;
+
+    public void OnStart(IMapContext context) => _context = context;
+
+    public void OnTick(MapTick tick)
+    {
+        if (tick.Index == 0)
+        {
+            _context.Schedule(1, 4);
+            _context.Log("s0 pending=" + _context.PendingScheduled);
+            return;
+        }
+
+        if (tick.Index == 1)
+        {
+            if (!_context.TryTakeScheduled(out var value)) throw new InvalidOperationException("miss");
+            _context.Log("s1 value=" + value + " pending=" + _context.PendingScheduled);
+            return;
+        }
+
+        if (tick.Index == 2)
+            _context.Log(_context.TryTakeScheduled(out _) ? "s2 took=true" : "s2 took=false");
+    }
+
+    public void OnStop() => _context.Log("stop=" + _context.PendingScheduled);
+}

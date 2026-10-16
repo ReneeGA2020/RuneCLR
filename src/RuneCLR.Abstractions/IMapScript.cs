@@ -26,6 +26,8 @@ public interface IMapContext
     // Primitive host tick schedule. Accepted only while a callback is running.
     // A value can be taken only on a later tick, and stopping the session drops the rest.
     void Schedule(int dueInTicks, int value);
+    // One pending slot. After it is taken, the same value is due again after everyTicks.
+    void Repeat(int everyTicks, int value);
     bool TryTakeScheduled(out int value);
     int PendingScheduled { get; }
 

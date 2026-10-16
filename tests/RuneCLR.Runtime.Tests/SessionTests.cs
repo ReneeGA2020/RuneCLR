@@ -11,6 +11,7 @@ internal static class SessionTests
         yield return ("Host-pumped sessions obey host tick cadence and delta", ManualCadence);
         yield return ("A map signal closes when its callback returns", ClosedMapSignal);
         yield return ("A host tick schedule survives the callback and stop cancels it", ScheduledSignal);
+        yield return ("A repeating tick schedule stays one slot and a one-shot schedule does not repeat", RepeatingSchedule);
         yield return ("A closed callback cannot change host entities or logs", ClosedResources);
         yield return ("The host can copy live entities between callbacks", HostEntitySnapshot);
         yield return ("The host completes or fails work between callbacks and stop drops the rest", HostCompletedWork);
@@ -105,6 +106,25 @@ internal static class SessionTests
     {
     }
 
+    private static void RepeatingSchedule()
+    {
+        using var repeat = Start("RepeatMap", new MapRunOptions { TickCount = 0 });
+        Check(repeat.Tick() && repeat.Tick() && repeat.Tick(), "Repeat ticks failed.");
+        var repeatResult = repeat.Stop();
+        CheckCompleted(repeatResult);
+        Check(repeatResult.Report.Logs.SequenceEqual(["t0 pending=1", "t1 pending=1", "t2 pending=1", "stop=0"]),
+            "Repeat did not stay on one slot or survive stop.");
+        CheckReleased(repeatResult);
+
+        using var once = Start("OneShotMap", new MapRunOptions { TickCount = 0 });
+        Check(once.Tick() && once.Tick() && once.Tick(), "One-shot ticks failed.");
+        var onceResult = once.Stop();
+        CheckCompleted(onceResult);
+        Check(onceResult.Report.Logs.SequenceEqual(["s0 pending=1", "s1 value=4 pending=0", "s2 took=false", "stop=0"]),
+            "A one-shot schedule repeated.");
+        CheckReleased(onceResult);
+    }
+
     private static void ScheduledSignal()
     {
         using var session = Start("TimerMap", new MapRunOptions { TickCount = 0 });
@@ -129,18 +149,22 @@ internal static class SessionTests
         var kept = map.GetField("Kept", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as IMapContext
             ?? throw new InvalidOperationException("The map did not retain its context.");
         var scheduled = false;
+        var repeated = false;
         var taken = false;
         var counted = false;
         try { kept.Schedule(1, 7); }
         catch (InvalidOperationException exception) when (exception.Message == "The map schedule is closed.")
         { scheduled = true; }
+        try { kept.Repeat(1, 3); }
+        catch (InvalidOperationException exception) when (exception.Message == "The map schedule is closed.")
+        { repeated = true; }
         try { kept.TryTakeScheduled(out _); }
         catch (InvalidOperationException exception) when (exception.Message == "The map schedule is closed.")
         { taken = true; }
         try { _ = kept.PendingScheduled; }
         catch (InvalidOperationException exception) when (exception.Message == "The map schedule is closed.")
         { counted = true; }
-        return scheduled && taken && counted;
+        return scheduled && repeated && taken && counted;
     }
 
     private static void ClosedResources()

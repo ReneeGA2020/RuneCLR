@@ -79,7 +79,10 @@ tick 0, 1 is ready on tick 1. `TryTakeScheduled` returns a due value only during
 that later tick callback, choosing the earliest due value first. It does not
 call author code by itself. After the callback returns, schedule and take throw
 `InvalidOperationException` ("The map schedule is closed."). `Stop` clears
-anything still pending before `OnStop`. There is still no background thread,
+anything still pending before `OnStop`. `Repeat(everyTicks, value)` uses one slot.
+Taking it queues the same value `everyTicks` later. A one-shot `Schedule` does not
+queue itself again, and a closed callback rejects `Repeat` with the same message.
+There is still no background thread,
 sleep, or wall-clock timer. The restricted profile does not include this surface. A later session does not observe values cancelled by an earlier session.
 
 ## Callback resources
@@ -106,7 +109,7 @@ Between callbacks, MapSession.CopyResources copies the current names into
 host-owned values. Stop clears the remaining names before OnStop. Copying after
 Stop throws InvalidOperationException ("The session has stopped."). A later
 session does not see them. The restricted profile does not include this surface.
-Desktop tests/RuneCLR.Runtime.Tests passed 49/49 in Release on 2026-10-16,
+Desktop tests/RuneCLR.Runtime.Tests passed 50/50 in Release on 2026-10-16,
 including this case, two live sessions that do not share names, and a caught MaxResources limit that stops the session. There is still no background thread, sleep, or wall-clock
 timer.
 

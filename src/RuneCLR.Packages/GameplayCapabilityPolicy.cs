@@ -46,7 +46,7 @@ public static class GameplayCapabilityPolicy
     private static readonly Dictionary<string, HashSet<string>> Contract = new(StringComparer.Ordinal)
     {
         ["RuneCLR.IMapScript"] = Members("OnStart OnTick OnStop"),
-        // Signal, RaiseSignal, the tick schedule, host-completed work, and resource registration are intentionally absent.
+        // Signal, RaiseSignal, the tick schedule, Repeat, host-completed work, and resource registration are intentionally absent.
         // Delegate callbacks stay denied, and this profile has no timer or async surface.
         ["RuneCLR.IMapContext"] = Members("get_MapId SpawnEntity DestroyEntity Log Charge"),
         ["RuneCLR.EntityId"] = Members(".ctor get_Value set_Value Equals GetHashCode ToString Deconstruct op_Equality op_Inequality"),

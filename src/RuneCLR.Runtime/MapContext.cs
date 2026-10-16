@@ -108,7 +108,7 @@ internal sealed class MapContext : IMapContext, IDisposable
             Violate("The scheduled signal limit was exceeded.");
         }
 
-        _scheduled.Add(new ScheduledSignal(due, value));
+        _scheduled.Add(new ScheduledSignal(due, value, 0));
     }
 
     public bool TryTakeScheduled(out int value)
@@ -124,9 +124,52 @@ internal sealed class MapContext : IMapContext, IDisposable
         }
 
         if (index < 0) return false;
-        value = _scheduled[index].Value;
+        var item = _scheduled[index];
+        value = item.Value;
+        if (item.EveryTicks == 0)
+        {
+            _scheduled.RemoveAt(index);
+            return true;
+        }
+
+        int next;
+        try
+        {
+            next = checked(item.DueTick + item.EveryTicks);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException("everyTicks");
+        }
+
         _scheduled.RemoveAt(index);
+        _scheduled.Add(new ScheduledSignal(next, item.Value, item.EveryTicks));
         return true;
+    }
+
+    public void Repeat(int everyTicks, int value)
+    {
+        EnsureScheduleOpen();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(everyTicks);
+        int due;
+        try
+        {
+            due = _openTick is int tick
+                ? checked(tick + everyTicks)
+                : checked(_nextTick + everyTicks - 1);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(nameof(everyTicks));
+        }
+
+        Charge();
+        if (_scheduled.Count >= _options.MaxScheduledSignals)
+        {
+            Violate("The scheduled signal limit was exceeded.");
+        }
+
+        _scheduled.Add(new ScheduledSignal(due, value, everyTicks));
     }
 
     public int PendingScheduled
@@ -403,7 +446,7 @@ internal sealed class MapContext : IMapContext, IDisposable
         throw new MapLimitException(_violation);
     }
 
-    private readonly record struct ScheduledSignal(int DueTick, int Value);
+    private readonly record struct ScheduledSignal(int DueTick, int Value, int EveryTicks);
 
     private readonly record struct FinishedWork(long Id, int Value, bool Succeeded);
 }
