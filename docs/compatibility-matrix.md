@@ -16,6 +16,8 @@ The source compiler follows the selected SDK compiler's latest stable C# version
 
 | Desktop pumped sessions, tests/RuneCLR.Runtime.Tests 53/53 | Not a syntax measurement | Passed 53/53 in Release. Includes host-owned resource names, one-slot Repeat, and host-posted primitives. Not a wall-clock timer | Resource registration, Repeat, Subscribe, and Post are covered by that suite. Not a framework-wide API pass | Desktop. Not iOS and not a physical device | Not the restricted UGC profile. That profile still excludes resource registration, Repeat, and host-posted events |
 
+| Desktop sample host --pump, 2026-10-16 | Not a syntax measurement | Release --pump exited 0. hello, arena, and hello each Completed with ticks=3. --collect unloaded all three. --require-interpreter on the installed SDK exited 1 before a map ran | Sample maps only. Not a framework-wide API pass | Desktop ordinary runtime selection. Not iOS and not a physical device | Not the restricted UGC profile. Not interpreter execution |
+
 ## Untested
 
 These are untested. They are not implied by the rows above.
