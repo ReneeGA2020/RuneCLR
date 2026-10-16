@@ -69,6 +69,7 @@ internal static class CapabilityCases
         yield return ("Remaining schedule, work, and resource accessors are rejected before run", RejectRemainingHostAccessors);
         yield return ("A Signal subscription is rejected because Action is not approved", RejectSignalSubscription);
         yield return ("The approved MapId accessor runs and the next package still runs", ApprovedMapId);
+        yield return ("An author Charge call spends the cooperative budget and the next package still runs", AuthorCharge);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1026,6 +1027,54 @@ internal static class CapabilityCases
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
+    }
+    private static void AuthorCharge()
+    {
+        using var temp = new TempDirectory();
+        const string charged = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Charge(1); context.Log("charged"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var chargedBuilt = Build(Path.Combine(temp.Path, "charged"), charged);
+        Check.Assert(chargedBuilt.Succeeded, string.Join(" | ", chargedBuilt.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var chargedResult = new MapRunner().Run(MapPackage.FromManifest(chargedBuilt.ManifestPath!),
+            new MapRunOptions { TickCount = 1, OperationBudgetPerCallback = 2 });
+        Check.Assert(chargedResult.Report.Outcome == MapRunOutcome.Completed
+            && chargedResult.Report.Logs.SequenceEqual(new[] { "charged" })
+            && chargedResult.Report.CompletedTicks == 1,
+            (chargedResult.Report.Error ?? "") + " logs=[" + string.Join(",", chargedResult.Report.Logs) + "]");
+        Check.Collected(chargedResult);
+        var chargedNext = Build(Path.Combine(temp.Path, "charged-next"));
+        Check.Assert(chargedNext.Succeeded, "Next package failed to compile.");
+        RunSafe(chargedNext.ManifestPath!);
+
+        const string over = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Charge(2); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var overBuilt = Build(Path.Combine(temp.Path, "over"), over);
+        Check.Assert(overBuilt.Succeeded, string.Join(" | ", overBuilt.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var overResult = new MapRunner().Run(MapPackage.FromManifest(overBuilt.ManifestPath!),
+            new MapRunOptions { TickCount = 1, OperationBudgetPerCallback = 1 });
+        Check.Assert(overResult.Report.Outcome == MapRunOutcome.Failed
+            && overResult.Report.Error?.Contains("The cooperative operation budget was exceeded.", StringComparison.Ordinal) == true
+            && overResult.Report.CompletedTicks == 0
+            && overResult.Report.Logs.Count == 0,
+            (overResult.Report.Error ?? "") + " logs=[" + string.Join(",", overResult.Report.Logs) + "]");
+        Check.Collected(overResult);
+        var overNext = Build(Path.Combine(temp.Path, "over-next"));
+        Check.Assert(overNext.Succeeded, "Next package failed to compile.");
+        RunSafe(overNext.ManifestPath!);
     }
     private static void RunSafe(string manifestPath)
     {
