@@ -96,6 +96,7 @@ internal static class CapabilityCases
         yield return ("A zero TickDuration is rejected before the author runs", ZeroTickDurationRejected);
         yield return ("A negative TickDuration is rejected before the author runs", NegativeTickDurationRejected);
         yield return ("The default MapRunOptions run three 50 millisecond ticks", DefaultRunOptions);
+        yield return ("An entity spawned in OnStart is destroyed on the first tick and the second destroy fails", EntitySurvivesUntilDestroy);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -2094,6 +2095,47 @@ internal static class CapabilityCases
             && result.Report.ReleasedEntities == 0
             && result.Report.RemainingEntities == 0,
             "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks);
+        Check.Collected(result);
+        var next = Build(Path.Combine(temp.Path, "next"));
+        Check.Assert(next.Succeeded, "Next package failed to compile.");
+        RunSafe(next.ManifestPath!);
+    }
+    private static void EntitySurvivesUntilDestroy()
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                private IMapContext? context;
+                private EntityId id;
+                public void OnStart(IMapContext context)
+                {
+                    this.context = context;
+                    id = context.SpawnEntity("a");
+                    context.Log("made");
+                }
+                public void OnTick(MapTick tick)
+                {
+                    context!.Log("tick" + tick.Index);
+                    context.DestroyEntity(id);
+                }
+                public void OnStop() { }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var built = Build(Path.Combine(temp.Path, "entity"), source);
+        Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+        var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!), new MapRunOptions { TickCount = 2 });
+        var error = result.Report.Error ?? "";
+        Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+            && error.Contains("The entity does not belong to this session.", StringComparison.Ordinal)
+            && !error.Contains("OnStop:", StringComparison.Ordinal)
+            && result.Report.CompletedTicks == 1
+            && result.Report.Logs.SequenceEqual(new[] { "made", "tick0", "tick1" })
+            && result.Report.CreatedEntities == 1
+            && result.Report.ReleasedEntities == 1
+            && result.Report.RemainingEntities == 0,
+            "outcome=" + result.Report.Outcome + " error=[" + error + "] logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks + " created=" + result.Report.CreatedEntities + " released=" + result.Report.ReleasedEntities + " remaining=" + result.Report.RemainingEntities);
         Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
