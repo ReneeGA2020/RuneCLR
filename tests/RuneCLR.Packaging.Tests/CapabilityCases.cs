@@ -86,6 +86,7 @@ internal static class CapabilityCases
         yield return ("A caught log limit in OnStart skips OnTick and the next package still runs", CaughtLogLimitSkipsOnTick);
         yield return ("A caught log limit on the first tick skips the next tick and the next package still runs", CaughtLogLimitSkipsNextTick);
         yield return ("A caught log limit is appended after an author tick failure and the next package still runs", AuthorTickThenLatchedLogLimit);
+        yield return ("A non-positive Charge fails before OnTick and the next package still runs", NonPositiveCharge);
     }
 
     private static string ContractIdentity => ManagedAssemblyInspector.Inspect(Fixtures.ContractAssembly).AssemblyName;
@@ -1760,6 +1761,50 @@ internal static class CapabilityCases
         var next = Build(Path.Combine(temp.Path, "next"));
         Check.Assert(next.Succeeded, "Next package failed to compile.");
         RunSafe(next.ManifestPath!);
+    }
+    private static void NonPositiveCharge()
+    {
+        using var temp = new TempDirectory();
+        foreach (var (name, count) in new (string, int)[] { ("zero", 0), ("negative", -1) })
+        {
+            var source = $$"""
+                using RuneCLR;
+                public sealed class GameScript : IMapScript
+                {
+                    private IMapContext? context;
+                    public void OnStart(IMapContext context)
+                    {
+                        this.context = context;
+                        context.Charge({{count}});
+                        context.Log("after");
+                    }
+                    public void OnTick(MapTick tick) { context!.Log("ticked"); }
+                    public void OnStop() { }
+                }
+                """;
+            var built = Build(Path.Combine(temp.Path, name), source);
+            Check.Assert(built.Succeeded, string.Join(" | ", built.Diagnostics.Select(item => item.Code + ": " + item.Message)));
+            var result = new MapRunner().Run(MapPackage.FromManifest(built.ManifestPath!),
+                new MapRunOptions { TickCount = 1 });
+            var error = result.Report.Error ?? "";
+            var message = count == 0
+                ? "operations ('0') must be a non-negative and non-zero value. (Parameter 'operations')\r\nActual value was 0."
+                : "operations ('-1') must be a non-negative and non-zero value. (Parameter 'operations')\r\nActual value was -1.";
+            Check.Assert(result.Report.Outcome == MapRunOutcome.Failed
+                && error == "System.ArgumentOutOfRangeException: " + message
+                && !result.Report.Logs.Contains("after")
+                && !result.Report.Logs.Contains("ticked")
+                && result.Report.CompletedTicks == 0
+                && !error.Contains("OnStop:", StringComparison.Ordinal)
+                && result.Report.CreatedEntities == 0
+                && result.Report.ReleasedEntities == 0
+                && result.Report.RemainingEntities == 0,
+                error + " logs=[" + string.Join(",", result.Report.Logs) + "] ticks=" + result.Report.CompletedTicks);
+            Check.Collected(result);
+            var next = Build(Path.Combine(temp.Path, name + "-next"));
+            Check.Assert(next.Succeeded, "Next package failed to compile.");
+            RunSafe(next.ManifestPath!);
+        }
     }
     private static void RunSafe(string manifestPath)
     {
