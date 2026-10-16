@@ -30,7 +30,9 @@ These rows are desktop results already recorded. A blank shape is not a pass.
 | TrustedUpdateMutableBox through MutateBox | BOX-SAME. Value becomes 7 and the instance is unchanged. |
 | A value passed to the object echo | VALUE-REJECTED. The echo is not called. |
 | Instance-only, inherited, or private-only echo | ECHO ActivationFailed. Counters stay 0. OBJECT-SAME is absent. |
+| Interface callback | Desktop composition recorded nine interface callbacks and HostIdentity=true. Not a UGC grant. |
 | Trusted composition delegates | Desktop composition recorded nine delegate calls and HostIdentity=true. The host report retains neither the exception nor author metadata, delegates, or objects. Not a UGC grant. |
+
 ## Restricted UGC
 
 The gameplay profile allows IMapContext members get_MapId, SpawnEntity, DestroyEntity, Log, and Charge. It still excludes Signal, RaiseSignal, the tick schedule, Repeat, host-completed work, resource registration, and host-posted events. Delegate callbacks stay denied. Trusted updates are not limited to this profile.
