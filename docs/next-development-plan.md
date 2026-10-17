@@ -466,3 +466,5 @@ On 2026-10-17 desktop runtime tests passed 98/98. A host-contract OnStart can ca
 
 On 2026-10-17 desktop runtime tests passed 99/99. HostContractSession rejects a generic OnStart before the method runs. The host method is not called. A later callback was already required to be non-generic. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 101/101. HostContractSession.Open loads a declared private assembly into the collectible context. OnStart may call a method on that assembly, and that method is checked before it runs. A private call to System.IO.File.ReadAllText is rejected, and the host method is not called. A framework assembly name is still rejected. The package validator still rejects an OnStart call that is not on the named interface. Its gameplay validation is unchanged. This is not an iOS result.
+

@@ -50,6 +50,8 @@ The gameplay profile allows IMapContext members get_MapId, SpawnEntity, DestroyE
 
 This profile is the current prototype host allowlist. It does not define the UGC mechanism, and it does not require a game to have entities. Trusted updates remain outside this profile. A host-defined API is not implemented here. On 2026-10-17 its decided shape is a game-owned shared CLR interface called directly by the script. IMapContext is not renamed.
 
+HostContractSession loads private assemblies named by the package into the same collectible context. A script may call methods on those assemblies. The called method is checked before it runs, and a BCL call such as System.IO.File.ReadAllText is rejected. This does not add a BCL allow list and does not change the gameplay profile. The package validator still rejects an OnStart call that is not on the named interface.
+
 ## Calls the selector does not make
 
 Desktop selector tests EchoInstanceOnlyIsNotCalled, EchoInheritedIsNotCalled, and EchoPrivateOnlyIsNotCalled require OBJECT-SAME to be absent. Those tests record ECHO ActivationFailed, leave the echo counters at 0, and do not print OBJECT-SAME. This is not a complete list of unsupported shapes, and it does not close #14.

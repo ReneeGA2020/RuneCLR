@@ -19,6 +19,7 @@ public sealed class HostContractSession : IDisposable
     private HashSet<string>? _allowedMethods;
     private bool _disposed;
     private byte[]? _image;
+    private Dictionary<string, byte[]>? _images;
     private string? _entryTypeName;
     private bool _invoking;
 
@@ -38,11 +39,19 @@ public sealed class HostContractSession : IDisposable
         RequireListedEntry(manifest);
         var directory = Path.GetDirectoryName(Path.GetFullPath(manifestPath))
             ?? throw new InvalidDataException("The package manifest requires a directory.");
+        var privateAssemblies = new List<PrivateImage>();
+        var privateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var dependency in manifest.Dependencies)
-            RequireDependencyImage(directory, dependency.Path, dependency.Sha256);
+        {
+            var image = ReadPrivateImage(directory, dependency.Path, dependency.Sha256);
+            if (!privateNames.Add(image.Name))
+                throw new InvalidDataException("Duplicate private dependency identity: " + image.Name + ".");
+            privateAssemblies.Add(image);
+        }
+
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
         RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256);
-        return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods);
+        return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods, privateAssemblies);
     }
 
     private static void RequireListedEntry(PackageManifest manifest)
@@ -80,11 +89,13 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
     }
 
-    private static void RequireDependencyImage(string directory, string relative, string expected)
+    private static PrivateImage ReadPrivateImage(string directory, string relative, string expected)
     {
-        var info = ManagedAssemblyInspector.Inspect(ReadHashed(directory, relative, expected));
+        var bytes = ReadHashed(directory, relative, expected);
+        var info = ManagedAssemblyInspector.Inspect(bytes);
         if (ReservedAssembly(info.SimpleName))
             throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
+        return new PrivateImage(info.SimpleName, bytes);
     }
 
     private static void RequireFileHash(string directory, string relative, string expected) =>
@@ -113,16 +124,35 @@ public sealed class HostContractSession : IDisposable
     }
 
     public HostContractSession(Type contract, object instance, string assemblyPath, string entryTypeName, IReadOnlyCollection<string> allowedMethods)
+        : this(contract, instance, assemblyPath, entryTypeName, allowedMethods, Array.Empty<PrivateImage>())
+    {
+    }
+
+    private HostContractSession(Type contract, object instance, string assemblyPath, string entryTypeName,
+        IReadOnlyCollection<string> allowedMethods, IReadOnlyList<PrivateImage> privateAssemblies)
     {
         ArgumentNullException.ThrowIfNull(contract);
         ArgumentNullException.ThrowIfNull(instance);
         ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(entryTypeName);
         ArgumentNullException.ThrowIfNull(allowedMethods);
+        ArgumentNullException.ThrowIfNull(privateAssemblies);
         if (!contract.IsInterface || !contract.IsInstanceOfType(instance))
             throw new InvalidOperationException("The host contract must be the interface implemented by the supplied instance.");
 
-        _context = new HostContractLoadContext();
+        var privateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var images = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        var contractName = contract.Assembly.GetName().Name ?? "";
+        foreach (var image in privateAssemblies)
+        {
+            if (string.Equals(image.Name, contractName, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Author assembly '" + image.Name + "' duplicates the host contract assembly.");
+            if (!privateNames.Add(image.Name))
+                throw new InvalidDataException("Duplicate private dependency identity: " + image.Name + ".");
+            images.Add(image.Name, image.Bytes);
+        }
+
+        _context = new HostContractLoadContext(privateAssemblies);
         ContextReference = new WeakReference(_context, trackResurrection: true);
         try
         {
@@ -132,13 +162,18 @@ public sealed class HostContractSession : IDisposable
             var info = ManagedAssemblyInspector.Inspect(bytes);
             if (ReservedAssembly(info.SimpleName))
                 throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
-            RequireApprovedReferences(info, contract);
+            if (privateNames.Contains(info.SimpleName))
+                throw new InvalidDataException("Duplicate private dependency identity: " + info.SimpleName + ".");
+            RequireApprovedReferences(info, contract, privateNames);
+            foreach (var image in privateAssemblies)
+                RequireApprovedReferences(ManagedAssemblyInspector.Inspect(image.Bytes), contract, privateNames);
+            images.Add(info.SimpleName, bytes);
             using var stream = new MemoryStream(bytes, writable: false);
             var assembly = _context.LoadFromStream(stream);
             var entry = assembly.GetType(entryTypeName, throwOnError: false);
             var start = RequireOnStart(entry, contract);
             var allowed = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
-            RequireContractCalls(start, contract, allowed, "OnStart calls a method that is not a host contract member.");
+            RequireContractCalls(start, contract, allowed, "OnStart calls a method that is not a host contract member.", images);
             var script = Activator.CreateInstance(entry!)!;
             _invoking = true;
             try
@@ -157,6 +192,7 @@ public sealed class HostContractSession : IDisposable
                 _contract = contract;
                 _allowedMethods = allowed;
                 _image = bytes;
+                _images = images;
                 _entryTypeName = entryTypeName;
             }
             finally
@@ -192,7 +228,7 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidOperationException("The callback must be one public void method with no parameters or one host-contract parameter.");
         RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
         const string failure = "The callback calls a method that is not a host contract member.";
-        RequireContractCalls(method, _contract, _allowedMethods, failure);
+        RequireContractCalls(method, _contract, _allowedMethods, failure, _images!);
         _invoking = true;
         try
         {
@@ -218,6 +254,7 @@ public sealed class HostContractSession : IDisposable
         _script = null;
         _host = null;
         _image = null;
+        _images = null;
         _entryTypeName = null;
         _contract = null;
         _allowedMethods = null;
@@ -269,7 +306,7 @@ public sealed class HostContractSession : IDisposable
         return starts[0];
     }
 
-    private static void RequireApprovedReferences(ManagedAssemblyInfo info, Type contract)
+    private static void RequireApprovedReferences(ManagedAssemblyInfo info, Type contract, IReadOnlySet<string> privateNames)
     {
         var contractName = contract.Assembly.GetName().Name;
         foreach (var reference in info.References)
@@ -283,6 +320,7 @@ public sealed class HostContractSession : IDisposable
 
             if (simple is "System.Runtime" or "System.Private.CoreLib" or "netstandard") continue;
             if (string.Equals(simple, contractName, StringComparison.OrdinalIgnoreCase)) continue;
+            if (simple is not null && privateNames.Contains(simple)) continue;
             throw new InvalidDataException("Assembly '" + simple + "' is not approved.");
         }
     }
@@ -339,8 +377,20 @@ public sealed class HostContractSession : IDisposable
         if (!sawBase) throw new InvalidOperationException(failure);
     }
 
-    private static void RequireContractCalls(MethodInfo method, Type contract, HashSet<string> allowedMethods, string failure)
+    private static void RequireContractCalls(MethodInfo method, Type contract, HashSet<string> allowedMethods, string failure, IReadOnlyDictionary<string, byte[]> images)
     {
+        WalkCalls(method, contract, allowedMethods, failure, images, new HashSet<MethodBase>());
+    }
+
+    private static void WalkCalls(MethodInfo method, Type contract, HashSet<string> allowedMethods, string failure,
+        IReadOnlyDictionary<string, byte[]> images, HashSet<MethodBase> seen)
+    {
+        if (!seen.Add(method)) return;
+        var owner = method.DeclaringType?.Assembly.GetName().Name;
+        if (owner is null || !images.TryGetValue(owner, out var image))
+            throw new InvalidOperationException(failure);
+        RequireCoreCatchTypes(image, method.DeclaringType!.FullName ?? method.Name, method.Name);
+
         var body = method.GetMethodBody() ?? throw new InvalidOperationException(failure);
         var il = body.GetILAsByteArray() ?? throw new InvalidOperationException(failure);
         var index = 0;
@@ -354,8 +404,17 @@ public sealed class HostContractSession : IDisposable
                 MethodBase? called;
                 try { called = method.Module.ResolveMethod(token); }
                 catch (ArgumentException) { called = null; }
-                if (called?.DeclaringType != contract || !allowedMethods.Contains(called.Name))
-                    throw new InvalidOperationException(failure);
+                if (IsAllowedContractCall(called, contract, allowedMethods))
+                    continue;
+                if (called is MethodInfo author && IsAuthorAssembly(author, images))
+                {
+                    if (author.IsGenericMethod || author.DeclaringType!.TypeInitializer is not null)
+                        throw new InvalidOperationException(failure);
+                    WalkCalls(author, contract, allowedMethods, failure, images, seen);
+                    continue;
+                }
+
+                throw new InvalidOperationException(failure);
             }
             else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Newobj.Value || operation.Value == OpCodes.Jmp.Value)
             {
@@ -374,6 +433,15 @@ public sealed class HostContractSession : IDisposable
                 SkipOperand(operation, il, ref index, failure);
             }
         }
+    }
+
+    private static bool IsAllowedContractCall(MethodBase? called, Type contract, HashSet<string> allowedMethods) =>
+        called?.DeclaringType == contract && !called.IsGenericMethod && allowedMethods.Contains(called.Name);
+
+    private static bool IsAuthorAssembly(MethodInfo method, IReadOnlyDictionary<string, byte[]> images)
+    {
+        var name = method.DeclaringType?.Assembly.GetName().Name;
+        return name is not null && images.ContainsKey(name);
     }
 
     private static void RequireCoreCatchTypes(byte[] image, string typeFullName, string methodName)
@@ -538,15 +606,25 @@ public sealed class HostContractSession : IDisposable
         .Select(field => (OpCode)field.GetValue(null)!)
         .ToDictionary(operation => operation.Value);
 
+    private readonly record struct PrivateImage(string Name, byte[] Bytes);
+
     private sealed class HostContractLoadContext : AssemblyLoadContext
     {
-        public HostContractLoadContext()
+        private readonly Dictionary<string, byte[]> _private;
+
+        public HostContractLoadContext(IReadOnlyList<PrivateImage> privateAssemblies)
             : base("RuneCLR.HostContract:" + Guid.NewGuid().ToString("n"), isCollectible: true)
         {
+            _private = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var image in privateAssemblies)
+                _private.Add(image.Name, image.Bytes);
         }
 
         protected override Assembly? Load(AssemblyName assemblyName)
         {
+            if (assemblyName.Name is not null && _private.TryGetValue(assemblyName.Name, out var bytes))
+                return LoadFromStream(new MemoryStream(bytes, writable: false));
+
             foreach (var assembly in Default.Assemblies)
             {
                 if (string.Equals(assembly.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase))

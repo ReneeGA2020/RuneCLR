@@ -33,6 +33,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a dependency path that escapes the package", OpenRejectsEscapingDependency);
         yield return ("Host contract Open rejects a file that is not the entry or a dependency", OpenRejectsExtraFile);
         yield return ("Host contract Open accepts a dependency whose bytes match", OpenAcceptsDependency);
+        yield return ("Host contract Open calls a method on a declared private assembly", OpenCallsPrivateAssembly);
+        yield return ("Host contract Open rejects a private call outside the host contract", OpenRejectsPrivateForeignCall);
         yield return ("Host contract Open rejects a missing dependency file", OpenRejectsMissingDependency);
         yield return ("Host contract Open rejects a changed dependency file", OpenRejectsChangedDependency);
         yield return ("Host contract Open rejects a dependency that is not a managed assembly", OpenRejectsOpaqueDependency);
@@ -404,6 +406,85 @@ internal static class HostContractSessionTests
         var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
         session.Dispose();
         Check(host.Seen == 41, "A matching dependency blocked the host call.");
+    }
+
+    private static void OpenCallsPrivateAssembly()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WritePrivateAdd(library, "HostContract.PrivateAdd", foreign: false);
+        WritePrivateCaller(entry, "HostContract.PrivateCaller", library, "HostContract.PrivateAdd.Math", "AddOne");
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.PrivateCaller.Script");
+        var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
+        session.Dispose();
+        Check(host.Seen == 41, "The private method did not reach the host.");
+    }
+
+    private static void OpenRejectsPrivateForeignCall()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WritePrivateAdd(library, "HostContract.PrivateForeign", foreign: true);
+        WritePrivateCaller(entry, "HostContract.PrivateForeignCaller", library, "HostContract.PrivateForeign.Math", "AddOne");
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.PrivateForeignCaller.Script");
+        var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The private foreign call ran.");
+    }
+
+    private static void WritePrivateAdd(string path, string assemblyName, bool foreign)
+    {
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Math", TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed);
+        var method = type.DefineMethod("AddOne", MethodAttributes.Public | MethodAttributes.Static, typeof(int), new[] { typeof(int) });
+        var il = method.GetILGenerator();
+        if (foreign)
+        {
+            il.Emit(OpCodes.Ldstr, "x");
+            il.Emit(OpCodes.Call, typeof(System.IO.File).GetMethod(nameof(System.IO.File.ReadAllText), new[] { typeof(string) })!);
+            il.Emit(OpCodes.Pop);
+        }
+
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Ldc_I4_1);
+        il.Emit(OpCodes.Add);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void WritePrivateCaller(string path, string assemblyName, string libraryPath, string helperType, string helperMethod)
+    {
+        var helperAssembly = Assembly.Load(File.ReadAllBytes(libraryPath));
+        var addOne = helperAssembly.GetType(helperType, throwOnError: true)!.GetMethod(helperMethod)!;
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 40);
+        il.Emit(OpCodes.Call, addOne);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void OpenRejectsMissingDependency()
