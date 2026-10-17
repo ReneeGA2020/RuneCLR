@@ -59,6 +59,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a changed host-contract file", HostInterfaceOperatorCliRejectsChangedFile);
         yield return ("Operator CLI rejects an extra host-contract file", HostInterfaceOperatorCliRejectsExtraFile);
         yield return ("Operator CLI rejects a partial host-contract pair", HostInterfaceOperatorCliRejectsPartialPair);
+        yield return ("Operator CLI rejects unknown arguments", OperatorCliRejectsBadArguments);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -760,6 +761,20 @@ internal static class PipelineCases
             Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
             Check.Assert(!Directory.Exists(output), "A partial host-contract pair published a package.");
         }
+    }
+
+    private static void OperatorCliRejectsBadArguments()
+    {
+        var help = RunPackageTool("--help");
+        Check.Assert(help.ExitCode == 0, "Help exited " + help.ExitCode + ". " + help.Stdout + help.Stderr);
+        Check.Assert(help.Stdout.Contains("--host-interface", StringComparison.Ordinal), help.Stdout);
+        var unknown = RunPackageTool("pack");
+        Check.Assert(unknown.ExitCode == 2 && unknown.Stderr.Contains("Unknown command", StringComparison.Ordinal), unknown.Stdout + unknown.Stderr);
+        Check.Assert(unknown.Stderr.Contains("\"success\":false", StringComparison.Ordinal), unknown.Stderr);
+        var missing = RunPackageTool("compile");
+        Check.Assert(missing.ExitCode == 2 && missing.Stderr.Contains("Missing --framework-refs.", StringComparison.Ordinal), missing.Stdout + missing.Stderr);
+        var duplicate = RunPackageTool("compile", "--id", "A", "--id", "B");
+        Check.Assert(duplicate.ExitCode == 2 && duplicate.Stderr.Contains("supplied more than once", StringComparison.Ordinal), duplicate.Stdout + duplicate.Stderr);
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)

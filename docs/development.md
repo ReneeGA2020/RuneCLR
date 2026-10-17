@@ -1607,6 +1607,9 @@ On 2026-10-17 packaging tests passed 196/196. The operator CLI validate command 
 On 2026-10-17 packaging tests passed 197/197. The operator CLI compile command rejects a host-contract build that supplies only --host-interface or only --allowed-method. The process exits 2. The error says both must be present. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 198/198. The operator CLI --help exits 0 and mentions --host-interface. An unknown command, compile without --framework-refs, and a repeated --id each exit 2. The errors name the unknown command, the missing option, and the repeated option. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
