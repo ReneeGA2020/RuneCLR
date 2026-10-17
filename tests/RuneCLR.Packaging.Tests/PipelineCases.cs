@@ -56,6 +56,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL constructs a private type", HostInterfaceImportsPrivateType);
         yield return ("Imported host-contract IL lets one private assembly call another", HostInterfaceImportsPrivateChain);
         yield return ("Imported host-contract IL runs OnStart", HostInterfaceImportsOnStart);
+        yield return ("Imported host-contract IL charges from OnStart", HostInterfaceImportsOnStartCharge);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
@@ -659,6 +660,24 @@ internal static class PipelineCases
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
         Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+    }
+
+    private static void HostInterfaceImportsOnStartCharge()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostImportCharge", [new("GameScript.cs", OnStartChargeScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportCharge.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportCharge", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "Charge"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Charged == 7, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfaceImportsPrivate()
