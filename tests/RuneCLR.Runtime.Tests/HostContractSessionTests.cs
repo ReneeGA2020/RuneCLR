@@ -14,6 +14,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Invoke rejects an unlisted later call before it runs", InvokeRejectsUnlisted);
         yield return ("Host contract Invoke passes the host interface into a later callback", InvokePassesTheHostAgain);
         yield return ("Host contract Invoke rejects a reentrant callback", InvokeRejectsReentry);
+        yield return ("Host contract Invoke reports callback failure as text and continues", InvokeFailureIsText);
     }
 
     private static void EchoAndUnload()
@@ -159,14 +160,37 @@ internal static class HostContractSessionTests
         host.Nested = session;
         try
         {
-            var error = CheckThrows<TargetInvocationException>(() => session.Invoke("OnTick"));
-            Check(error.InnerException is InvalidOperationException, error.InnerException?.Message ?? error.Message);
-            Check(error.InnerException!.Message.Contains("already running", StringComparison.Ordinal), error.InnerException.Message);
+            var error = CheckThrows<InvalidOperationException>(() => session.Invoke("OnTick"));
+            Check(error.InnerException is null, "The callback exception was retained.");
+            Check(error.Message.Contains("already running", StringComparison.Ordinal), error.Message);
             Check(host.Calls.SequenceEqual([1, 2]), "The nested callback ran.");
         }
         finally
         {
             host.Nested = null;
+            session.Dispose();
+        }
+    }
+
+    private static void InvokeFailureIsText()
+    {
+        var host = new RecordingEcho { ThrowOn = 2 };
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "failure.dll");
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        WriteStartTickStop(path, "HostContract.FailureScript", echo);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.FailureScript.Script", ["Echo"]);
+        try
+        {
+            var error = CheckThrows<InvalidOperationException>(() => session.Invoke("OnTick"));
+            Check(error.InnerException is null, "The callback exception was retained.");
+            Check(error.Message.Contains("System.InvalidOperationException: host-failed", StringComparison.Ordinal), error.Message);
+            Check(host.Calls.SequenceEqual([1, 2]), "OnTick did not reach the host.");
+            session.Invoke("OnStop");
+            Check(host.Calls.SequenceEqual([1, 2, 3]), "The session did not continue after the failure.");
+        }
+        finally
+        {
             session.Dispose();
         }
     }
@@ -182,6 +206,36 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null && host.OtherSeen is null, "The author method was called.");
     }
+    private static void WriteStartTickStop(string path, string assemblyName, MethodInfo echo)
+    {
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        void EmitCall(string name, int value)
+        {
+            var method = type.DefineMethod(name, MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+            var il = method.GetILGenerator();
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Ldc_I4, value);
+            il.Emit(OpCodes.Callvirt, echo);
+            il.Emit(OpCodes.Pop);
+            il.Emit(OpCodes.Ret);
+        }
+
+        EmitCall("OnStart", 1);
+        EmitCall("OnTick", 2);
+        EmitCall("OnStop", 3);
+        type.CreateType();
+        builder.Save(path);
+    }
+
     private static void WriteStartAndHostParameter(string path, string assemblyName, MethodInfo later, int startValue, int laterValue)
     {
         var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
@@ -351,12 +405,15 @@ sealed class RecordingEcho : IHostEcho
 
     public HostContractSession? Nested { get; set; }
 
+    public int? ThrowOn { get; set; }
+
     public int Echo(int value)
     {
         Seen = value;
         Calls.Add(value);
         if (value == 2 && Nested is not null)
             Nested.Invoke("OnTick");
+        if (ThrowOn == value) throw new InvalidOperationException("host-failed");
         return value;
     }
 

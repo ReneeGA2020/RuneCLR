@@ -1386,6 +1386,8 @@ On 2026-10-17 desktop runtime tests passed 63/63. HostContractSession.Invoke can
 
 On 2026-10-17 desktop runtime tests passed 64/64. HostContractSession rejects a reentrant Invoke while OnStart or a later callback is still running. The message is A session lifecycle callback is already running. The nested callback does not run. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 65/65. A host-contract callback failure is reported as a new InvalidOperationException. Its message contains the caught type and message, and InnerException is null. The session can Invoke a later callback after that failure. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

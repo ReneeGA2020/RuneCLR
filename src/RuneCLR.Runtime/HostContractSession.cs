@@ -39,7 +39,15 @@ public sealed class HostContractSession : IDisposable
             _invoking = true;
             try
             {
-                start.Invoke(script, [instance]);
+                try
+                {
+                    start.Invoke(script, [instance]);
+                }
+                catch (Exception exception)
+                {
+                    throw HostFailure(exception);
+                }
+
                 _script = script;
                 _host = instance;
                 _contract = contract;
@@ -81,7 +89,14 @@ public sealed class HostContractSession : IDisposable
         _invoking = true;
         try
         {
-            method.Invoke(_script, takesHost ? [_host] : null);
+            try
+            {
+                method.Invoke(_script, takesHost ? [_host] : null);
+            }
+            catch (Exception exception)
+            {
+                throw HostFailure(exception);
+            }
         }
         finally
         {
@@ -99,6 +114,24 @@ public sealed class HostContractSession : IDisposable
         _allowedMethods = null;
         _context?.Unload();
         _context = null;
+    }
+
+    private static InvalidOperationException HostFailure(Exception exception)
+    {
+        if (exception is TargetInvocationException { InnerException: { } inner }) exception = inner;
+        var typeName = exception.GetType().FullName ?? "Exception";
+        string described;
+        try
+        {
+            described = typeName + ": " + exception.Message;
+        }
+        catch (Exception)
+        {
+            described = typeName + ": The exception message could not be read.";
+        }
+
+        if (described.Length > 2048) described = described[..2045] + "...";
+        return new InvalidOperationException(described);
     }
 
     private static MethodInfo RequireOnStart(Type? entry, Type contract)
