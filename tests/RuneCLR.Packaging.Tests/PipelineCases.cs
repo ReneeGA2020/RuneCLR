@@ -94,6 +94,7 @@ internal static class PipelineCases
         yield return ("Operator CLI reads MapId from OnStart", OperatorCliReadsMapId);
         yield return ("Operator CLI imports a MapId read", OperatorCliImportsMapId);
         yield return ("Operator CLI rejects the MapId property name", OperatorCliRejectsMapIdName);
+        yield return ("Operator CLI import rejects the MapId property name", OperatorCliImportRejectsMapIdName);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -1544,6 +1545,28 @@ internal static class PipelineCases
         var output = Path.Combine(temp.Path, "package");
         var (exit, stdout, stderr) = RunPackageTool(
             "compile", "--source", source, "--id", "HostCliMapName", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log", "--allowed-method", "MapId");
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("get_MapId", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("OnStart", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(!Directory.Exists(output), "A property-name allow list published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void OperatorCliImportRejectsMapIdName()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostCliImportMapName", [new("GameScript.cs", OnStartMapIdScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostCliImportMapName.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "import", "--assembly", dll, "--id", "HostCliImportMapName", "--entry-type", "GameScript",
             "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
             "--output", output, "--host-interface", "RuneCLR.IMapContext",
             "--allowed-method", "Log", "--allowed-method", "MapId");

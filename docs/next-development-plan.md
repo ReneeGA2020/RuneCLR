@@ -652,3 +652,5 @@ On 2026-10-17 packaging tests passed 230/230. The operator CLI compile command a
 On 2026-10-17 packaging tests passed 231/231. The operator CLI import command accepts --allowed-method get_MapId. The assembly is submitted as IL, not compiled by the package tool. OnStart logs fixture. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 232/232. The operator CLI compile command rejects --allowed-method MapId when the script reads the property. The process exits 2. The error names OnStart and get_MapId. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 packaging tests passed 233/233. The operator CLI import command rejects --allowed-method MapId when the assembly reads the property. The assembly is submitted as IL, not compiled by the package tool. The process exits 2. The error names OnStart and get_MapId. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
