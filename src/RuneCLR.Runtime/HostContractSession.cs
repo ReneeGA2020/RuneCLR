@@ -528,7 +528,7 @@ public sealed class HostContractSession : IDisposable
                     continue;
                 }
 
-                throw new InvalidOperationException(failure);
+                throw RejectedCall(failure, called);
             }
             else if (operation.Value == OpCodes.Newobj.Value)
             {
@@ -544,7 +544,7 @@ public sealed class HostContractSession : IDisposable
                     continue;
                 }
 
-                throw new InvalidOperationException(failure);
+                throw RejectedCall(failure, created);
             }
             else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Jmp.Value)
             {
@@ -563,6 +563,15 @@ public sealed class HostContractSession : IDisposable
                 SkipOperand(operation, il, ref index, failure);
             }
         }
+    }
+
+    private static InvalidOperationException RejectedCall(string failure, MethodBase? called)
+    {
+        var type = called?.DeclaringType;
+        if (type is null || string.IsNullOrEmpty(called?.Name))
+            return new InvalidOperationException(failure);
+        var typeName = type.FullName ?? type.Name;
+        return new InvalidOperationException(failure + " " + typeName + "." + called!.Name);
     }
 
     private static bool IsAllowedContractCall(MethodBase? called, Type contract, HashSet<string> allowedMethods) =>

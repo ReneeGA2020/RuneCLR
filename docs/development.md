@@ -1481,6 +1481,9 @@ On 2026-10-17 desktop runtime tests passed 124/124. Rejecting a later callback b
 
 On 2026-10-17 the same desktop runtime suite stayed at 124/124 and the packaging suite stayed at 171/171. A rejected later callback is named in the error. The runtime text contains The callback OnTick. The package text contains OnTick calls a method. This is not an iOS result.
 
+
+On 2026-10-17 the desktop runtime suite stayed at 124/124. A rejected later callback names both the callback and the member. The OnTick text contains IsNullOrEmpty. An unlisted host call contains .Other. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

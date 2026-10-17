@@ -394,6 +394,7 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidOperationException>(() =>
             new HostContractSession(typeof(IHostEcho), host, path, "HostContract.IntForeignScript.Script", ["Echo"]));
         Check(error.Message.Contains("The callback OnTick calls a method that is not a host contract member.", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("IsNullOrEmpty", StringComparison.Ordinal), error.Message);
         Check(host.Calls.Count == 0, "OnStart ran despite the bad callback.");
     }
 
@@ -433,6 +434,7 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidOperationException>(() =>
             new HostContractSession(typeof(IHostEcho), host, path, "HostContract.MeasureForeignScript.Script", ["Echo"]));
         Check(error.Message.Contains("The callback Measure calls a method that is not a host contract member.", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("IsNullOrEmpty", StringComparison.Ordinal), error.Message);
         Check(host.Calls.Count == 0, "OnStart ran despite the bad callback.");
     }
 
@@ -624,6 +626,7 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidOperationException>(() =>
             new HostContractSession(typeof(IHostEcho), host, path, "HostContract.LaterOtherScript.Script", ["Echo"]));
         Check(error.Message.Contains("The callback OnTick calls a method that is not a host contract member.", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains(".Other", StringComparison.Ordinal), error.Message);
         Check(host.Calls.Count == 0 && host.OtherSeen is null, "OnStart ran despite the unlisted callback.");
     }
 
