@@ -9,26 +9,50 @@ namespace RuneCLR.Packages;
 public static partial class GameplayCapabilityPolicy
 {
     public static void ValidateHostContract(ReadOnlyMemory<byte> image, string entryType, string interfaceFullName,
-        IReadOnlyCollection<string> allowedMethods)
+        IReadOnlyCollection<string> allowedMethods) =>
+        ValidateHostContract(image, entryType, interfaceFullName, allowedMethods, Array.Empty<byte[]>());
+
+    public static void ValidateHostContract(ReadOnlyMemory<byte> image, string entryType, string interfaceFullName,
+        IReadOnlyCollection<string> allowedMethods, IReadOnlyCollection<byte[]> privateImages)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entryType);
         ArgumentException.ThrowIfNullOrWhiteSpace(interfaceFullName);
         ArgumentNullException.ThrowIfNull(allowedMethods);
+        ArgumentNullException.ThrowIfNull(privateImages);
         if (image.IsEmpty || image.Length > ManagedAssemblyInspector.MaximumImageBytes)
             throw HostInvalid("Provide a nonempty assembly within the managed-IL image limit.");
         var allowed = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
+        var readers = new List<PEReader>();
         try
         {
-            using var pe = new PEReader(ImmutableArray.CreateRange(image.ToArray()));
-            var reader = pe.GetMetadataReader(MetadataReaderOptions.None);
-            var entry = FindHostEntry(reader, entryType);
-            var start = FindHostOnStart(reader, entry);
-            RequireHostParameter(reader, start, interfaceFullName);
-            if (start.RelativeVirtualAddress == 0)
+            var entryPe = OpenHostImage(image);
+            readers.Add(entryPe);
+            var entryReader = entryPe.GetMetadataReader(MetadataReaderOptions.None);
+            var entryName = entryReader.GetString(entryReader.GetAssemblyDefinition().Name);
+            var privateAssemblies = new Dictionary<string, HostImage>(StringComparer.OrdinalIgnoreCase);
+            foreach (var privateImage in privateImages)
+            {
+                if (privateImage is null || privateImage.Length == 0 || privateImage.Length > ManagedAssemblyInspector.MaximumImageBytes)
+                    throw HostInvalid("Provide a nonempty assembly within the managed-IL image limit.");
+                var pe = OpenHostImage(privateImage);
+                readers.Add(pe);
+                var reader = pe.GetMetadataReader(MetadataReaderOptions.None);
+                var name = reader.GetString(reader.GetAssemblyDefinition().Name);
+                if (string.Equals(name, entryName, StringComparison.OrdinalIgnoreCase) ||
+                    !privateAssemblies.TryAdd(name, new HostImage(reader, pe)))
+                    throw new InvalidDataException("Duplicate private dependency identity: " + name + ".");
+            }
+
+            var entry = FindHostEntry(entryReader, entryType);
+            var startMethod = FindHostOnStart(entryReader, entry);
+            RequireHostParameter(entryReader, startMethod, interfaceFullName);
+            if (startMethod.RelativeVirtualAddress == 0)
                 throw HostInvalid("OnStart has no managed body.");
-            var il = pe.GetMethodBody(start.RelativeVirtualAddress).GetILBytes()
+            var il = entryPe.GetMethodBody(startMethod.RelativeVirtualAddress).GetILBytes()
                 ?? throw HostInvalid("OnStart has no IL.");
-            WalkHostCalls(reader, il, interfaceFullName, allowed);
+            var walk = new HostWalk(entryReader, entryPe, interfaceFullName, allowed, privateAssemblies);
+            walk.Seen.Add(entryName + " " + entryType + " OnStart");
+            WalkHostCalls(walk, il);
         }
         catch (InvalidDataException)
         {
@@ -39,6 +63,156 @@ public static partial class GameplayCapabilityPolicy
         {
             throw HostInvalid(error.Message);
         }
+        finally
+        {
+            foreach (var reader in readers) reader.Dispose();
+        }
+    }
+
+    private readonly record struct HostImage(MetadataReader Reader, PEReader Pe);
+
+    private sealed class HostWalk
+    {
+        public HostWalk(MetadataReader reader, PEReader pe, string interfaceName, HashSet<string> allowed,
+            Dictionary<string, HostImage> privateAssemblies, HashSet<string>? seen = null)
+        {
+            Reader = reader;
+            Pe = pe;
+            InterfaceName = interfaceName;
+            Allowed = allowed;
+            PrivateAssemblies = privateAssemblies;
+            Seen = seen ?? new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        public MetadataReader Reader { get; }
+        public PEReader Pe { get; }
+        public string InterfaceName { get; }
+        public HashSet<string> Allowed { get; }
+        public Dictionary<string, HostImage> PrivateAssemblies { get; }
+        public HashSet<string> Seen { get; }
+
+        public HostWalk With(HostImage image) =>
+            new(image.Reader, image.Pe, InterfaceName, Allowed, PrivateAssemblies, Seen);
+    }
+
+    private static PEReader OpenHostImage(ReadOnlyMemory<byte> image) =>
+        new(ImmutableArray.CreateRange(image.Span.ToArray()));
+
+    private static void WalkHostCalls(HostWalk walk, byte[] il)
+    {
+        var index = 0;
+        while (index < il.Length)
+        {
+            var operation = ReadHostOpCode(il, ref index);
+            if (operation.Value == OpCodes.Call.Value || operation.Value == OpCodes.Callvirt.Value)
+                CheckHostCall(walk, ReadHostInt32(il, ref index));
+            else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Newobj.Value || operation.Value == OpCodes.Jmp.Value)
+                throw HostInvalid("OnStart uses an unsupported call.");
+            else
+                SkipHostOperand(operation, il, ref index);
+        }
+    }
+
+    private static void CheckHostCall(HostWalk walk, int token)
+    {
+        var handle = MetadataTokens.EntityHandle(token);
+        if (handle.Kind == HandleKind.MethodSpecification)
+            throw HostInvalid("OnStart calls a generic method.");
+        if (handle.Kind == HandleKind.MethodDefinition)
+        {
+            var method = walk.Reader.GetMethodDefinition((MethodDefinitionHandle)handle);
+            WalkAuthorMethod(walk, new HostImage(walk.Reader, walk.Pe), method);
+            return;
+        }
+
+        if (handle.Kind != HandleKind.MemberReference)
+            throw HostInvalid("OnStart calls a method that is not declared by the host interface.");
+        var member = walk.Reader.GetMemberReference((MemberReferenceHandle)handle);
+        if (member.GetKind() != MemberReferenceKind.Method)
+            throw HostInvalid("OnStart calls a non-method member.");
+        var name = walk.Reader.GetString(member.Name);
+        if (member.Parent.Kind == HandleKind.TypeDefinition)
+        {
+            var defined = walk.Reader.GetTypeDefinition((TypeDefinitionHandle)member.Parent);
+            var definedName = HostTypeName(walk.Reader, defined.Namespace, defined.Name);
+            WalkAuthorMethod(walk, new HostImage(walk.Reader, walk.Pe), FindSingleMethod(walk.Reader, definedName, name));
+            return;
+        }
+
+        if (member.Parent.Kind == HandleKind.TypeReference)
+        {
+            var type = walk.Reader.GetTypeReference((TypeReferenceHandle)member.Parent);
+            var parent = HostTypeName(walk.Reader, type.Namespace, type.Name);
+            if (string.Equals(parent, walk.InterfaceName, StringComparison.Ordinal))
+            {
+                if (!walk.Allowed.Contains(name)) throw HostInvalid(parent + "." + name);
+                return;
+            }
+
+            if (type.ResolutionScope.Kind == HandleKind.AssemblyReference)
+            {
+                var assembly = walk.Reader.GetAssemblyReference((AssemblyReferenceHandle)type.ResolutionScope);
+                var assemblyName = walk.Reader.GetString(assembly.Name);
+                if (walk.PrivateAssemblies.TryGetValue(assemblyName, out var target))
+                {
+                    WalkAuthorMethod(walk.With(target), target, FindSingleMethod(target.Reader, parent, name));
+                    return;
+                }
+            }
+
+            throw HostInvalid(parent + "." + name);
+        }
+
+        throw HostInvalid(HostParentName(walk.Reader, member.Parent) + "." + name);
+    }
+
+    private static void WalkAuthorMethod(HostWalk walk, HostImage image, MethodDefinition method)
+    {
+        var reader = image.Reader;
+        if (method.GetGenericParameters().Count != 0)
+            throw HostInvalid("OnStart calls a generic method.");
+        var type = reader.GetTypeDefinition(method.GetDeclaringType());
+        foreach (var handle in type.GetMethods())
+        {
+            if (reader.GetString(reader.GetMethodDefinition(handle).Name) == ".cctor")
+                throw HostInvalid("A called author type declares a type initializer.");
+        }
+
+        var typeName = HostTypeName(reader, type.Namespace, type.Name);
+        var methodName = reader.GetString(method.Name);
+        var assemblyName = reader.GetString(reader.GetAssemblyDefinition().Name);
+        if (!walk.Seen.Add(assemblyName + " " + typeName + " " + methodName)) return;
+        if (method.RelativeVirtualAddress == 0)
+            throw HostInvalid("OnStart calls a method with no managed body.");
+        var il = image.Pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()
+            ?? throw HostInvalid("OnStart has no IL.");
+        WalkHostCalls(walk.With(image), il);
+    }
+
+    private static MethodDefinition FindSingleMethod(MetadataReader reader, string typeFullName, string methodName)
+    {
+        MethodDefinition? found = null;
+        foreach (var handle in reader.TypeDefinitions)
+        {
+            var type = reader.GetTypeDefinition(handle);
+            if (!string.Equals(HostTypeName(reader, type.Namespace, type.Name), typeFullName, StringComparison.Ordinal)) continue;
+            foreach (var methodHandle in type.GetMethods())
+            {
+                var method = reader.GetMethodDefinition(methodHandle);
+                if (reader.GetString(method.Name) != methodName) continue;
+                if (found is not null) throw HostInvalid(typeFullName + "." + methodName + " is ambiguous.");
+                found = method;
+            }
+        }
+
+        return found ?? throw HostInvalid(typeFullName + "." + methodName);
+    }
+
+    private static string HostTypeName(MetadataReader reader, StringHandle namespaceName, StringHandle typeName)
+    {
+        var name = reader.GetString(namespaceName);
+        var type = reader.GetString(typeName);
+        return name.Length == 0 ? type : name + "." + type;
     }
 
     private static InvalidDataException HostInvalid(string detail)
@@ -55,9 +229,7 @@ public static partial class GameplayCapabilityPolicy
         {
             var definition = reader.GetTypeDefinition(handle);
             if (!definition.GetDeclaringType().IsNil) continue;
-            var name = reader.GetString(definition.Namespace);
-            var typeName = reader.GetString(definition.Name);
-            var full = name.Length == 0 ? typeName : name + "." + typeName;
+            var full = HostTypeName(reader, definition.Namespace, definition.Name);
             if (!string.Equals(full, entryType, StringComparison.Ordinal)) continue;
             if (found is not null) throw HostInvalid("The entry type is duplicated.");
             found = definition;
@@ -79,7 +251,6 @@ public static partial class GameplayCapabilityPolicy
 
         return found ?? throw HostInvalid("OnStart was not found.");
     }
-
 
     private static void RequireHostParameter(MetadataReader reader, MethodDefinition start, string interfaceFullName)
     {
@@ -107,54 +278,16 @@ public static partial class GameplayCapabilityPolicy
         if (tag == 1)
         {
             var type = reader.GetTypeReference(MetadataTokens.TypeReferenceHandle(row));
-            var ns = reader.GetString(type.Namespace);
-            var typeName = reader.GetString(type.Name);
-            return ns.Length == 0 ? typeName : ns + "." + typeName;
+            return HostTypeName(reader, type.Namespace, type.Name);
         }
 
         if (tag == 0)
         {
             var type = reader.GetTypeDefinition(MetadataTokens.TypeDefinitionHandle(row));
-            var ns = reader.GetString(type.Namespace);
-            var typeName = reader.GetString(type.Name);
-            return ns.Length == 0 ? typeName : ns + "." + typeName;
+            return HostTypeName(reader, type.Namespace, type.Name);
         }
 
         throw HostInvalid("OnStart parameter is not the host interface.");
-    }
-    private static void WalkHostCalls(MetadataReader reader, byte[] il, string interfaceFullName, HashSet<string> allowed)
-    {
-        var index = 0;
-        while (index < il.Length)
-        {
-            var operation = ReadHostOpCode(il, ref index);
-            if (operation.Value == OpCodes.Call.Value || operation.Value == OpCodes.Callvirt.Value)
-            {
-                CheckHostCall(reader, ReadHostInt32(il, ref index), interfaceFullName, allowed);
-            }
-            else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Newobj.Value || operation.Value == OpCodes.Jmp.Value)
-            {
-                throw HostInvalid("OnStart uses an unsupported call.");
-            }
-            else
-            {
-                SkipHostOperand(operation, il, ref index);
-            }
-        }
-    }
-
-    private static void CheckHostCall(MetadataReader reader, int token, string interfaceFullName, HashSet<string> allowed)
-    {
-        var handle = MetadataTokens.EntityHandle(token);
-        if (handle.Kind != HandleKind.MemberReference)
-            throw HostInvalid("OnStart calls a method that is not declared by the host interface.");
-        var member = reader.GetMemberReference((MemberReferenceHandle)handle);
-        if (member.GetKind() != MemberReferenceKind.Method)
-            throw HostInvalid("OnStart calls a non-method member.");
-        var name = reader.GetString(member.Name);
-        var parent = HostParentName(reader, member.Parent);
-        if (!string.Equals(parent, interfaceFullName, StringComparison.Ordinal) || !allowed.Contains(name))
-            throw HostInvalid(parent + "." + name);
     }
 
     private static string HostParentName(MetadataReader reader, EntityHandle parent)

@@ -468,3 +468,5 @@ On 2026-10-17 desktop runtime tests passed 99/99. HostContractSession rejects a 
 
 On 2026-10-17 desktop runtime tests passed 101/101. HostContractSession.Open loads a declared private assembly into the collectible context. OnStart may call a method on that assembly, and that method is checked before it runs. A private call to System.IO.File.ReadAllText is rejected, and the host method is not called. A framework assembly name is still rejected. The package validator still rejects an OnStart call that is not on the named interface. Its gameplay validation is unchanged. This is not an iOS result.
 
+
+On 2026-10-17 packaging tests passed 158/158. ValidateHostContract accepts an OnStart call to a method in the entry assembly or a declared private assembly, and checks that method before accepting it. A same-assembly helper and HostHelper.Math.AddOne are accepted. A private call to System.IO.File.ReadAllText is rejected, as is a private call whose assembly image was not supplied. PackageValidator passes declared private images into that check. Gameplay validation is unchanged. This is not an iOS result.

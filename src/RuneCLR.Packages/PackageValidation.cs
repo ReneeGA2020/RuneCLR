@@ -60,6 +60,7 @@ public static class PackageValidator
         long totalBytes = 0;
         var assemblies = new Dictionary<string, ManagedAssemblyInfo>(StringComparer.OrdinalIgnoreCase);
         var images = new List<byte[]>();
+        var bytesByPath = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         byte[]? entryBytes = null;
         foreach (var file in manifest.Files)
         {
@@ -76,6 +77,7 @@ public static class PackageValidator
             if (string.Equals(info.SimpleName, ContractName, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The shared host contract cannot be packaged as script code.");
             assemblies.Add(file.Path, info);
+            bytesByPath.Add(file.Path, bytes);
             if (file.Path == manifest.EntryAssembly) entryBytes = bytes;
         }
         foreach (var dependency in manifest.Dependencies)
@@ -93,7 +95,8 @@ public static class PackageValidator
                 manifest.AllowedMethods.Length == 0 || manifest.AllowedMethods.Any(string.IsNullOrWhiteSpace) ||
                 manifest.AllowedMethods.Distinct(StringComparer.Ordinal).Count() != manifest.AllowedMethods.Length)
                 throw new InvalidDataException("The host interface and allowed methods must both be present, nonempty and unique.");
-            GameplayCapabilityPolicy.ValidateHostContract(entryBytes!, manifest.EntryType, manifest.HostInterface, manifest.AllowedMethods);
+            var privateImages = manifest.Dependencies.Select(dependency => bytesByPath[dependency.Path]).ToArray();
+            GameplayCapabilityPolicy.ValidateHostContract(entryBytes!, manifest.EntryType, manifest.HostInterface, manifest.AllowedMethods, privateImages);
         }
         // Recompute the policy from actual IL at load time, not producer claims.
         var scriptIdentities = assemblies.Values.Select(info => info.AssemblyName).ToArray();
