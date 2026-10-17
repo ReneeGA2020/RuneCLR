@@ -1472,6 +1472,9 @@ On 2026-10-17 desktop runtime tests passed 119/119. HostContractSession rejects 
 
 On 2026-10-17 desktop runtime tests passed 121/121. A later host-and-int callback may call a declared private assembly. OnTick(40) echoes 41. string.IsNullOrEmpty inside that private method is rejected before OnStart, and Echo is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 123/123. A later host-and-int callback may construct a type declared in a private assembly. OnTick(41) echoes 41. string.IsNullOrEmpty inside that constructor is rejected before OnStart, and Echo is not called. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

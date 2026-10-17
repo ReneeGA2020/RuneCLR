@@ -492,3 +492,5 @@ On 2026-10-17 packaging tests passed 171/171. A later host-and-int callback may 
 On 2026-10-17 desktop runtime tests passed 119/119. HostContractSession rejects a supported later callback with a disallowed call before OnStart. An int callback, an int return, a host-and-int callback, and an unlisted host call all fail before Echo. A public method with an unsupported signature does not block OnStart. This is not an iOS result.
 
 On 2026-10-17 desktop runtime tests passed 121/121. A later host-and-int callback may call a declared private assembly. OnTick(40) echoes 41. string.IsNullOrEmpty inside that private method is rejected before OnStart, and Echo is not called. This is not an iOS result.
+
+On 2026-10-17 desktop runtime tests passed 123/123. A later host-and-int callback may construct a type declared in a private assembly. OnTick(41) echoes 41. string.IsNullOrEmpty inside that constructor is rejected before OnStart, and Echo is not called. This is not an iOS result.

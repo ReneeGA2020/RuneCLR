@@ -20,6 +20,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract allows an unsupported public method", OpenAllowsUnsupportedMethod);
         yield return ("Host contract runs a later callback into a private assembly", OpenLaterPrivateCallback);
         yield return ("Host contract rejects a later private BCL call before OnStart", OpenRejectsLaterPrivateCall);
+        yield return ("Host contract constructs a private type from a later callback", OpenLaterConstructsPrivateType);
+        yield return ("Host contract rejects a private constructor from a later callback before OnStart", OpenRejectsLaterPrivateConstructor);
         yield return ("Host contract rejects a bad int callback before OnStart", InvokeIntRejectsBcl);
         yield return ("Host contract Invoke without an int does not run an int callback", InvokeIntRequiresTheValue);
         yield return ("Host contract InvokeInt returns an int from a later callback", InvokeIntReturns);
@@ -168,6 +170,73 @@ internal static class HostContractSessionTests
         }
 
         Check(!reference.IsAlive, "The collectible context was still alive after Dispose.");
+    }
+
+    private static void OpenLaterConstructsPrivateType()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WritePrivateBox(library, "HostContract.LaterBox", foreignCtor: false);
+        WriteTickConstructsBox(entry, "HostContract.LaterBoxCaller", library, "HostContract.LaterBox.Box");
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.LaterBoxCaller.Script");
+        var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
+        Check(host.Calls.SequenceEqual([1]), "OnStart did not call Echo(1).");
+        session.Invoke("OnTick", 41);
+        Check(host.Calls.SequenceEqual([1, 41]), "The later constructor did not return 41.");
+        session.Dispose();
+    }
+
+    private static void OpenRejectsLaterPrivateConstructor()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WritePrivateBox(library, "HostContract.LaterForeignBox", foreignCtor: true);
+        WriteTickConstructsBox(entry, "HostContract.LaterForeignBoxCaller", library, "HostContract.LaterForeignBox.Box");
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.LaterForeignBoxCaller.Script");
+        var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.Count == 0, "OnStart ran despite the later constructor.");
+    }
+
+    private static void WriteTickConstructsBox(string path, string assemblyName, string libraryPath, string boxType)
+    {
+        var library = Assembly.Load(File.ReadAllBytes(libraryPath));
+        var box = library.GetType(boxType, throwOnError: true)!;
+        var ctor = box.GetConstructor(new[] { typeof(int) })!;
+        var get = box.GetMethod("Get")!;
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var startIl = start.GetILGenerator();
+        startIl.Emit(OpCodes.Ldarg_1);
+        startIl.Emit(OpCodes.Ldc_I4, 1);
+        startIl.Emit(OpCodes.Callvirt, echo);
+        startIl.Emit(OpCodes.Pop);
+        startIl.Emit(OpCodes.Ret);
+        var tick = type.DefineMethod("OnTick", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho), typeof(int) });
+        var tickIl = tick.GetILGenerator();
+        tickIl.Emit(OpCodes.Ldarg_1);
+        tickIl.Emit(OpCodes.Ldarg_2);
+        tickIl.Emit(OpCodes.Newobj, ctor);
+        tickIl.Emit(OpCodes.Call, get);
+        tickIl.Emit(OpCodes.Callvirt, echo);
+        tickIl.Emit(OpCodes.Pop);
+        tickIl.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void OpenLaterPrivateCallback()
