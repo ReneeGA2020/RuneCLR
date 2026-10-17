@@ -1370,6 +1370,8 @@ On 2026-10-17 desktop runtime tests passed 59/59 after rejecting a foreign OnSta
 
 On 2026-10-17 packaging tests passed 146/146 after adding ValidateHostContract. It reads the entry OnStart without loading the author assembly. A call to Echo on HostContract.IApi is accepted. Object.ToString is rejected before loading, and the message contains Capability profile and host contract member. Existing managed-il-gameplay-v1 validation is unchanged. PackageValidator.Validate does not call ValidateHostContract, so gameplay packages keep the prototype profile. IMapContext is not renamed. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 147/147 after also checking the OnStart parameter. The parameter type must be the named host interface. OnStart(object) is rejected before loading. Echo on HostContract.IApi still passes. PackageValidator.Validate is unchanged. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

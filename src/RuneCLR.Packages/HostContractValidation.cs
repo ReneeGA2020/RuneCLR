@@ -23,6 +23,7 @@ public static partial class GameplayCapabilityPolicy
             var reader = pe.GetMetadataReader(MetadataReaderOptions.None);
             var entry = FindHostEntry(reader, entryType);
             var start = FindHostOnStart(reader, entry);
+            RequireHostParameter(reader, start, interfaceFullName);
             if (start.RelativeVirtualAddress == 0)
                 throw HostInvalid("OnStart has no managed body.");
             var il = pe.GetMethodBody(start.RelativeVirtualAddress).GetILBytes()
@@ -79,6 +80,48 @@ public static partial class GameplayCapabilityPolicy
         return found ?? throw HostInvalid("OnStart was not found.");
     }
 
+
+    private static void RequireHostParameter(MetadataReader reader, MethodDefinition start, string interfaceFullName)
+    {
+        var blob = reader.GetBlobReader(start.Signature);
+        var header = blob.ReadSignatureHeader();
+        if (!header.IsInstance || header.IsGeneric)
+            throw HostInvalid("OnStart must be an instance method.");
+        if (blob.ReadCompressedInteger() != 1)
+            throw HostInvalid("OnStart must take exactly one parameter.");
+        if (blob.ReadCompressedInteger() != 0x01)
+            throw HostInvalid("OnStart must return void.");
+        var element = blob.ReadCompressedInteger();
+        if (element != 0x11 && element != 0x12)
+            throw HostInvalid("OnStart parameter is not the host interface.");
+        var coded = blob.ReadCompressedInteger();
+        var name = HostCodedTypeName(reader, coded);
+        if (!string.Equals(name, interfaceFullName, StringComparison.Ordinal))
+            throw HostInvalid("OnStart parameter is " + name + ".");
+    }
+
+    private static string HostCodedTypeName(MetadataReader reader, int coded)
+    {
+        var tag = coded & 0x3;
+        var row = coded >> 2;
+        if (tag == 1)
+        {
+            var type = reader.GetTypeReference(MetadataTokens.TypeReferenceHandle(row));
+            var ns = reader.GetString(type.Namespace);
+            var typeName = reader.GetString(type.Name);
+            return ns.Length == 0 ? typeName : ns + "." + typeName;
+        }
+
+        if (tag == 0)
+        {
+            var type = reader.GetTypeDefinition(MetadataTokens.TypeDefinitionHandle(row));
+            var ns = reader.GetString(type.Namespace);
+            var typeName = reader.GetString(type.Name);
+            return ns.Length == 0 ? typeName : ns + "." + typeName;
+        }
+
+        throw HostInvalid("OnStart parameter is not the host interface.");
+    }
     private static void WalkHostCalls(MetadataReader reader, byte[] il, string interfaceFullName, HashSet<string> allowed)
     {
         var index = 0;
