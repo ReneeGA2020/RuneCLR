@@ -50,6 +50,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package returns an int with the host", HostInterfaceReturnsHostAndInt);
         yield return ("Compiled host-contract package calls a private assembly from a later callback", HostInterfacePrivateCallback);
         yield return ("Compiled host-contract package lets a private assembly read MapId", HostInterfacePrivateReadsMapId);
+        yield return ("Imported host-contract IL lets a private assembly read MapId", HostInterfaceImportsPrivateMapId);
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a private assembly call the entry", HostInterfacePrivateCallsEntry);
         yield return ("Compiled host-contract package constructs an author type", HostInterfaceConstructsAuthorType);
@@ -928,6 +929,36 @@ internal static class PipelineCases
         Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
         Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsPrivateMapId()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedImportMap", """
+            using RuneCLR;
+            public static class SharedMap { public static string Id(IMapContext context) => context.MapId; }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log(SharedMap.Id(context)); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportPrivateMap", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, helper]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportPrivateMap.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportPrivateMap", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "get_MapId"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfaceImportsPrivate()

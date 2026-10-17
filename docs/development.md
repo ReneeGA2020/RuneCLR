@@ -1718,6 +1718,9 @@ On 2026-10-17 packaging tests passed 233/233. The operator CLI import command re
 On 2026-10-17 packaging tests passed 234/234. A compiled host-contract package can let a declared private assembly read MapId. OnStart passes the host to SharedMap.Id and logs fixture. Log and get_MapId are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 235/235. Imported host-contract IL can let a declared private assembly read MapId. The entry and SharedImportMap are submitted as IL, not compiled by PackageBuilder. OnStart passes the host to SharedMap.Id and logs fixture. Log and get_MapId are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
