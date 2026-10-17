@@ -165,8 +165,9 @@ public sealed class HostContractSession : IDisposable
             if (privateNames.Contains(info.SimpleName))
                 throw new InvalidDataException("Duplicate private dependency identity: " + info.SimpleName + ".");
             RequireApprovedReferences(info, contract, privateNames);
+            var authorNames = new HashSet<string>(privateNames, StringComparer.OrdinalIgnoreCase) { info.SimpleName };
             foreach (var image in privateAssemblies)
-                RequireApprovedReferences(ManagedAssemblyInspector.Inspect(image.Bytes), contract, privateNames);
+                RequireApprovedReferences(ManagedAssemblyInspector.Inspect(image.Bytes), contract, authorNames);
             images.Add(info.SimpleName, bytes);
             using var stream = new MemoryStream(bytes, writable: false);
             var assembly = _context.LoadFromStream(stream);
@@ -624,6 +625,12 @@ public sealed class HostContractSession : IDisposable
         {
             if (assemblyName.Name is not null && _private.TryGetValue(assemblyName.Name, out var bytes))
                 return LoadFromStream(new MemoryStream(bytes, writable: false));
+
+            foreach (var assembly in Assemblies)
+            {
+                if (string.Equals(assembly.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase))
+                    return assembly;
+            }
 
             foreach (var assembly in Default.Assemblies)
             {

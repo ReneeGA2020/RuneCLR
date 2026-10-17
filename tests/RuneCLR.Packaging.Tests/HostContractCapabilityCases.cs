@@ -13,6 +13,8 @@ internal static class HostContractCapabilityCases
         yield return ("Host contract allows a declared private helper", PrivateHelper);
         yield return ("Host contract rejects a private helper call outside the interface", PrivateHelperRejectsFile);
         yield return ("Host contract rejects a private helper that was not supplied", PrivateHelperRequiresImage);
+        yield return ("Host contract allows a private helper to call the entry", PrivateHelperCallsEntry);
+        yield return ("Host contract rejects a BCL call reached through the entry", PrivateHelperEntryRejectsBcl);
     }
 
     private static void EchoApproved() =>
@@ -55,6 +57,54 @@ internal static class HostContractCapabilityCases
             GameplayCapabilityPolicy.ValidateHostContract(script, "Script", "HostContract.IApi", ["Echo"], [helper]));
         Check.Assert(error.Message.Contains("host contract member", StringComparison.Ordinal)
             && error.Message.Contains("ReadAllText", StringComparison.Ordinal), error.Message);
+    }
+
+
+    private static void PrivateHelperCallsEntry() =>
+        GameplayCapabilityPolicy.ValidateHostContract(CompileMutual(false).Script, "Script", "HostContract.IApi", ["Echo"], [CompileMutual(false).Helper]);
+
+    private static void PrivateHelperEntryRejectsBcl()
+    {
+        var built = CompileMutual(true);
+        var error = Check.Throws<InvalidDataException>(() =>
+            GameplayCapabilityPolicy.ValidateHostContract(built.Script, "Script", "HostContract.IApi", ["Echo"], [built.Helper]));
+        Check.Assert(error.Message.Contains("host contract member", StringComparison.Ordinal)
+            && error.Message.Contains("IsNullOrEmpty", StringComparison.Ordinal), error.Message);
+    }
+
+    private static (byte[] Script, byte[] Helper) CompileMutual(bool foreignEntry)
+    {
+        using var directory = new TempDirectory();
+        var contract = SourceCompiler.Compile("HostContract", [new("Contract.cs",
+            "namespace HostContract { public interface IApi { int Echo(int value); } }")],
+            CompilerFixture.ApprovedReferences());
+        Check.Assert(contract.Succeeded && contract.Assembly is not null, "Host contract did not compile.");
+        var contractPath = Path.Combine(directory.Path, "HostContract.dll");
+        File.WriteAllBytes(contractPath, contract.Assembly!);
+        var references = CompilerFixture.ApprovedReferences();
+        var first = SourceCompiler.Compile("HostScript", [new("Script.cs",
+            "public sealed class Script { public static int Adjust(int value) => value; public void OnStart(HostContract.IApi api) { api.Echo(Adjust(1)); } }")],
+            references.Concat([contractPath]).ToArray());
+        Check.Assert(first.Succeeded && first.Assembly is not null,
+            "Entry did not compile: " + string.Join("; ", first.Diagnostics.Select(item => item.Message)));
+        var firstPath = Path.Combine(directory.Path, "HostScript.dll");
+        File.WriteAllBytes(firstPath, first.Assembly!);
+        var helper = SourceCompiler.Compile("HostHelper", [new("Helper.cs",
+            "public static class Math { public static int AddOne(int value) => Script.Adjust(value) + 1; }")],
+            references.Concat([firstPath]).ToArray());
+        Check.Assert(helper.Succeeded && helper.Assembly is not null,
+            "Helper did not compile: " + string.Join("; ", helper.Diagnostics.Select(item => item.Message)));
+        var helperPath = Path.Combine(directory.Path, "HostHelper.dll");
+        File.WriteAllBytes(helperPath, helper.Assembly!);
+        var adjust = foreignEntry
+            ? "public static int Adjust(int value) { _ = string.IsNullOrEmpty(\"x\"); return value; }"
+            : "public static int Adjust(int value) => value;";
+        var second = SourceCompiler.Compile("HostScript", [new("Script.cs",
+            "public sealed class Script { " + adjust + " public void OnStart(HostContract.IApi api) { api.Echo(Math.AddOne(40)); } }")],
+            references.Concat([contractPath, helperPath]).ToArray());
+        Check.Assert(second.Succeeded && second.Assembly is not null,
+            "Callback entry did not compile: " + string.Join("; ", second.Diagnostics.Select(item => item.Message)));
+        return (second.Assembly!, helper.Assembly!);
     }
 
     private static void PrivateHelperRequiresImage()

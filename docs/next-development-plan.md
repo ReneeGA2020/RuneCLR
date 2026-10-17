@@ -470,3 +470,5 @@ On 2026-10-17 desktop runtime tests passed 101/101. HostContractSession.Open loa
 
 
 On 2026-10-17 packaging tests passed 158/158. ValidateHostContract accepts an OnStart call to a method in the entry assembly or a declared private assembly, and checks that method before accepting it. A same-assembly helper and HostHelper.Math.AddOne are accepted. A private call to System.IO.File.ReadAllText is rejected, as is a private call whose assembly image was not supplied. PackageValidator passes declared private images into that check. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 desktop runtime tests passed 103/103 and packaging tests passed 160/160. A declared private method may call a method on the entry assembly, and that entry method is checked before it runs. The callback returns 41 to the host. string.IsNullOrEmpty reached through the entry method is rejected, and the host method is not called. Gameplay validation is unchanged. This is not an iOS result.

@@ -50,7 +50,8 @@ public static partial class GameplayCapabilityPolicy
                 throw HostInvalid("OnStart has no managed body.");
             var il = entryPe.GetMethodBody(startMethod.RelativeVirtualAddress).GetILBytes()
                 ?? throw HostInvalid("OnStart has no IL.");
-            var walk = new HostWalk(entryReader, entryPe, interfaceFullName, allowed, privateAssemblies);
+            var entryImage = new HostImage(entryReader, entryPe);
+            var walk = new HostWalk(entryReader, entryPe, interfaceFullName, allowed, privateAssemblies, entryImage, entryName);
             walk.Seen.Add(entryName + " " + entryType + " OnStart");
             WalkHostCalls(walk, il);
         }
@@ -74,13 +75,15 @@ public static partial class GameplayCapabilityPolicy
     private sealed class HostWalk
     {
         public HostWalk(MetadataReader reader, PEReader pe, string interfaceName, HashSet<string> allowed,
-            Dictionary<string, HostImage> privateAssemblies, HashSet<string>? seen = null)
+            Dictionary<string, HostImage> privateAssemblies, HostImage entryImage, string entryAssemblyName, HashSet<string>? seen = null)
         {
             Reader = reader;
             Pe = pe;
             InterfaceName = interfaceName;
             Allowed = allowed;
             PrivateAssemblies = privateAssemblies;
+            EntryImage = entryImage;
+            EntryAssemblyName = entryAssemblyName;
             Seen = seen ?? new HashSet<string>(StringComparer.Ordinal);
         }
 
@@ -89,10 +92,12 @@ public static partial class GameplayCapabilityPolicy
         public string InterfaceName { get; }
         public HashSet<string> Allowed { get; }
         public Dictionary<string, HostImage> PrivateAssemblies { get; }
+        public HostImage EntryImage { get; }
+        public string EntryAssemblyName { get; }
         public HashSet<string> Seen { get; }
 
         public HostWalk With(HostImage image) =>
-            new(image.Reader, image.Pe, InterfaceName, Allowed, PrivateAssemblies, Seen);
+            new(image.Reader, image.Pe, InterfaceName, Allowed, PrivateAssemblies, EntryImage, EntryAssemblyName, Seen);
     }
 
     private static PEReader OpenHostImage(ReadOnlyMemory<byte> image) =>
@@ -156,6 +161,12 @@ public static partial class GameplayCapabilityPolicy
                 if (walk.PrivateAssemblies.TryGetValue(assemblyName, out var target))
                 {
                     WalkAuthorMethod(walk.With(target), target, FindSingleMethod(target.Reader, parent, name));
+                    return;
+                }
+
+                if (string.Equals(assemblyName, walk.EntryAssemblyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    WalkAuthorMethod(walk.With(walk.EntryImage), walk.EntryImage, FindSingleMethod(walk.EntryImage.Reader, parent, name));
                     return;
                 }
             }
