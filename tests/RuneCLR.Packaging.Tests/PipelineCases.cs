@@ -68,6 +68,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects an unknown option", OperatorCliRejectsUnknownOption);
         yield return ("Operator CLI rejects a compiler error", OperatorCliRejectsCompileError);
         yield return ("Operator CLI rejects a file that is not an assembly", OperatorCliRejectsBadImport);
+        yield return ("Operator CLI rejects a missing entry type", OperatorCliRejectsMissingEntry);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -957,6 +958,27 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("Malformed managed assembly", StringComparison.Ordinal), stdout + stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(!Directory.Exists(output), "A bad import published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void OperatorCliRejectsMissingEntry()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostCliMissingEntry", [new("Other.cs", "public sealed class OtherScript { }\n")],
+            CompilerFixture.ApprovedReferences().ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var assembly = Path.Combine(temp.Path, "HostCliMissingEntry.dll");
+        File.WriteAllBytes(assembly, compiled.Assembly!);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "import", "--assembly", assembly, "--id", "HostCliMissingEntry", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext", "--allowed-method", "Log");
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("GameScript", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("was not found", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(!Directory.Exists(output), "A missing entry type published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 

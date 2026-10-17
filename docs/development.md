@@ -1634,6 +1634,9 @@ On 2026-10-17 packaging tests passed 205/205. The operator CLI compile command r
 On 2026-10-17 packaging tests passed 206/206. The operator CLI import command rejects a file that is not a managed assembly. The process exits 2. The error says the image is a malformed managed assembly. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 207/207. The operator CLI import command rejects an assembly that does not define GameScript. The process exits 2. The error says that entry type was not found. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
