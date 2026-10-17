@@ -179,6 +179,9 @@ public sealed class HostContractSession : IDisposable
         var constructors = entry.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
         if (constructors.Length != 1 || constructors[0].GetParameters().Length != 0)
             throw new InvalidOperationException("The script entry must have exactly one public parameterless constructor.");
+        if (entry.TypeInitializer is not null)
+            throw new InvalidOperationException("The script entry must not declare a type initializer.");
+        RequireOnlyObjectConstructor(constructors[0]);
 
         var starts = entry.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(method => method.Name == "OnStart")
@@ -190,6 +193,39 @@ public sealed class HostContractSession : IDisposable
         if (parameters.Length != 1 || parameters[0].ParameterType != contract)
             throw new InvalidOperationException("OnStart must take exactly one parameter of the host contract interface.");
         return starts[0];
+    }
+
+    private static void RequireOnlyObjectConstructor(ConstructorInfo constructor)
+    {
+        const string failure = "The script constructor calls a method that is not Object..ctor.";
+        var body = constructor.GetMethodBody() ?? throw new InvalidOperationException(failure);
+        var il = body.GetILAsByteArray() ?? throw new InvalidOperationException(failure);
+        var index = 0;
+        var sawBase = false;
+        while (index < il.Length)
+        {
+            var operation = ReadOpCode(il, ref index, failure);
+            if (operation.Value == OpCodes.Call.Value || operation.Value == OpCodes.Callvirt.Value)
+            {
+                var token = ReadInt32(il, ref index, failure);
+                MethodBase? called;
+                try { called = constructor.Module.ResolveMethod(token); }
+                catch (ArgumentException) { called = null; }
+                if (called?.DeclaringType != typeof(object) || called.Name != ".ctor")
+                    throw new InvalidOperationException(failure);
+                sawBase = true;
+            }
+            else if (operation.Value == OpCodes.Newobj.Value || operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Jmp.Value)
+            {
+                throw new InvalidOperationException(failure);
+            }
+            else
+            {
+                SkipOperand(operation, il, ref index, failure);
+            }
+        }
+
+        if (!sawBase) throw new InvalidOperationException(failure);
     }
 
     private static void RequireContractCalls(MethodInfo method, Type contract, HashSet<string> allowedMethods, string failure)

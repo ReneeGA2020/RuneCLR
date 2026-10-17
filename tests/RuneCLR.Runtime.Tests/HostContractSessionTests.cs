@@ -21,6 +21,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open uses the manifest allow list", OpenUsesManifest);
         yield return ("Host contract Open rejects a call outside the manifest allow list", OpenRejectsUnlisted);
         yield return ("Host contract Open rejects a different host interface", OpenRejectsInterface);
+        yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
+        yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
     }
 
     private static void EchoAndUnload()
@@ -283,6 +285,86 @@ internal static class HostContractSessionTests
         var path = Path.Combine(directory, PackageFormat.ManifestFileName);
         PackageManifestIO.Write(path, manifest);
         return path;
+    }
+
+    private static void RejectTypeInitializer()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "initializer.dll");
+        WriteInitializer(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.InitializerScript.Script", ["Echo"]));
+        Check(error.Message.Contains("type initializer", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The type initializer ran.");
+    }
+
+    private static void RejectConstructorCall()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "constructor.dll");
+        WriteExtraConstructorCall(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.ConstructorScript.Script", ["Echo"]));
+        Check(error.Message.Contains("Object..ctor", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The extra constructor call ran.");
+    }
+
+    private static void WriteInitializer(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.InitializerScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.InitializerScript");
+        var type = module.DefineType("HostContract.InitializerScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var initializer = type.DefineConstructor(MethodAttributes.Private | MethodAttributes.Static, CallingConventions.Standard, Type.EmptyTypes);
+        var initializerIl = initializer.GetILGenerator();
+        initializerIl.Emit(OpCodes.Ldstr, "initializer-ran");
+        initializerIl.Emit(OpCodes.Newobj, typeof(InvalidOperationException).GetConstructor(new[] { typeof(string) })!);
+        initializerIl.Emit(OpCodes.Throw);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void WriteExtraConstructorCall(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.ConstructorScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.ConstructorScript");
+        var type = module.DefineType("HostContract.ConstructorScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Callvirt, typeof(object).GetMethod(nameof(object.ToString), Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Pop);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void RejectUnlistedInterfaceMethod()

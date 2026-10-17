@@ -1392,6 +1392,8 @@ On 2026-10-17 desktop runtime tests passed 66/66. After a host-contract callback
 
 On 2026-10-17 desktop runtime tests passed 69/69. HostContractSession.Open reads hostInterface and allowedMethods from package.json. It checks the content hash and the entry file hash, then uses that method list for OnStart. It does not run the managed-il-gameplay-v1 profile. A different interface name is rejected before the author runs. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 71/71. HostContractSession rejects a type initializer before creating the script. An instance constructor may call only Object..ctor. Both checks happen before OnStart, and the host method is not called. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
