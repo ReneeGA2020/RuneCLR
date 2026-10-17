@@ -92,6 +92,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a file that is not an assembly", OperatorCliRejectsBadImport);
         yield return ("Operator CLI rejects a missing entry type", OperatorCliRejectsMissingEntry);
         yield return ("Operator CLI reads MapId from OnStart", OperatorCliReadsMapId);
+        yield return ("Operator CLI imports a MapId read", OperatorCliImportsMapId);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -1502,6 +1503,27 @@ internal static class PipelineCases
         var output = Path.Combine(temp.Path, "package");
         var (exit, stdout, stderr) = RunPackageTool(
             "compile", "--source", source, "--id", "HostCliMap", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log", "--allowed-method", "get_MapId");
+        Check.Assert(exit == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal), "Package tool exited " + exit + ". " + stdout + stderr);
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
+    }
+
+    private static void OperatorCliImportsMapId()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostCliImportMap", [new("GameScript.cs", OnStartMapIdScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostCliImportMap.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "import", "--assembly", dll, "--id", "HostCliImportMap", "--entry-type", "GameScript",
             "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
             "--output", output, "--host-interface", "RuneCLR.IMapContext",
             "--allowed-method", "Log", "--allowed-method", "get_MapId");
