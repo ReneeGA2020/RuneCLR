@@ -135,6 +135,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects an entry path segment that ends with a dot", OperatorCliRejectsDottedPath);
         yield return ("Operator CLI rejects an entry that is not a DLL", OperatorCliRejectsNonDllEntry);
         yield return ("Operator CLI rejects a file list that omits the entry", OperatorCliRejectsUnlistedEntry);
+        yield return ("Operator CLI rejects an entry hash that disagrees with the file list", OperatorCliRejectsMismatchedFileHash);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2803,6 +2804,31 @@ internal static class PipelineCases
             "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
         var manifest = PackageManifestIO.Read(build.ManifestPath!);
         manifest = manifest with { Files = [new PackageFile("other.dll", manifest.EntrySha256)] };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("exactly match the entry", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsMismatchedFileHash()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliHash", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var hash = manifest.EntrySha256.StartsWith('a') ? new string('b', 64) : new string('a', 64);
+        manifest = manifest with
+        {
+            Files = manifest.Files.Select(file => file.Path == manifest.EntryAssembly ? file with { Sha256 = hash } : file).ToArray()
+        };
         manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
         PackageManifestIO.Write(build.ManifestPath!, manifest);
         var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
