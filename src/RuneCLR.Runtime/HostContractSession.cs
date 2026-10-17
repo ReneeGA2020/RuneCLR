@@ -32,6 +32,10 @@ public sealed class HostContractSession : IDisposable
             manifest.ApiVersion != PackageFormat.CurrentApiVersion ||
             manifest.InputProfile != PackageFormat.InputProfile)
             throw new InvalidDataException("Unsupported package format, API version or input profile.");
+        if (manifest.Producer is null || manifest.Producer.InputKind is not ("source" or "il"))
+            throw new InvalidDataException(manifest.Producer is null
+                ? "The package requires bounded files, dependencies and producer metadata."
+                : "Unsupported producer input kind.");
         if (!string.Equals(PackageManifestIO.ComputeContentSha256(manifest), manifest.ContentSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The package content identity does not match the manifest.");
         if (string.IsNullOrWhiteSpace(manifest.HostInterface) || manifest.AllowedMethods is null ||
