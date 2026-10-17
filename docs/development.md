@@ -1784,6 +1784,9 @@ On 2026-10-17 packaging tests passed 255/255. Imported host-contract IL can retu
 On 2026-10-17 packaging tests passed 256/256. The operator CLI compile command accepts two --dependency arguments. OnStart logs ok and passes the host through First.Through to Second.Note, which logs from-second. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 257/257. The operator CLI import command accepts two --dependency arguments. The assemblies are submitted as IL, not compiled by the package tool. OnStart logs ok and passes the host through First.Through to Second.Note, which logs from-second. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
