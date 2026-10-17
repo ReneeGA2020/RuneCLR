@@ -36,6 +36,7 @@ internal static class PipelineCases
         yield return ("Package build requires both host interface fields", HostInterfacePairRequired);
         yield return ("Compiled host-contract package opens and runs OnStart", HostInterfaceSession);
         yield return ("Compiled host-contract package charges from OnStart", HostInterfaceOnStartCharges);
+        yield return ("Compiled host-contract package destroys an entity from OnStart", HostInterfaceOnStartDestroys);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
         yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
@@ -141,6 +142,35 @@ internal static class PipelineCases
         var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Charged == 7, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private const string OnStartDestroyScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            public void OnStart(IMapContext context)
+            {
+                context.Log("ok");
+                var id = context.SpawnEntity("fixture");
+                context.DestroyEntity(id);
+            }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+        }
+        """;
+
+    private static void HostInterfaceOnStartDestroys()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostDestroy", "GameScript", [new("GameScript.cs", OnStartDestroyScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+        Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
@@ -1544,7 +1574,8 @@ internal static class PipelineCases
         public string? Spawned { get; private set; }
         public string MapId => "fixture";
         public EntityId SpawnEntity(string name) { Spawned = name; return new EntityId(1); }
-        public void DestroyEntity(EntityId entity) { }
+        public EntityId? Destroyed { get; private set; }
+        public void DestroyEntity(EntityId entity) { Destroyed = entity; }
         public void Log(string message) => Logs.Add(message);
         public int? Charged { get; private set; }
         public void Charge(int operations = 1) { Charged = operations; }

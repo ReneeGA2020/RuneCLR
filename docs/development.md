@@ -1673,6 +1673,9 @@ On 2026-10-17 packaging tests passed 218/218. A compiled host-contract package c
 On 2026-10-17 packaging tests passed 219/219. Imported host-contract IL can call Charge from OnStart. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok and charges 7. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 220/220. A compiled host-contract package can spawn and destroy an entity from OnStart. OnStart logs ok, spawns fixture, and destroys that entity. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
