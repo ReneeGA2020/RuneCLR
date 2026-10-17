@@ -1840,6 +1840,8 @@ On 2026-10-17 packaging tests passed 283/283. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 284/284. The operator CLI validate command accepts a source host-contract package, then rejects it after the producer compiler identities are removed and the content hash is recomputed. The error names Producer compiler identities are required. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 285/285. The operator CLI validate command accepts a source host-contract package, then rejects it after the producer compiler list is two copies of the first compiler identity and the content hash is recomputed. The error names Duplicate producer compiler input name. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
