@@ -1724,6 +1724,9 @@ On 2026-10-17 packaging tests passed 235/235. Imported host-contract IL can let 
 On 2026-10-17 packaging tests passed 236/236. A compiled host-contract package can let a declared private assembly call Charge. OnStart logs ok and passes the host to SharedBill.Bill, which charges 7. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 237/237. Imported host-contract IL can let a declared private assembly call Charge. The entry and SharedImportBill are submitted as IL, not compiled by PackageBuilder. OnStart logs ok and passes the host to SharedBill.Bill, which charges 7. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
