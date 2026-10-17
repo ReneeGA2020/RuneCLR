@@ -42,6 +42,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets a private assembly call the entry", HostInterfacePrivateCallsEntry);
         yield return ("Compiled host-contract package constructs an author type", HostInterfaceConstructsAuthorType);
         yield return ("Compiled host-contract package rejects a framework constructor", HostInterfaceRejectsFrameworkNew);
+        yield return ("Compiled host-contract package constructs a private assembly type", HostInterfaceConstructsPrivateType);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -300,6 +301,38 @@ internal static class PipelineCases
         Check.Assert(error.Message.Contains("Report", StringComparison.Ordinal), error.Message);
         Check.Assert(error.Message.Contains("InvalidOperationException..ctor", StringComparison.Ordinal), error.Message);
         Check.Assert(!Directory.Exists(output), "A rejected framework constructor published a package.");
+    }
+
+    private static void HostInterfaceConstructsPrivateType()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedBox", """
+            public sealed class Box
+            {
+                private readonly int value;
+                public Box(int value) { this.value = value; }
+                public int Get() => value;
+            }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public int Measure(int value) => new Box(value).Get();
+            }
+            """;
+        var build = PackageBuilder.Compile("HostPrivateBox", "GameScript", [new("GameScript.cs", script)], Profile(),
+            Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 41);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
 
