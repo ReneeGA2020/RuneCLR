@@ -61,6 +61,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL lets a private assembly read MapId", HostInterfaceImportsPrivateMapId);
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a second private assembly log", HostInterfacePrivateChainLogs);
+        yield return ("Compiled host-contract package lets a second private assembly read MapId", HostInterfacePrivateChainReadsMapId);
         yield return ("Compiled host-contract package rejects a second private spawn", HostInterfacePrivateChainRejectsSpawn);
         yield return ("Imported host-contract IL rejects a second private spawn", HostInterfaceImportsPrivateChainRejectsSpawn);
         yield return ("Imported host-contract IL lets a second private assembly log", HostInterfaceImportsPrivateChainLogs);
@@ -710,6 +711,35 @@ internal static class PipelineCases
         Check.Assert(error.Message.Contains("SpawnEntity", StringComparison.Ordinal), error.Message);
         Check.Assert(!Directory.Exists(output), "An unlisted private spawn published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void HostInterfacePrivateChainReadsMapId()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedIdSecond", """
+            using RuneCLR;
+            public static class Second { public static string Id(IMapContext context) => context.MapId; }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedIdFirst", """
+            using RuneCLR;
+            public static class First { public static string Through(IMapContext context) => Second.Id(context); }
+            """, [second]);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log(First.Through(context)); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var build = PackageBuilder.Compile("HostChainMap", "GameScript", [new("GameScript.cs", script)], Profile(),
+            Path.Combine(temp.Path, "package"), [first, second], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "get_MapId"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfacePrivateCallsEntry()

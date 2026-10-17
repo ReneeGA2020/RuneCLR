@@ -682,3 +682,5 @@ On 2026-10-17 packaging tests passed 245/245. Imported host-contract IL can pass
 On 2026-10-17 packaging tests passed 246/246. A compiled host-contract package rejects a second private assembly that calls SpawnEntity when only Log is allowed. The error names OnStart and SpawnEntity. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 247/247. Imported host-contract IL rejects a second private assembly that calls SpawnEntity when only Log is allowed. The assemblies are submitted as IL, not compiled by PackageBuilder. The error names OnStart and SpawnEntity. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 packaging tests passed 248/248. A compiled host-contract package can let a second private assembly read MapId. OnStart passes the host through First.Through to Second.Id and logs fixture. Log and get_MapId are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
