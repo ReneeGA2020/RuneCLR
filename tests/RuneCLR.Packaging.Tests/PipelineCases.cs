@@ -124,6 +124,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a linked package file", OperatorCliRejectsPackageLink);
         yield return ("Operator CLI rejects a deeply nested package", OperatorCliRejectsPackageNesting);
         yield return ("Operator CLI rejects a spoofed entry assembly", OperatorCliRejectsSpoofedEntry);
+        yield return ("Operator CLI rejects an oversized entry", OperatorCliRejectsOversizedEntry);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2562,6 +2563,27 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("System.IO", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(entryPath), "Validate removed the spoofed entry.");
+    }
+
+
+    private static void OperatorCliRejectsOversizedEntry()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliSize", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var entryPath = Path.Combine(Path.GetDirectoryName(build.ManifestPath!)!, manifest.EntryAssembly);
+        using (var stream = new FileStream(entryPath, FileMode.Open, FileAccess.Write, FileShare.None))
+            stream.SetLength(PackageValidator.MaximumAssemblyBytes + 1);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("size limits", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(new FileInfo(entryPath).Length == PackageValidator.MaximumAssemblyBytes + 1, "Validate changed the oversized entry.");
     }
 
 
