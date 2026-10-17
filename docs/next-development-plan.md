@@ -385,3 +385,6 @@ On 2026-10-17 the project owner set the host API shape. The game supplies a shar
 
 On 2026-10-17 packaging tests passed 154/154. PackageBuilder and RuneCLR.PackageTool write hostInterface and allowedMethods when both are supplied. Loading then checks OnStart against that interface and those method names. A build that supplies only one of them is rejected. Omitting both leaves ordinary gameplay manifests unchanged, because the OnStart check still rejects calls that are not on the named interface. Allowed methods remain simple names. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 62/62. HostContractSession.Invoke runs one later public parameterless void method on the same script instance. Its IL is checked before that method runs, using the host interface and allowed method names from construction. An unlisted call does not run, and the earlier Echo remains. Dispose drops the script reference, and a later Invoke throws ObjectDisposedException. The collectible context unloads. This is not an iOS result.
+

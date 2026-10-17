@@ -10,6 +10,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects an OnStart parameter that is not the host interface", RejectWrongParameter);
         yield return ("Host contract rejects an OnStart call that is not a host contract member", RejectForeignCall);
         yield return ("Host contract rejects an interface method that is not allowed", RejectUnlistedInterfaceMethod);
+        yield return ("Host contract Invoke runs a later callback on the same session", InvokeLaterCallback);
+        yield return ("Host contract Invoke rejects an unlisted later call before it runs", InvokeRejectsUnlisted);
     }
 
     private static void EchoAndUnload()
@@ -79,6 +81,51 @@ internal static class HostContractSessionTests
     }
 
 
+    private static void InvokeLaterCallback()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "later.dll");
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        WriteStartAndLater(path, "HostContract.LaterScript", echo, 1, 2);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.LaterScript.Script", ["Echo"]);
+        Check(host.Calls.SequenceEqual([1]), "OnStart did not call Echo(1).");
+        session.Invoke("OnTick");
+        Check(host.Calls.SequenceEqual([1, 2]), "OnTick did not call Echo(2) after Echo(1).");
+        var reference = session.ContextReference;
+        session.Dispose();
+        var disposed = CheckThrows<ObjectDisposedException>(() => session.Invoke("OnTick"));
+        Check(disposed.ObjectName == nameof(HostContractSession), disposed.Message);
+        for (var attempt = 0; attempt < 10 && reference.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        Check(!reference.IsAlive, "The collectible context was still alive after Dispose.");
+    }
+
+    private static void InvokeRejectsUnlisted()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "later-other.dll");
+        var other = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Other))!;
+        WriteStartAndLater(path, "HostContract.LaterOtherScript", other, 1, 5);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.LaterOtherScript.Script", ["Echo"]);
+        try
+        {
+            var error = CheckThrows<InvalidOperationException>(() => session.Invoke("OnTick"));
+            Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+            Check(host.Calls.SequenceEqual([1]) && host.OtherSeen is null, "The unlisted callback ran.");
+        }
+        finally
+        {
+            session.Dispose();
+        }
+    }
+
     private static void RejectUnlistedInterfaceMethod()
     {
         var host = new RecordingEcho();
@@ -90,6 +137,43 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null && host.OtherSeen is null, "The author method was called.");
     }
+    private static void WriteStartAndLater(string path, string assemblyName, MethodInfo later, int startValue, int laterValue)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var field = type.DefineField("host", typeof(IHostEcho), FieldAttributes.Private);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var startIl = start.GetILGenerator();
+        startIl.Emit(OpCodes.Ldarg_0);
+        startIl.Emit(OpCodes.Ldarg_1);
+        startIl.Emit(OpCodes.Stfld, field);
+        startIl.Emit(OpCodes.Ldarg_0);
+        startIl.Emit(OpCodes.Ldfld, field);
+        startIl.Emit(OpCodes.Ldc_I4, startValue);
+        startIl.Emit(OpCodes.Callvirt, echo);
+        startIl.Emit(OpCodes.Pop);
+        startIl.Emit(OpCodes.Ret);
+        var tick = type.DefineMethod("OnTick", MethodAttributes.Public, typeof(void), Type.EmptyTypes);
+        var tickIl = tick.GetILGenerator();
+        tickIl.Emit(OpCodes.Ldarg_0);
+        tickIl.Emit(OpCodes.Ldfld, field);
+        tickIl.Emit(OpCodes.Ldc_I4, laterValue);
+        tickIl.Emit(OpCodes.Callvirt, later);
+        tickIl.Emit(OpCodes.Pop);
+        tickIl.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
     private static void WriteEchoAndForeignCall(string path)
     {
         var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
@@ -187,9 +271,12 @@ sealed class RecordingEcho : IHostEcho
 
     public int? OtherSeen { get; private set; }
 
+    public List<int> Calls { get; } = [];
+
     public int Echo(int value)
     {
         Seen = value;
+        Calls.Add(value);
         return value;
     }
 
