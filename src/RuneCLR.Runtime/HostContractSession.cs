@@ -237,6 +237,7 @@ public sealed class HostContractSession : IDisposable
         while (index < il.Length)
         {
             var operation = ReadOpCode(il, ref index, failure);
+            RejectUnsafe(operation);
             if (operation.Value == OpCodes.Call.Value || operation.Value == OpCodes.Callvirt.Value)
             {
                 var token = ReadInt32(il, ref index, failure);
@@ -268,6 +269,7 @@ public sealed class HostContractSession : IDisposable
         while (index < il.Length)
         {
             var operation = ReadOpCode(il, ref index, failure);
+            RejectUnsafe(operation);
             if (operation.Value == OpCodes.Call.Value || operation.Value == OpCodes.Callvirt.Value)
             {
                 var token = ReadInt32(il, ref index, failure);
@@ -286,6 +288,16 @@ public sealed class HostContractSession : IDisposable
                 SkipOperand(operation, il, ref index, failure);
             }
         }
+    }
+
+    private static void RejectUnsafe(OpCode operation)
+    {
+        var name = operation.Name ?? string.Empty;
+        if (operation.Value == OpCodes.Localloc.Value || operation.Value == OpCodes.Cpblk.Value ||
+            operation.Value == OpCodes.Initblk.Value ||
+            name.StartsWith("ldind.", StringComparison.Ordinal) ||
+            name.StartsWith("stind.", StringComparison.Ordinal))
+            throw new InvalidOperationException("Unsafe IL is unsupported.");
     }
 
     private static OpCode ReadOpCode(byte[] il, ref int index, string failure)

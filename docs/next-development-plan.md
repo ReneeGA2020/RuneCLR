@@ -415,3 +415,6 @@ On 2026-10-17 desktop runtime tests passed 73/73. HostContractSession rejects an
 
 On 2026-10-17 desktop runtime tests passed 74/74. HostContractSession allows references only to System.Runtime, System.Private.CoreLib, netstandard, and the assembly that declares the host contract. A reference to RuneCLR.Packages is rejected before the host method runs. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 75/75. HostContractSession rejects localloc, cpblk, initblk, ldind, and stind in OnStart, a later callback, and the instance constructor. The host method is not called. This is not an iOS result.
+
