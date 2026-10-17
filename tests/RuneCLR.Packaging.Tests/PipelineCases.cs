@@ -36,6 +36,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package opens and runs OnStart", HostInterfaceSession);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
+        yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -122,6 +123,31 @@ internal static class PipelineCases
         var result = session.InvokeInt("Measure", 40);
         session.Dispose();
         Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private const string HostAndIntScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            public void OnStart(IMapContext context) { context.Log("ok"); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+            public void Report(IMapContext context, int value) { context.Charge(value); }
+        }
+        """;
+
+    private static void HostInterfacePassesHostAndInt()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostAndInt", "GameScript", [new("GameScript.cs", HostAndIntScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "Charge"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Invoke("Report", 41);
+        session.Dispose();
+        Check.Assert(host.Charged == 41, "Charge received " + host.Charged + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
@@ -356,7 +382,8 @@ internal static class PipelineCases
         public EntityId SpawnEntity(string name) { Spawned = name; return new EntityId(1); }
         public void DestroyEntity(EntityId entity) { }
         public void Log(string message) => Logs.Add(message);
-        public void Charge(int operations = 1) { }
+        public int? Charged { get; private set; }
+        public void Charge(int operations = 1) { Charged = operations; }
         public event Action<int>? Signal { add { } remove { } }
         public void RaiseSignal(int value) { }
         public void Schedule(int dueInTicks, int value) { }
