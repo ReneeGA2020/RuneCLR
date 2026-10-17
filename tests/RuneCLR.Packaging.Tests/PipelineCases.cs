@@ -34,6 +34,7 @@ internal static class PipelineCases
         yield return ("Package build rejects a later callback outside the allowed methods", LaterCallbackRejectsUnlisted);
         yield return ("Package build requires both host interface fields", HostInterfacePairRequired);
         yield return ("Compiled host-contract package opens and runs OnStart", HostInterfaceSession);
+        yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -72,6 +73,30 @@ internal static class PipelineCases
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
         Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+    }
+
+    private const string LaterSessionScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            private IMapContext? context;
+            public void OnStart(IMapContext value) { context = value; context.Log("ok"); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { context!.Log("stopped"); }
+        }
+        """;
+
+    private static void HostInterfaceLaterCallback()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostLater", "GameScript", [new("GameScript.cs", LaterSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Invoke("OnStop");
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["ok", "stopped"]), string.Join(", ", host.Logs));
     }
 
 

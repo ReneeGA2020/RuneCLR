@@ -1535,6 +1535,9 @@ On 2026-10-17 desktop runtime tests passed 139/139. HostContractSession.Open rej
 On 2026-10-17 packaging tests passed 173/173. PackageBuilder.Compile can produce a host-contract package that HostContractSession.Open runs. The source uses RuneCLR.IMapContext with Log and SpawnEntity allowed. OnStart logs ok and spawns fixture. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 174/174. A compiled host-contract package can run a later callback after Open. OnStart logs ok, and Invoke OnStop logs stopped through the same IMapContext. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
