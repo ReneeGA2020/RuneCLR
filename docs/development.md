@@ -1460,6 +1460,9 @@ On 2026-10-17 desktop runtime tests passed 115/115. HostContractSession.InvokeIn
 
 On 2026-10-17 desktop runtime tests passed 118/118. A later callback may take the host contract and then one int. Invoke passes 41 to OnTick. InvokeInt Measure(40) echoes 40 and returns 41. string.IsNullOrEmpty in that shape is rejected, and the earlier Echo(1) remains. This is not an iOS result.
 
+
+On 2026-10-17 packaging tests passed 169/169. ValidateHostContract checks a later public callback on the entry when it takes the host and one int. A callback that echoes the int is accepted. string.IsNullOrEmpty in that callback is rejected. A public method with an unsupported signature is not checked. Gameplay validation is unchanged. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

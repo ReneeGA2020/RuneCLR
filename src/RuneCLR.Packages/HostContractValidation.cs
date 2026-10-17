@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using System.Reflection.Emit;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -54,6 +55,13 @@ public static partial class GameplayCapabilityPolicy
             var walk = new HostWalk(entryReader, entryPe, interfaceFullName, allowed, privateAssemblies, entryImage, entryName);
             walk.Seen.Add(entryName + " " + entryType + " OnStart");
             WalkHostCalls(walk, il, false);
+            foreach (var handle in entry.GetMethods())
+            {
+                var method = entryReader.GetMethodDefinition(handle);
+                if (entryReader.GetString(method.Name) == "OnStart") continue;
+                if (!IsSupportedCallback(entryReader, method, interfaceFullName)) continue;
+                WalkAuthorMethod(walk, entryImage, method);
+            }
         }
         catch (InvalidDataException)
         {
@@ -196,7 +204,7 @@ public static partial class GameplayCapabilityPolicy
         var typeName = HostTypeName(reader, type.Namespace, type.Name);
         var methodName = reader.GetString(method.Name);
         var assemblyName = reader.GetString(reader.GetAssemblyDefinition().Name);
-        if (!walk.Seen.Add(assemblyName + " " + typeName + " " + methodName)) return;
+        if (!walk.Seen.Add(assemblyName + " " + typeName + " " + methodName + " " + method.RelativeVirtualAddress)) return;
         if (method.RelativeVirtualAddress == 0)
             throw HostInvalid("OnStart calls a method with no managed body.");
         var il = image.Pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()
@@ -283,6 +291,52 @@ public static partial class GameplayCapabilityPolicy
         var blob = reader.GetBlobReader(signature);
         blob.ReadSignatureHeader();
         return blob.ReadCompressedInteger();
+    }
+
+    private static bool IsSupportedCallback(MetadataReader reader, MethodDefinition method, string interfaceName)
+    {
+        if ((method.Attributes & MethodAttributes.Static) != 0 ||
+            (method.Attributes & MethodAttributes.MemberAccessMask) != MethodAttributes.Public ||
+            method.RelativeVirtualAddress == 0)
+            return false;
+        try
+        {
+            var blob = reader.GetBlobReader(method.Signature);
+            var header = blob.ReadSignatureHeader();
+            if (!header.IsInstance || header.IsGeneric) return false;
+            var count = blob.ReadCompressedInteger();
+            var returned = blob.ReadCompressedInteger();
+            var returnsVoid = returned == 0x01;
+            var returnsInt = returned == 0x08;
+            if (!returnsVoid && !returnsInt) return false;
+            if (count == 0) return returnsVoid;
+            if (count == 1)
+            {
+                var parameter = ReadCallbackParameter(reader, ref blob, interfaceName);
+                if (parameter == CallbackParameter.Int) return true;
+                return parameter == CallbackParameter.Host && returnsVoid;
+            }
+
+            if (count != 2) return false;
+            return ReadCallbackParameter(reader, ref blob, interfaceName) == CallbackParameter.Host &&
+                ReadCallbackParameter(reader, ref blob, interfaceName) == CallbackParameter.Int;
+        }
+        catch (Exception error) when (error is BadImageFormatException or ArgumentException or
+            InvalidOperationException or IndexOutOfRangeException or OverflowException)
+        {
+            return false;
+        }
+    }
+
+    private enum CallbackParameter { Other, Int, Host }
+
+    private static CallbackParameter ReadCallbackParameter(MetadataReader reader, ref BlobReader blob, string interfaceName)
+    {
+        var element = blob.ReadCompressedInteger();
+        if (element == 0x08) return CallbackParameter.Int;
+        if (element is not (0x11 or 0x12)) return CallbackParameter.Other;
+        var name = HostCodedTypeName(reader, blob.ReadCompressedInteger());
+        return string.Equals(name, interfaceName, StringComparison.Ordinal) ? CallbackParameter.Host : CallbackParameter.Other;
     }
 
     private static MethodDefinition FindSingleMethod(MetadataReader reader, string typeFullName, string methodName)

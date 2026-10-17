@@ -21,6 +21,9 @@ internal static class HostContractCapabilityCases
         yield return ("Host contract lets one private assembly call another", PrivateCallsPrivate);
         yield return ("Host contract rejects a BCL call reached through a second private assembly", SecondPrivateRejectsBcl);
         yield return ("Host contract rejects a framework constructor", FrameworkNewIsRejected);
+        yield return ("Host contract checks a later host-and-int callback", LaterCallbackIsChecked);
+        yield return ("Host contract rejects a BCL call in a later callback", LaterCallbackRejectsBcl);
+        yield return ("Host contract ignores an unsupported public method", UnsupportedPublicMethodIsIgnored);
     }
 
     private static void EchoApproved() =>
@@ -299,6 +302,26 @@ internal static class HostContractCapabilityCases
             "Host script did not compile: " + string.Join("; ", script.Diagnostics.Select(item => item.Message)));
         return script.Assembly!;
     }
+
+    private static void LaterCallbackIsChecked() =>
+        GameplayCapabilityPolicy.ValidateHostContract(CompileContractType(
+            "public sealed class Script { public void OnStart(HostContract.IApi api) { api.Echo(1); } public void OnTick(HostContract.IApi api, int value) { api.Echo(value); } }"),
+            "Script", "HostContract.IApi", ["Echo"]);
+
+    private static void LaterCallbackRejectsBcl()
+    {
+        var error = Check.Throws<InvalidDataException>(() =>
+            GameplayCapabilityPolicy.ValidateHostContract(CompileContractType(
+                "public sealed class Script { public void OnStart(HostContract.IApi api) { api.Echo(1); } public void OnTick(HostContract.IApi api, int value) { _ = string.IsNullOrEmpty(\"x\"); api.Echo(value); } }"),
+                "Script", "HostContract.IApi", ["Echo"]));
+        Check.Assert(error.Message.Contains("host contract member", StringComparison.Ordinal)
+            && error.Message.Contains("IsNullOrEmpty", StringComparison.Ordinal), error.Message);
+    }
+
+    private static void UnsupportedPublicMethodIsIgnored() =>
+        GameplayCapabilityPolicy.ValidateHostContract(CompileContractType(
+            "public sealed class Script { public void OnStart(HostContract.IApi api) { api.Echo(1); } public void Unused(string value) { _ = value.ToString(); } }"),
+            "Script", "HostContract.IApi", ["Echo"]);
 
     private static byte[] CompileScript(string body) => CompileContractScript(
         "namespace HostContract { public interface IApi { int Echo(int value); } }", body);
