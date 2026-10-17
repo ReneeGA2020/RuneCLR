@@ -91,6 +91,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a compiler error", OperatorCliRejectsCompileError);
         yield return ("Operator CLI rejects a file that is not an assembly", OperatorCliRejectsBadImport);
         yield return ("Operator CLI rejects a missing entry type", OperatorCliRejectsMissingEntry);
+        yield return ("Operator CLI reads MapId from OnStart", OperatorCliReadsMapId);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -1490,6 +1491,25 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(!Directory.Exists(output), "A missing entry type published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void OperatorCliReadsMapId()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), OnStartMapIdScript);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile", "--source", source, "--id", "HostCliMap", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log", "--allowed-method", "get_MapId");
+        Check.Assert(exit == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal), "Package tool exited " + exit + ". " + stdout + stderr);
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)

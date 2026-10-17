@@ -1703,6 +1703,9 @@ On 2026-10-17 packaging tests passed 228/228. A compiled host-contract package c
 On 2026-10-17 packaging tests passed 229/229. Imported host-contract IL can read MapId from a later callback. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok. Invoke OnStop logs fixture through the stored IMapContext. Log and get_MapId are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 230/230. The operator CLI compile command accepts --allowed-method get_MapId. OnStart logs fixture. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
