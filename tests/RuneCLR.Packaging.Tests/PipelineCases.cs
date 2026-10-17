@@ -121,6 +121,7 @@ internal static class PipelineCases
         yield return ("Operator CLI imports two private dependencies", OperatorCliImportsTwoDependencies);
         yield return ("Operator CLI rejects a changed private dependency", OperatorCliRejectsChangedDependency);
         yield return ("Operator CLI rejects a private dependency identity", OperatorCliRejectsDependencyIdentity);
+        yield return ("Operator CLI rejects a linked package file", OperatorCliRejectsPackageLink);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2479,6 +2480,30 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         var dependencyPath = Path.Combine(Path.GetDirectoryName(build.ManifestPath!)!, dependency.Path.Replace('/', Path.DirectorySeparatorChar));
         Check.Assert(File.Exists(dependencyPath), "Validate removed the dependency.");
+    }
+
+
+    private static void OperatorCliRejectsPackageLink()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliPkgLink", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var packageDirectory = Path.GetDirectoryName(build.ManifestPath!)!;
+        var entryPath = Path.Combine(packageDirectory, manifest.EntryAssembly);
+        var target = Path.Combine(temp.Path, "target.dll");
+        File.Move(entryPath, target);
+        File.CreateSymbolicLink(entryPath, target);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("filesystem links", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(entryPath), "Validate removed the package link.");
+        Check.Assert(File.Exists(target), "Validate removed the link target.");
     }
 
 
