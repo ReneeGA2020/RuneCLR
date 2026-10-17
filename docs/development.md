@@ -1882,6 +1882,8 @@ On 2026-10-17 packaging tests passed 304/304. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 305/305. The operator CLI validate command accepts a host-contract package, then rejects it after the file list keeps the entry path but its digest is changed to invalid, while the entry hash field stays the original digest and the content hash is recomputed. The error names SHA-256 hexadecimal digest. This is the file list digest, not the entry hash field. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 306/306. The operator CLI validate command accepts a host-contract package, then rejects it after the package id is 129 letters and the content hash is recomputed. The error names Missing or oversized id. The id is not blank. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
