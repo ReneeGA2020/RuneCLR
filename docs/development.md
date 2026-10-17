@@ -1739,6 +1739,9 @@ On 2026-10-17 packaging tests passed 240/240. A compiled host-contract package c
 On 2026-10-17 packaging tests passed 241/241. Imported host-contract IL can let a declared private assembly spawn and destroy an entity. The entry and SharedImportLife are submitted as IL, not compiled by PackageBuilder. OnStart logs ok and passes the host to SharedLife.Cycle. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 242/242. A compiled host-contract package can let a declared private assembly call Log. OnStart logs ok and passes the host to SharedNote.Note, which logs from-private. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

@@ -53,6 +53,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets a private assembly charge", HostInterfacePrivateCharges);
         yield return ("Compiled host-contract package lets a private assembly spawn", HostInterfacePrivateSpawns);
         yield return ("Compiled host-contract package lets a private assembly destroy", HostInterfacePrivateDestroys);
+        yield return ("Compiled host-contract package lets a private assembly log", HostInterfacePrivateLogs);
         yield return ("Imported host-contract IL lets a private assembly destroy", HostInterfaceImportsPrivateDestroy);
         yield return ("Imported host-contract IL lets a private assembly spawn", HostInterfaceImportsPrivateSpawn);
         yield return ("Imported host-contract IL lets a private assembly charge", HostInterfaceImportsPrivateCharge);
@@ -590,6 +591,31 @@ internal static class PipelineCases
         Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
         Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfacePrivateLogs()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedNote", """
+            using RuneCLR;
+            public static class SharedNote { public static void Note(IMapContext context) => context.Log("from-private"); }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); SharedNote.Note(context); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var build = PackageBuilder.Compile("HostPrivateLog", "GameScript", [new("GameScript.cs", script)], Profile(),
+            Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["ok", "from-private"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfacePrivateChain()
