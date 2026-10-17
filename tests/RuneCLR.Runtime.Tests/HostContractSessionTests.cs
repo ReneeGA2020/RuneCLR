@@ -51,6 +51,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects copying an author value type", RejectAuthorCopy);
         yield return ("Host contract rejects a field of another type", RejectForeignFieldLoad);
         yield return ("Host contract rejects an author catch type", RejectAuthorCatch);
+        yield return ("Host contract still runs a catch of System.Exception", CoreCatchStillRuns);
+        yield return ("Host contract rejects an exception filter", RejectExceptionFilter);
     }
 
     private static void EchoAndUnload()
@@ -1064,6 +1066,87 @@ internal static class HostContractSessionTests
         il.EndExceptionBlock();
         il.Emit(OpCodes.Ret);
         bomb.CreateType();
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void CoreCatchStillRuns()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "core-catch.dll");
+        WriteCoreCatch(path);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.CoreCatchScript.Script", ["Echo"]);
+        session.Dispose();
+        Check(host.Seen == 7, "A core catch blocked the host call.");
+    }
+
+    private static void RejectExceptionFilter()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "filter.dll");
+        WriteExceptionFilter(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.FilterScript.Script", ["Echo"]));
+        Check(error.Message.Contains("Exception filters", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The exception filter ran.");
+    }
+
+    private static void WriteCoreCatch(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.CoreCatchScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.CoreCatchScript");
+        var type = module.DefineType("HostContract.CoreCatchScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.BeginExceptionBlock();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 7);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.BeginCatchBlock(typeof(Exception));
+        il.Emit(OpCodes.Pop);
+        il.EndExceptionBlock();
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void WriteExceptionFilter(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.FilterScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.FilterScript");
+        var type = module.DefineType("HostContract.FilterScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.BeginExceptionBlock();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.BeginExceptFilterBlock();
+        il.Emit(OpCodes.Ldc_I4_0);
+        il.BeginCatchBlock(null!);
+        il.Emit(OpCodes.Pop);
+        il.EndExceptionBlock();
+        il.Emit(OpCodes.Ret);
         type.CreateType();
         builder.Save(path);
     }
