@@ -62,6 +62,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL charges from OnStart", HostInterfaceImportsOnStartCharge);
         yield return ("Imported host-contract IL destroys an entity from OnStart", HostInterfaceImportsOnStartDestroy);
         yield return ("Imported host-contract IL reads MapId from OnStart", HostInterfaceImportsOnStartMapId);
+        yield return ("Imported host-contract IL releases a stored entity", HostInterfaceImportsStoredEntity);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
@@ -801,6 +802,26 @@ internal static class PipelineCases
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsStoredEntity()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostImportRelease", [new("GameScript.cs", StoredEntityScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportRelease.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportRelease", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Invoke("Release");
+        session.Dispose();
+        Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+        Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfaceImportsPrivate()

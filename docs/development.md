@@ -1688,6 +1688,9 @@ On 2026-10-17 packaging tests passed 223/223. Imported host-contract IL can read
 On 2026-10-17 packaging tests passed 224/224. A compiled host-contract package can store a spawned EntityId and destroy it from a later callback. OnStart logs ok and spawns fixture. Invoke Release destroys that entity. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 225/225. Imported host-contract IL can store a spawned EntityId and destroy it from a later callback. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok and spawns fixture. Invoke Release destroys that entity. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
