@@ -39,6 +39,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
         yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
         yield return ("Compiled host-contract package passes only an int", HostInterfacePassesIntOnly);
+        yield return ("Compiled host-contract package returns an int with the host", HostInterfaceReturnsHostAndInt);
         yield return ("Compiled host-contract package calls a private assembly from a later callback", HostInterfacePrivateCallback);
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a private assembly call the entry", HostInterfacePrivateCallsEntry);
@@ -207,6 +208,32 @@ internal static class PipelineCases
         session.Invoke("Apply", 41);
         session.Dispose();
         Check.Assert(host.Charged == 41, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private const string HostMeasureScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            public void OnStart(IMapContext context) { context.Log("ok"); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+            public int Measure(IMapContext context, int value) { context.Charge(value); return value + 1; }
+        }
+        """;
+
+    private static void HostInterfaceReturnsHostAndInt()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostMeasure", "GameScript", [new("GameScript.cs", HostMeasureScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "Charge"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Charged == 40, "Charge received " + host.Charged + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 

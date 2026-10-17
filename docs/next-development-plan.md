@@ -604,3 +604,5 @@ On 2026-10-17 packaging tests passed 206/206. The operator CLI import command re
 On 2026-10-17 packaging tests passed 207/207. The operator CLI import command rejects an assembly that does not define GameScript. The process exits 2. The error says that entry type was not found. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 208/208. A compiled host-contract package can take only an int in a later callback. OnStart logs ok. Invoke Apply(41) calls Charge with 41. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 packaging tests passed 209/209. A compiled host-contract package can take the host and an int and return an int. OnStart logs ok. InvokeInt Measure(40) calls Charge with 40 and returns 41. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
