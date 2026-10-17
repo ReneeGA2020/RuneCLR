@@ -383,7 +383,7 @@ public sealed class HostContractSession : IDisposable
         WalkCalls(method, contract, allowedMethods, failure, images, new HashSet<MethodBase>());
     }
 
-    private static void WalkCalls(MethodInfo method, Type contract, HashSet<string> allowedMethods, string failure,
+    private static void WalkCalls(MethodBase method, Type contract, HashSet<string> allowedMethods, string failure,
         IReadOnlyDictionary<string, byte[]> images, HashSet<MethodBase> seen)
     {
         if (!seen.Add(method)) return;
@@ -405,6 +405,8 @@ public sealed class HostContractSession : IDisposable
                 MethodBase? called;
                 try { called = method.Module.ResolveMethod(token); }
                 catch (ArgumentException) { called = null; }
+                if (method.IsConstructor && called?.DeclaringType == typeof(object) && called.Name == ".ctor" && !called.IsGenericMethod)
+                    continue;
                 if (IsAllowedContractCall(called, contract, allowedMethods))
                     continue;
                 if (called is MethodInfo author && IsAuthorAssembly(author, images))
@@ -417,7 +419,23 @@ public sealed class HostContractSession : IDisposable
 
                 throw new InvalidOperationException(failure);
             }
-            else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Newobj.Value || operation.Value == OpCodes.Jmp.Value)
+            else if (operation.Value == OpCodes.Newobj.Value)
+            {
+                var token = ReadInt32(il, ref index, failure);
+                MethodBase? created;
+                try { created = method.Module.ResolveMethod(token); }
+                catch (ArgumentException) { created = null; }
+                if (created is ConstructorInfo authorCtor && IsAuthorAssembly(authorCtor, images))
+                {
+                    if (authorCtor.IsGenericMethod || authorCtor.DeclaringType!.TypeInitializer is not null)
+                        throw new InvalidOperationException(failure);
+                    WalkCalls(authorCtor, contract, allowedMethods, failure, images, seen);
+                    continue;
+                }
+
+                throw new InvalidOperationException(failure);
+            }
+            else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Jmp.Value)
             {
                 throw new InvalidOperationException(failure);
             }
@@ -439,7 +457,7 @@ public sealed class HostContractSession : IDisposable
     private static bool IsAllowedContractCall(MethodBase? called, Type contract, HashSet<string> allowedMethods) =>
         called?.DeclaringType == contract && !called.IsGenericMethod && allowedMethods.Contains(called.Name);
 
-    private static bool IsAuthorAssembly(MethodInfo method, IReadOnlyDictionary<string, byte[]> images)
+    private static bool IsAuthorAssembly(MethodBase method, IReadOnlyDictionary<string, byte[]> images)
     {
         var name = method.DeclaringType?.Assembly.GetName().Name;
         return name is not null && images.ContainsKey(name);

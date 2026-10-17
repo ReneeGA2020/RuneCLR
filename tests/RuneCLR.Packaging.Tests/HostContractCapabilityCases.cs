@@ -15,6 +15,8 @@ internal static class HostContractCapabilityCases
         yield return ("Host contract rejects a private helper that was not supplied", PrivateHelperRequiresImage);
         yield return ("Host contract allows a private helper to call the entry", PrivateHelperCallsEntry);
         yield return ("Host contract rejects a BCL call reached through the entry", PrivateHelperEntryRejectsBcl);
+        yield return ("Host contract constructs an author type", AuthorNewIsChecked);
+        yield return ("Host contract rejects a framework constructor", FrameworkNewIsRejected);
     }
 
     private static void EchoApproved() =>
@@ -59,6 +61,20 @@ internal static class HostContractCapabilityCases
             && error.Message.Contains("ReadAllText", StringComparison.Ordinal), error.Message);
     }
 
+
+
+    private static void AuthorNewIsChecked() =>
+        GameplayCapabilityPolicy.ValidateHostContract(CompileContractType(
+            "public sealed class Box { public int Value; public Box(int value) { Value = value; } public int Get() => Value; } public sealed class Script { public void OnStart(HostContract.IApi api) { api.Echo(new Box(41).Get()); } }"),
+            "Script", "HostContract.IApi", ["Echo"]);
+
+    private static void FrameworkNewIsRejected()
+    {
+        var error = Check.Throws<InvalidDataException>(() =>
+            GameplayCapabilityPolicy.ValidateHostContract(CompileScript("throw new System.InvalidOperationException(\"x\");"), "Script", "HostContract.IApi", ["Echo"]));
+        Check.Assert(error.Message.Contains("host contract member", StringComparison.Ordinal)
+            && error.Message.Contains("InvalidOperationException", StringComparison.Ordinal), error.Message);
+    }
 
     private static void PrivateHelperCallsEntry() =>
         GameplayCapabilityPolicy.ValidateHostContract(CompileMutual(false).Script, "Script", "HostContract.IApi", ["Echo"], [CompileMutual(false).Helper]);

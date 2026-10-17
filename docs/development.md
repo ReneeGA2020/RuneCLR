@@ -1442,6 +1442,9 @@ On 2026-10-17 packaging tests passed 158/158. ValidateHostContract accepts an On
 
 On 2026-10-17 desktop runtime tests passed 103/103 and packaging tests passed 160/160. A declared private method may call a method on the entry assembly, and that entry method is checked before it runs. The callback returns 41 to the host. string.IsNullOrEmpty reached through the entry method is rejected, and the host method is not called. Gameplay validation is unchanged. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 105/105 and packaging tests passed 162/162. OnStart may construct a type declared by the entry or a private assembly, and that constructor is checked before it runs. An author box returns 41 to the host. new System.InvalidOperationException is rejected, and the host method is not called. Gameplay validation is unchanged. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

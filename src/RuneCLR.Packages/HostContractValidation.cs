@@ -53,7 +53,7 @@ public static partial class GameplayCapabilityPolicy
             var entryImage = new HostImage(entryReader, entryPe);
             var walk = new HostWalk(entryReader, entryPe, interfaceFullName, allowed, privateAssemblies, entryImage, entryName);
             walk.Seen.Add(entryName + " " + entryType + " OnStart");
-            WalkHostCalls(walk, il);
+            WalkHostCalls(walk, il, false);
         }
         catch (InvalidDataException)
         {
@@ -103,22 +103,24 @@ public static partial class GameplayCapabilityPolicy
     private static PEReader OpenHostImage(ReadOnlyMemory<byte> image) =>
         new(ImmutableArray.CreateRange(image.Span.ToArray()));
 
-    private static void WalkHostCalls(HostWalk walk, byte[] il)
+    private static void WalkHostCalls(HostWalk walk, byte[] il, bool allowObjectCtor)
     {
         var index = 0;
         while (index < il.Length)
         {
             var operation = ReadHostOpCode(il, ref index);
             if (operation.Value == OpCodes.Call.Value || operation.Value == OpCodes.Callvirt.Value)
-                CheckHostCall(walk, ReadHostInt32(il, ref index));
-            else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Newobj.Value || operation.Value == OpCodes.Jmp.Value)
+                CheckHostCall(walk, ReadHostInt32(il, ref index), allowObjectCtor);
+            else if (operation.Value == OpCodes.Newobj.Value)
+                CheckHostNew(walk, ReadHostInt32(il, ref index));
+            else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Jmp.Value)
                 throw HostInvalid("OnStart uses an unsupported call.");
             else
                 SkipHostOperand(operation, il, ref index);
         }
     }
 
-    private static void CheckHostCall(HostWalk walk, int token)
+    private static void CheckHostCall(HostWalk walk, int token, bool allowObjectCtor)
     {
         var handle = MetadataTokens.EntityHandle(token);
         if (handle.Kind == HandleKind.MethodSpecification)
@@ -148,6 +150,8 @@ public static partial class GameplayCapabilityPolicy
         {
             var type = walk.Reader.GetTypeReference((TypeReferenceHandle)member.Parent);
             var parent = HostTypeName(walk.Reader, type.Namespace, type.Name);
+            if (allowObjectCtor && name == ".ctor" && parent == "System.Object")
+                return;
             if (string.Equals(parent, walk.InterfaceName, StringComparison.Ordinal))
             {
                 if (!walk.Allowed.Contains(name)) throw HostInvalid(parent + "." + name);
@@ -197,7 +201,88 @@ public static partial class GameplayCapabilityPolicy
             throw HostInvalid("OnStart calls a method with no managed body.");
         var il = image.Pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()
             ?? throw HostInvalid("OnStart has no IL.");
-        WalkHostCalls(walk.With(image), il);
+        WalkHostCalls(walk.With(image), il, methodName == ".ctor");
+    }
+
+    private static void CheckHostNew(HostWalk walk, int token)
+    {
+        var handle = MetadataTokens.EntityHandle(token);
+        if (handle.Kind == HandleKind.MethodDefinition)
+        {
+            var method = walk.Reader.GetMethodDefinition((MethodDefinitionHandle)handle);
+            if (walk.Reader.GetString(method.Name) != ".ctor")
+                throw HostInvalid("OnStart uses an unsupported call.");
+            WalkAuthorMethod(walk, new HostImage(walk.Reader, walk.Pe), method);
+            return;
+        }
+
+        if (handle.Kind != HandleKind.MemberReference)
+            throw HostInvalid("OnStart uses an unsupported call.");
+        var member = walk.Reader.GetMemberReference((MemberReferenceHandle)handle);
+        var name = walk.Reader.GetString(member.Name);
+        if (name != ".ctor" || member.GetKind() != MemberReferenceKind.Method)
+            throw HostInvalid("OnStart uses an unsupported call.");
+        var count = HostParameterCount(walk.Reader, member.Signature);
+        if (member.Parent.Kind == HandleKind.TypeDefinition)
+        {
+            var defined = walk.Reader.GetTypeDefinition((TypeDefinitionHandle)member.Parent);
+            var definedName = HostTypeName(walk.Reader, defined.Namespace, defined.Name);
+            WalkAuthorMethod(walk, new HostImage(walk.Reader, walk.Pe), FindConstructor(walk.Reader, definedName, count));
+            return;
+        }
+
+        if (member.Parent.Kind == HandleKind.TypeReference)
+        {
+            var type = walk.Reader.GetTypeReference((TypeReferenceHandle)member.Parent);
+            var parent = HostTypeName(walk.Reader, type.Namespace, type.Name);
+            if (type.ResolutionScope.Kind == HandleKind.AssemblyReference)
+            {
+                var assembly = walk.Reader.GetAssemblyReference((AssemblyReferenceHandle)type.ResolutionScope);
+                var assemblyName = walk.Reader.GetString(assembly.Name);
+                if (walk.PrivateAssemblies.TryGetValue(assemblyName, out var target))
+                {
+                    WalkAuthorMethod(walk.With(target), target, FindConstructor(target.Reader, parent, count));
+                    return;
+                }
+
+                if (string.Equals(assemblyName, walk.EntryAssemblyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    WalkAuthorMethod(walk.With(walk.EntryImage), walk.EntryImage, FindConstructor(walk.EntryImage.Reader, parent, count));
+                    return;
+                }
+            }
+
+            throw HostInvalid(parent + "..ctor");
+        }
+
+        throw HostInvalid("OnStart uses an unsupported call.");
+    }
+
+    private static MethodDefinition FindConstructor(MetadataReader reader, string typeFullName, int parameterCount)
+    {
+        MethodDefinition? found = null;
+        foreach (var handle in reader.TypeDefinitions)
+        {
+            var type = reader.GetTypeDefinition(handle);
+            if (!string.Equals(HostTypeName(reader, type.Namespace, type.Name), typeFullName, StringComparison.Ordinal)) continue;
+            foreach (var methodHandle in type.GetMethods())
+            {
+                var method = reader.GetMethodDefinition(methodHandle);
+                if (reader.GetString(method.Name) != ".ctor") continue;
+                if (HostParameterCount(reader, method.Signature) != parameterCount) continue;
+                if (found is not null) throw HostInvalid(typeFullName + "..ctor is ambiguous.");
+                found = method;
+            }
+        }
+
+        return found ?? throw HostInvalid(typeFullName + "..ctor");
+    }
+
+    private static int HostParameterCount(MetadataReader reader, BlobHandle signature)
+    {
+        var blob = reader.GetBlobReader(signature);
+        blob.ReadSignatureHeader();
+        return blob.ReadCompressedInteger();
     }
 
     private static MethodDefinition FindSingleMethod(MetadataReader reader, string typeFullName, string methodName)

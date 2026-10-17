@@ -37,6 +37,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a private call outside the host contract", OpenRejectsPrivateForeignCall);
         yield return ("Host contract Open lets a private method call the entry", OpenPrivateCallsEntry);
         yield return ("Host contract Open rejects a BCL call reached through the entry", OpenRejectsEntryCallFromPrivate);
+        yield return ("Host contract constructs an author type", OpenConstructsAuthorType);
+        yield return ("Host contract rejects a framework constructor", OpenRejectsFrameworkNew);
         yield return ("Host contract Open rejects a missing dependency file", OpenRejectsMissingDependency);
         yield return ("Host contract Open rejects a changed dependency file", OpenRejectsChangedDependency);
         yield return ("Host contract Open rejects a dependency that is not a managed assembly", OpenRejectsOpaqueDependency);
@@ -463,6 +465,79 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The entry BCL call ran.");
+    }
+
+
+    private static void OpenConstructsAuthorType()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteAuthorBox(path, frameworkNew: false);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.BoxScript.Script", ["Echo"]);
+        session.Dispose();
+        Check(host.Seen == 41, "The author object did not reach the host.");
+    }
+
+    private static void OpenRejectsFrameworkNew()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteAuthorBox(path, frameworkNew: true);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.BoxScript.Script", ["Echo"]));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The framework constructor ran.");
+    }
+
+    private static void WriteAuthorBox(string path, bool frameworkNew)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.BoxScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.BoxScript");
+        var box = module.DefineType("HostContract.BoxScript.Box", TypeAttributes.Public | TypeAttributes.Class);
+        var field = box.DefineField("Value", typeof(int), FieldAttributes.Public);
+        var boxCtor = box.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, new[] { typeof(int) });
+        var boxIl = boxCtor.GetILGenerator();
+        boxIl.Emit(OpCodes.Ldarg_0);
+        boxIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        boxIl.Emit(OpCodes.Ldarg_0);
+        boxIl.Emit(OpCodes.Ldarg_1);
+        boxIl.Emit(OpCodes.Stfld, field);
+        boxIl.Emit(OpCodes.Ret);
+        var get = box.DefineMethod("Get", MethodAttributes.Public, typeof(int), Type.EmptyTypes);
+        var getIl = get.GetILGenerator();
+        getIl.Emit(OpCodes.Ldarg_0);
+        getIl.Emit(OpCodes.Ldfld, field);
+        getIl.Emit(OpCodes.Ret);
+        var type = module.DefineType("HostContract.BoxScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var il = start.GetILGenerator();
+        if (frameworkNew)
+        {
+            il.Emit(OpCodes.Ldstr, "x");
+            il.Emit(OpCodes.Newobj, typeof(InvalidOperationException).GetConstructor(new[] { typeof(string) })!);
+            il.Emit(OpCodes.Pop);
+        }
+
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 41);
+        il.Emit(OpCodes.Newobj, boxCtor);
+        il.Emit(OpCodes.Call, get);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        box.CreateType();
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void WriteMutual(string entryPath, string libraryPath, bool foreignEntry)
