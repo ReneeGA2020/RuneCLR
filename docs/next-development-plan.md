@@ -430,3 +430,6 @@ On 2026-10-17 desktop runtime tests passed 80/80. HostContractSession.Open rejec
 
 On 2026-10-17 desktop runtime tests passed 82/82. HostContractSession.Open requires the entry path to appear once in the file list with the same hash. A missing entry or a different file hash is rejected before the file is opened. The message says the file list must exactly match the entry. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 84/84. HostContractSession.Open requires every file to be the entry or one private dependency, with the same path and hash. A dependency path containing .. is rejected before any file is opened. An extra file is rejected. The host method is not called. This is not an iOS result.
+
