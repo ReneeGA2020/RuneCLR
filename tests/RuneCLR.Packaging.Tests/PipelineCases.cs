@@ -50,6 +50,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
         yield return ("Operator CLI compiles a host-contract package", HostInterfaceOperatorCli);
         yield return ("Operator CLI rejects a framework constructor", HostInterfaceOperatorCliRejectsFrameworkNew);
+        yield return ("Operator CLI imports a host-contract assembly", HostInterfaceOperatorCliImportsIl);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -518,6 +519,35 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("InvalidOperationException..ctor", StringComparison.Ordinal), stderr);
         Check.Assert(!Directory.Exists(output), "A rejected framework constructor published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void HostInterfaceOperatorCliImportsIl()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostCliImport", [new("GameScript.cs", IntSessionScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostCliImport.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "import",
+            "--assembly", dll,
+            "--id", "HostCliImport",
+            "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory,
+            "--contract", Fixtures.ContractAssembly,
+            "--output", output,
+            "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log");
+        Check.Assert(exit == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + exit + ". " + stdout + stderr);
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
