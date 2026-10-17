@@ -1878,6 +1878,8 @@ On 2026-10-17 packaging tests passed 302/302. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 303/303. The operator CLI validate command accepts a host-contract package, then rejects it after the content hash is changed to invalid and is not recomputed. The error names SHA-256 hexadecimal digest. This is the package content identity, not a producer source digest. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 304/304. The operator CLI validate command accepts a host-contract package, then rejects it after the entry hash is changed to invalid and the content hash is recomputed. The error names SHA-256 hexadecimal digest. This is the entry hash, not the package content identity. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
