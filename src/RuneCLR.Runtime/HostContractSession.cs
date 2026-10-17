@@ -362,7 +362,7 @@ public sealed class HostContractSession : IDisposable
         operation.Value == OpCodes.Stobj.Value || operation.Value == OpCodes.Mkrefany.Value ||
         operation.Value == OpCodes.Refanyval.Value || operation.Value == OpCodes.Sizeof.Value ||
         operation.Value == OpCodes.Constrained.Value || operation.Value == OpCodes.Ldelem.Value ||
-        operation.Value == OpCodes.Stelem.Value || operation.Value == OpCodes.Ldelema.Value;
+        operation.Value == OpCodes.Stelem.Value || operation.Value == OpCodes.Ldelema.Value || operation.Value == OpCodes.Cpobj.Value;
 
     private static void RejectForeignBox(Module module, byte[] il, ref int index)
     {

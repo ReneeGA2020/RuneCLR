@@ -47,6 +47,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects an author array type before the author runs", RejectAuthorArray);
         yield return ("Host contract rejects a cast to an author type", RejectAuthorCast);
         yield return ("Host contract rejects a function pointer before the author runs", RejectFunctionPointer);
+        yield return ("Host contract rejects copying an author value type", RejectAuthorCopy);
     }
 
     private static void EchoAndUnload()
@@ -926,6 +927,50 @@ internal static class HostContractSessionTests
         il.Emit(OpCodes.Callvirt, echo);
         il.Emit(OpCodes.Pop);
         il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void RejectAuthorCopy()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "copy.dll");
+        WriteAuthorCopy(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.CopyScript.Script", ["Echo"]));
+        Check(error.Message.Contains("type initialization", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The author copy ran.");
+    }
+
+    private static void WriteAuthorCopy(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.CopyScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.CopyScript");
+        var bomb = module.DefineType("HostContract.CopyScript.Bomb",
+            TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.SequentialLayout | TypeAttributes.BeforeFieldInit, typeof(ValueType));
+        bomb.DefineField("value", typeof(int), FieldAttributes.Public);
+        var type = module.DefineType("HostContract.CopyScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        var local = il.DeclareLocal(bomb);
+        il.Emit(OpCodes.Ldloca, local);
+        il.Emit(OpCodes.Ldloca, local);
+        il.Emit(OpCodes.Cpobj, bomb);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        bomb.CreateType();
         type.CreateType();
         builder.Save(path);
     }
