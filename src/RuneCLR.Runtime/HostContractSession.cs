@@ -33,10 +33,10 @@ public sealed class HostContractSession : IDisposable
         RequireListedEntry(manifest);
         var directory = Path.GetDirectoryName(Path.GetFullPath(manifestPath))
             ?? throw new InvalidDataException("The package manifest requires a directory.");
+        foreach (var dependency in manifest.Dependencies)
+            RequireFileHash(directory, dependency.Path, dependency.Sha256);
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
-        var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(entry)));
-        if (!string.Equals(hash, manifest.EntrySha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Package file hash mismatch: " + manifest.EntryAssembly + ".");
+        RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256);
         return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods);
     }
 
@@ -73,6 +73,16 @@ public sealed class HostContractSession : IDisposable
             relative.Split('/').Any(part => part is "" or "." or "..") ||
             !relative.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
+    }
+
+    private static void RequireFileHash(string directory, string relative, string expected)
+    {
+        var path = ResolveEntry(directory, relative);
+        if (!File.Exists(path))
+            throw new InvalidDataException("Package file hash mismatch: " + relative + ".");
+        var actual = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+        if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Package file hash mismatch: " + relative + ".");
     }
 
     private static string ResolveEntry(string directory, string relative)

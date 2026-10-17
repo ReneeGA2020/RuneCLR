@@ -433,3 +433,6 @@ On 2026-10-17 desktop runtime tests passed 82/82. HostContractSession.Open requi
 
 On 2026-10-17 desktop runtime tests passed 84/84. HostContractSession.Open requires every file to be the entry or one private dependency, with the same path and hash. A dependency path containing .. is rejected before any file is opened. An extra file is rejected. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 87/87. HostContractSession.Open checks each private dependency file hash before loading the entry. A missing or changed dependency is rejected. A matching dependency still lets the host method run. This is not an iOS result.
+

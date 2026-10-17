@@ -31,6 +31,9 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects an entry hash that disagrees with the file list", OpenRejectsMismatchedFileHash);
         yield return ("Host contract Open rejects a dependency path that escapes the package", OpenRejectsEscapingDependency);
         yield return ("Host contract Open rejects a file that is not the entry or a dependency", OpenRejectsExtraFile);
+        yield return ("Host contract Open accepts a dependency whose bytes match", OpenAcceptsDependency);
+        yield return ("Host contract Open rejects a missing dependency file", OpenRejectsMissingDependency);
+        yield return ("Host contract Open rejects a changed dependency file", OpenRejectsChangedDependency);
         yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
@@ -374,6 +377,66 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("exactly match the entry", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The extra file ran.");
+    }
+
+    private static void OpenAcceptsDependency()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WriteScript(entry, "HostContract.OpenDependencyScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 41, cast: false);
+        File.WriteAllBytes(library, [1, 2, 3, 4]);
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.OpenDependencyScript.Script");
+        var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
+        session.Dispose();
+        Check(host.Seen == 41, "A matching dependency blocked the host call.");
+    }
+
+    private static void OpenRejectsMissingDependency()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(entry, "HostContract.OpenMissingScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifest = WriteHashedDependency(directory.Path, entry, null, "HostContract.OpenMissingScript.Script");
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("hash mismatch", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("lib.dll", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The missing dependency ran.");
+    }
+
+    private static void OpenRejectsChangedDependency()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WriteScript(entry, "HostContract.OpenChangedScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        File.WriteAllBytes(library, [1, 2, 3, 4]);
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.OpenChangedScript.Script");
+        File.WriteAllBytes(library, [1, 2, 3, 5]);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("hash mismatch", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The changed dependency ran.");
+    }
+
+    private static string WriteHashedDependency(string directory, string entryPath, string? libraryPath, string entryType)
+    {
+        var entryHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(entryPath)));
+        var dependencyHash = libraryPath is null ? new string('b', 64) : Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(libraryPath)));
+        var empty = new string('c', 64);
+        var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
+            [new InputIdentity("references.dll", empty)], [new InputIdentity("echo.dll", entryHash)]);
+        var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
+            "host-open", "echo.dll", entryType, entryHash,
+            [new PackageDependency("lib.dll", "Lib, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", dependencyHash)],
+            [new PackageFile("echo.dll", entryHash), new PackageFile("lib.dll", dependencyHash)], producer, "",
+            typeof(IHostEcho).FullName, ["Echo"]);
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        var path = Path.Combine(directory, PackageFormat.ManifestFileName);
+        PackageManifestIO.Write(path, manifest);
+        return path;
     }
 
     private static string WriteDependencyManifest(string directory, string dependencyPath, bool extraFile)
