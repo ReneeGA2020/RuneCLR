@@ -1532,6 +1532,9 @@ On 2026-10-17 desktop runtime tests passed 138/138. HostContractSession.Open rej
 On 2026-10-17 desktop runtime tests passed 139/139. HostContractSession.Open rejects a producer reference that keeps the contract assembly name but changes its version, even after the content hash is recomputed. The host method does not run. The message contains exactly one shared host contract. A reference whose full identity matches the supplied contract still loads. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 173/173. PackageBuilder.Compile can produce a host-contract package that HostContractSession.Open runs. The source uses RuneCLR.IMapContext with Log and SpawnEntity allowed. OnStart logs ok and spawns fixture. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

@@ -1,3 +1,4 @@
+using RuneCLR;
 using RuneCLR.Compiler;
 using RuneCLR.Packages;
 using RuneCLR.Runtime;
@@ -32,6 +33,7 @@ internal static class PipelineCases
         yield return ("Package build rejects an OnStart call outside the allowed methods", HostInterfaceRejectsUnlisted);
         yield return ("Package build rejects a later callback outside the allowed methods", LaterCallbackRejectsUnlisted);
         yield return ("Package build requires both host interface fields", HostInterfacePairRequired);
+        yield return ("Compiled host-contract package opens and runs OnStart", HostInterfaceSession);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -58,6 +60,20 @@ internal static class PipelineCases
         Check.Assert(manifest.AllowedMethods is not null && manifest.AllowedMethods.SequenceEqual(["Log", "SpawnEntity"]),
             "Allowed methods were not stored canonically.");
     }
+
+    private static void HostInterfaceSession()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostFields", "GameScript", [new("GameScript.cs", HostFieldScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["SpawnEntity", "Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+        Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+    }
+
 
     private const string LaterCallbackScript = """
         using RuneCLR;
@@ -279,5 +295,31 @@ internal static class PipelineCases
         Check.Collected(result);
         var next = Build(Path.Combine(temp.Path, "next")); Check.Assert(next.Succeeded, "Next package failed to compile.");
         Run(next.ManifestPath!);
+    }
+
+    private sealed class RecordingMapContext : IMapContext
+    {
+        public List<string> Logs { get; } = [];
+        public string? Spawned { get; private set; }
+        public string MapId => "fixture";
+        public EntityId SpawnEntity(string name) { Spawned = name; return new EntityId(1); }
+        public void DestroyEntity(EntityId entity) { }
+        public void Log(string message) => Logs.Add(message);
+        public void Charge(int operations = 1) { }
+        public event Action<int>? Signal { add { } remove { } }
+        public void RaiseSignal(int value) { }
+        public void Schedule(int dueInTicks, int value) { }
+        public void Repeat(int everyTicks, int value) { }
+        public bool TryTakeScheduled(out int value) { value = 0; return false; }
+        public int PendingScheduled => 0;
+        public long RequestWork(string name) => 0;
+        public bool TryTakeWork(out long id, out int value, out bool succeeded) { id = 0; value = 0; succeeded = false; return false; }
+        public int PendingWork => 0;
+        public void RegisterResource(string name) { }
+        public bool ReleaseResource(string name) => false;
+        public int PendingResources => 0;
+        public void Subscribe(int id) { }
+        public bool TryTakePosted(out int id, out int value) { id = 0; value = 0; return false; }
+        public int PendingPosted => 0;
     }
 }
