@@ -1574,6 +1574,9 @@ On 2026-10-17 packaging tests passed 185/185. PackageBuilder.Import rejects host
 On 2026-10-17 packaging tests passed 186/186. Imported host-contract IL can let a private assembly call back into the entry. OnStart logs ok. InvokeInt Measure(40) goes through Helper.Through to GameScript.FromEntry and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 187/187. The operator CLI compile command writes a host-contract package. The test runs RuneCLR.PackageTool with --host-interface RuneCLR.IMapContext and --allowed-method Log. OnStart logs ok. InvokeInt Measure(40) returns 41. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

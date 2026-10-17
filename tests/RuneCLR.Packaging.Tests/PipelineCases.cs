@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using RuneCLR;
 using RuneCLR.Compiler;
 using RuneCLR.Packages;
@@ -47,6 +48,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
+        yield return ("Operator CLI compiles a host-contract package", HostInterfaceOperatorCli);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -465,6 +467,74 @@ internal static class PipelineCases
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
+
+    private static void HostInterfaceOperatorCli()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), IntSessionScript);
+        var output = Path.Combine(temp.Path, "package");
+        var start = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            WorkingDirectory = RepositoryRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        start.Environment["DOTNET_NOLOGO"] = "1";
+        foreach (var argument in new[]
+        {
+            "run", "--project", "tools/RuneCLR.PackageTool", "-c", BuildConfiguration(), "--no-build", "--",
+            "compile",
+            "--source", source,
+            "--id", "HostCli",
+            "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory,
+            "--contract", Fixtures.ContractAssembly,
+            "--output", output,
+            "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log",
+        }) start.ArgumentList.Add(argument);
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("The package tool did not start.");
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(120_000))
+        {
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit();
+            throw new InvalidOperationException("The package tool did not exit.");
+        }
+        process.WaitForExit();
+        var stdout = stdoutTask.GetAwaiter().GetResult();
+        var stderr = stderrTask.GetAwaiter().GetResult();
+        Check.Assert(process.ExitCode == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + process.ExitCode + ". " + stdout + stderr);
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static string RepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+            if (File.Exists(Path.Combine(directory.FullName, "RuneCLR.slnx"))) return directory.FullName;
+        throw new InvalidOperationException("Repository root was not found from the test output.");
+    }
+
+    private static string BuildConfiguration()
+    {
+        foreach (var part in AppContext.BaseDirectory.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            if (part.Equals("Release", StringComparison.OrdinalIgnoreCase)) return "Release";
+            if (part.Equals("Debug", StringComparison.OrdinalIgnoreCase)) return "Debug";
+        }
+        return "Release";
+    }
 
     private const string LaterCallbackScript = """
         using RuneCLR;
