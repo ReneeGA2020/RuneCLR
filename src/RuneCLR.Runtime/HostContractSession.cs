@@ -42,24 +42,42 @@ public sealed class HostContractSession : IDisposable
 
     private static void RequireListedEntry(PackageManifest manifest)
     {
+        const string failure = "The file list must exactly match the entry and private dependencies.";
         if (manifest.Files is null || manifest.Dependencies is null)
-            throw new InvalidDataException("The file list must exactly match the entry.");
-        var listed = manifest.Files.Where(file => file is not null &&
-            string.Equals(file.Path, manifest.EntryAssembly, StringComparison.Ordinal)).ToArray();
-        if (listed.Length != 1 || !string.Equals(listed[0].Sha256, manifest.EntrySha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("The file list must exactly match the entry.");
-        if (manifest.Dependencies.Any(dependency => dependency is not null &&
-            string.Equals(dependency.Path, manifest.EntryAssembly, StringComparison.Ordinal)))
-            throw new InvalidDataException("The file list must exactly match the entry.");
+            throw new InvalidDataException(failure);
+        RequireRelativeDll(manifest.EntryAssembly);
+        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [manifest.EntryAssembly] = manifest.EntrySha256
+        };
+        foreach (var dependency in manifest.Dependencies)
+        {
+            if (dependency is null || string.IsNullOrWhiteSpace(dependency.Sha256) || !expected.TryAdd(dependency.Path, dependency.Sha256))
+                throw new InvalidDataException(failure);
+            RequireRelativeDll(dependency.Path);
+        }
+
+        if (manifest.Files.Length != expected.Count)
+            throw new InvalidDataException(failure);
+        foreach (var file in manifest.Files)
+        {
+            if (file is null || !expected.Remove(file.Path, out var hash) ||
+                !string.Equals(file.Sha256, hash, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException(failure);
+        }
+    }
+
+    private static void RequireRelativeDll(string relative)
+    {
+        if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.IndexOf((char)92) >= 0 || relative.IndexOf((char)58) >= 0 ||
+            relative.Split('/').Any(part => part is "" or "." or "..") ||
+            !relative.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
     }
 
     private static string ResolveEntry(string directory, string relative)
     {
-        if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.IndexOf((char)92) >= 0 || relative.IndexOf((char)58) >= 0 ||
-            relative.Split('/').Any(part => part is "" or "." or ".."))
-            throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
-        if (!relative.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
+        RequireRelativeDll(relative);
         var full = Path.GetFullPath(Path.Combine(directory, relative.Replace('/', Path.DirectorySeparatorChar)));
         var root = Path.GetFullPath(directory + Path.DirectorySeparatorChar);
         if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))

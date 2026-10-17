@@ -29,6 +29,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects an entry that is not a DLL", OpenRejectsNonDll);
         yield return ("Host contract Open rejects an entry missing from the file list", OpenRejectsUnlistedEntry);
         yield return ("Host contract Open rejects an entry hash that disagrees with the file list", OpenRejectsMismatchedFileHash);
+        yield return ("Host contract Open rejects a dependency path that escapes the package", OpenRejectsEscapingDependency);
+        yield return ("Host contract Open rejects a file that is not the entry or a dependency", OpenRejectsExtraFile);
         yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
@@ -352,6 +354,46 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("exactly match the entry", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The mismatched entry ran.");
+    }
+
+    private static void OpenRejectsEscapingDependency()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var manifest = WriteDependencyManifest(directory.Path, "../lib.dll", false);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("canonical relative DLL", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The escaping dependency ran.");
+    }
+
+    private static void OpenRejectsExtraFile()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var manifest = WriteDependencyManifest(directory.Path, "lib.dll", true);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("exactly match the entry", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The extra file ran.");
+    }
+
+    private static string WriteDependencyManifest(string directory, string dependencyPath, bool extraFile)
+    {
+        var entryHash = new string('a', 64);
+        var dependencyHash = new string('b', 64);
+        var empty = new string('c', 64);
+        var files = extraFile
+            ? new[] { new PackageFile("echo.dll", entryHash), new PackageFile("extra.dll", dependencyHash) }
+            : new[] { new PackageFile("echo.dll", entryHash), new PackageFile(dependencyPath, dependencyHash) };
+        var dependencies = extraFile ? Array.Empty<PackageDependency>() : new[] { new PackageDependency(dependencyPath, "Lib, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", dependencyHash) };
+        var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
+            [new InputIdentity("references.dll", empty)], [new InputIdentity("echo.dll", entryHash)]);
+        var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
+            "host-open", "echo.dll", "HostContract.OpenDependencyScript.Script", entryHash, dependencies, files, producer, "",
+            typeof(IHostEcho).FullName, ["Echo"]);
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        var path = Path.Combine(directory, PackageFormat.ManifestFileName);
+        PackageManifestIO.Write(path, manifest);
+        return path;
     }
 
     private static string WriteListedManifest(string directory, string entryPath, string entryHash, string filePath, string fileHash)
