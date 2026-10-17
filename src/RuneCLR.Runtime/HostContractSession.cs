@@ -66,6 +66,7 @@ public sealed class HostContractSession : IDisposable
         try
         {
             var bytes = File.ReadAllBytes(Path.GetFullPath(assemblyPath));
+            ManagedAssemblyInspector.Inspect(bytes);
             using var stream = new MemoryStream(bytes, writable: false);
             var assembly = _context.LoadFromStream(stream);
             var entry = assembly.GetType(entryTypeName, throwOnError: false);

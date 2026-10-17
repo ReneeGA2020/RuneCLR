@@ -1394,6 +1394,8 @@ On 2026-10-17 desktop runtime tests passed 69/69. HostContractSession.Open reads
 
 On 2026-10-17 desktop runtime tests passed 71/71. HostContractSession rejects a type initializer before creating the script. An instance constructor may call only Object..ctor. Both checks happen before OnStart, and the host method is not called. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 72/72. HostContractSession inspects the assembly before loading it. An image that is not IL-only is rejected, and the host method is not called. This is the structural intake check, not the gameplay member allowlist. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
