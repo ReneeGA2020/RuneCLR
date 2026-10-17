@@ -49,6 +49,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package passes only an int", HostInterfacePassesIntOnly);
         yield return ("Compiled host-contract package returns an int with the host", HostInterfaceReturnsHostAndInt);
         yield return ("Compiled host-contract package calls a private assembly from a later callback", HostInterfacePrivateCallback);
+        yield return ("Compiled host-contract package lets a private assembly read MapId", HostInterfacePrivateReadsMapId);
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a private assembly call the entry", HostInterfacePrivateCallsEntry);
         yield return ("Compiled host-contract package constructs an author type", HostInterfaceConstructsAuthorType);
@@ -463,6 +464,31 @@ internal static class PipelineCases
         session.Dispose();
         Check.Assert(result == 41, "Measure returned " + result + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfacePrivateReadsMapId()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedMap", """
+            using RuneCLR;
+            public static class SharedMap { public static string Id(IMapContext context) => context.MapId; }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log(SharedMap.Id(context)); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var build = PackageBuilder.Compile("HostPrivateMap", "GameScript", [new("GameScript.cs", script)], Profile(),
+            Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "get_MapId"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfacePrivateChain()
