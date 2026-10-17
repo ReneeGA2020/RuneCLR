@@ -1631,6 +1631,9 @@ On 2026-10-17 packaging tests passed 204/204. The operator CLI rejects an unknow
 On 2026-10-17 packaging tests passed 205/205. The operator CLI compile command rejects a source file that names MissingType. The process exits 2. Standard output contains success false and CS0246. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 206/206. The operator CLI import command rejects a file that is not a managed assembly. The process exits 2. The error says the image is a malformed managed assembly. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

@@ -67,6 +67,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects an oversized source directory", OperatorCliRejectsSourceLimit);
         yield return ("Operator CLI rejects an unknown option", OperatorCliRejectsUnknownOption);
         yield return ("Operator CLI rejects a compiler error", OperatorCliRejectsCompileError);
+        yield return ("Operator CLI rejects a file that is not an assembly", OperatorCliRejectsBadImport);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -939,6 +940,23 @@ internal static class PipelineCases
         Check.Assert(stdout.Contains("CS0246", StringComparison.Ordinal), stdout + stderr);
         Check.Assert(stdout.Contains("MissingType", StringComparison.Ordinal), stdout + stderr);
         Check.Assert(!Directory.Exists(output), "A compiler error published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void OperatorCliRejectsBadImport()
+    {
+        using var temp = new TempDirectory();
+        var assembly = Path.Combine(temp.Path, "NotAnAssembly.dll");
+        File.WriteAllText(assembly, "not a pe image\n");
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "import", "--assembly", assembly, "--id", "HostCliBad", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext", "--allowed-method", "Log");
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("Malformed managed assembly", StringComparison.Ordinal), stdout + stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(!Directory.Exists(output), "A bad import published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 
