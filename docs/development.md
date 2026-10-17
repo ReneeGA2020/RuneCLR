@@ -1499,6 +1499,9 @@ On 2026-10-17 desktop runtime tests passed 126/126. HostContractSession.Open rej
 On 2026-10-17 desktop runtime tests passed 127/127. HostContractSession.Open rejects a private dependency whose assembly identity does not match the manifest. The file hash can still match. The message contains identity mismatch and lib.dll. The host method does not run. A dependency whose manifest identity matches the image still loads. This is not an iOS result.
 
 
+On 2026-10-17 desktop runtime tests passed 128/128. HostContractSession.Open rejects a manifest whose format version is not current, even after the content hash is recomputed. The same check also requires the current API version and input profile. The message contains Unsupported package format. The host method does not run. A current manifest still loads. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

@@ -28,6 +28,10 @@ public sealed class HostContractSession : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
         ArgumentNullException.ThrowIfNull(contract);
         var manifest = PackageManifestIO.Read(manifestPath);
+        if (manifest.FormatVersion != PackageFormat.CurrentVersion ||
+            manifest.ApiVersion != PackageFormat.CurrentApiVersion ||
+            manifest.InputProfile != PackageFormat.InputProfile)
+            throw new InvalidDataException("Unsupported package format, API version or input profile.");
         if (!string.Equals(PackageManifestIO.ComputeContentSha256(manifest), manifest.ContentSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The package content identity does not match the manifest.");
         if (string.IsNullOrWhiteSpace(manifest.HostInterface) || manifest.AllowedMethods is null ||

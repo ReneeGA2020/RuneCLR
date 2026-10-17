@@ -43,6 +43,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a different host interface", OpenRejectsInterface);
         yield return ("Host contract Open rejects a changed entry file", OpenRejectsEntryTamper);
         yield return ("Host contract Open rejects a manifest whose content hash does not match", OpenRejectsContentTamper);
+        yield return ("Host contract Open rejects an unsupported package format", OpenRejectsUnsupportedFormat);
         yield return ("Host contract Open rejects an entry path that escapes the package", OpenRejectsEscapingPath);
         yield return ("Host contract Open rejects an entry that is not a DLL", OpenRejectsNonDll);
         yield return ("Host contract Open rejects an entry missing from the file list", OpenRejectsUnlistedEntry);
@@ -830,6 +831,23 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("content identity", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The tampered manifest ran.");
     }
+
+    private static void OpenRejectsUnsupportedFormat()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenFormatScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifestPath = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenFormatScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var manifest = PackageManifestIO.Read(manifestPath);
+        manifest = manifest with { FormatVersion = PackageFormat.CurrentVersion + 1 };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(manifestPath, manifest);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifestPath, typeof(IHostEcho), host));
+        Check(error.Message.Contains("Unsupported package format", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The unsupported format ran.");
+    }
+
 
     private static void OpenRejectsEscapingPath()
     {
