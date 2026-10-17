@@ -38,6 +38,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package charges from OnStart", HostInterfaceOnStartCharges);
         yield return ("Compiled host-contract package destroys an entity from OnStart", HostInterfaceOnStartDestroys);
         yield return ("Compiled host-contract package reads MapId from OnStart", HostInterfaceOnStartReadsMapId);
+        yield return ("Compiled host-contract package releases a stored entity", HostInterfaceReleasesStoredEntity);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
         yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
@@ -197,6 +198,37 @@ internal static class PipelineCases
         var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
+    }
+
+    private const string StoredEntityScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            private EntityId id;
+            public void OnStart(IMapContext context)
+            {
+                context.Log("ok");
+                id = context.SpawnEntity("fixture");
+            }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+            public void Release(IMapContext context) { context.DestroyEntity(id); }
+        }
+        """;
+
+    private static void HostInterfaceReleasesStoredEntity()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostRelease", "GameScript", [new("GameScript.cs", StoredEntityScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Invoke("Release");
+        session.Dispose();
+        Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+        Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
     private const string LaterSessionScript = """
