@@ -8,6 +8,7 @@ internal static class HostContractSessionTests
     {
         yield return ("Host contract OnStart receives the host instance and the context unloads", EchoAndUnload);
         yield return ("Host contract rejects an OnStart parameter that is not the host interface", RejectWrongParameter);
+        yield return ("Host contract rejects an OnStart call that is not a host contract member", RejectForeignCall);
     }
 
     private static void EchoAndUnload()
@@ -54,6 +55,54 @@ internal static class HostContractSessionTests
         {
             directory.Dispose();
         }
+    }
+
+
+    private static void RejectForeignCall()
+    {
+        var host = new RecordingEcho();
+        var directory = new TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory.Path, "foreign.dll");
+            WriteEchoAndForeignCall(path);
+            var error = CheckThrows<InvalidOperationException>(() =>
+                new HostContractSession(typeof(IHostEcho), host, path, "HostContract.ForeignScript.Script"));
+            Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+            Check(host.Seen is null, "The author method was called.");
+        }
+        finally
+        {
+            directory.Dispose();
+        }
+    }
+
+    private static void WriteEchoAndForeignCall(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var toString = typeof(object).GetMethod(nameof(object.ToString), Type.EmptyTypes)!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.ForeignScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.ForeignScript");
+        var type = module.DefineType("HostContract.ForeignScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 41);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Callvirt, toString);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void WriteScript(string path, string assemblyName, Type parameterType, MethodInfo echo, int value, bool cast)
