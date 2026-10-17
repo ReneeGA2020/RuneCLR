@@ -38,6 +38,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
         yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
         yield return ("Compiled host-contract package calls a private assembly from a later callback", HostInterfacePrivateCallback);
+        yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -170,6 +171,36 @@ internal static class PipelineCases
             """;
         var build = PackageBuilder.Compile("HostPrivate", "GameScript", [new("GameScript.cs", script)], Profile(),
             Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfacePrivateChain()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedSecond", """
+            public static class Second { public static int AddOne(int value) => value + 1; }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedFirst", """
+            public static class First { public static int Through(int value) => Second.AddOne(value); }
+            """, [second]);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public int Measure(int value) => First.Through(value);
+            }
+            """;
+        var build = PackageBuilder.Compile("HostChain", "GameScript", [new("GameScript.cs", script)], Profile(),
+            Path.Combine(temp.Path, "package"), [first, second], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
         Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
         var host = new RecordingMapContext();
         var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
