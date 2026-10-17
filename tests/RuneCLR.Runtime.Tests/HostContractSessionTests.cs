@@ -15,6 +15,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Invoke passes the host interface into a later callback", InvokePassesTheHostAgain);
         yield return ("Host contract Invoke rejects a reentrant callback", InvokeRejectsReentry);
         yield return ("Host contract Invoke reports callback failure as text and continues", InvokeFailureIsText);
+        yield return ("Host contract OnStart failure is text and does not return the session", OnStartFailureIsText);
     }
 
     private static void EchoAndUnload()
@@ -188,11 +189,35 @@ internal static class HostContractSessionTests
             Check(host.Calls.SequenceEqual([1, 2]), "OnTick did not reach the host.");
             session.Invoke("OnStop");
             Check(host.Calls.SequenceEqual([1, 2, 3]), "The session did not continue after the failure.");
+            var reference = session.ContextReference;
+            session.Dispose();
+            for (var attempt = 0; attempt < 10 && reference.IsAlive; attempt++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
+
+            Check(!reference.IsAlive, error.Message);
         }
         finally
         {
             session.Dispose();
         }
+    }
+
+    private static void OnStartFailureIsText()
+    {
+        var host = new RecordingEcho { ThrowOn = 9 };
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "start-failure.dll");
+        WriteScript(path, "HostContract.StartFailureScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 9, cast: false);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.StartFailureScript.Script", ["Echo"]));
+        Check(error.InnerException is null, "The OnStart exception was retained.");
+        Check(error.Message.Contains("System.InvalidOperationException: host-failed", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.SequenceEqual([9]), "OnStart did not reach the host.");
+        GC.KeepAlive(error);
     }
 
     private static void RejectUnlistedInterfaceMethod()

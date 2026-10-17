@@ -1388,6 +1388,8 @@ On 2026-10-17 desktop runtime tests passed 64/64. HostContractSession rejects a 
 
 On 2026-10-17 desktop runtime tests passed 65/65. A host-contract callback failure is reported as a new InvalidOperationException. Its message contains the caught type and message, and InnerException is null. The session can Invoke a later callback after that failure. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 66/66. After a host-contract callback failure, Dispose still unloads the collectible context while the host keeps the text exception. An OnStart failure is also text with no InnerException, and the constructor does not return the session. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
