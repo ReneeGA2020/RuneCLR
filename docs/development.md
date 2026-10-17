@@ -1772,6 +1772,9 @@ On 2026-10-17 packaging tests passed 251/251. Imported host-contract IL can let 
 On 2026-10-17 packaging tests passed 252/252. A compiled host-contract package can let a second private assembly spawn and destroy an entity. OnStart logs ok and passes the host through First.Through to Second.Cycle. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 253/253. Imported host-contract IL can let a second private assembly spawn and destroy an entity. The entry, SharedImportLifeFirst, and SharedImportLifeSecond are submitted as IL, not compiled by PackageBuilder. OnStart logs ok and passes the host through First.Through to Second.Cycle. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
