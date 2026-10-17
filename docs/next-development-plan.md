@@ -574,3 +574,5 @@ On 2026-10-17 packaging tests passed 191/191. The operator CLI compile command a
 On 2026-10-17 packaging tests passed 192/192. The operator CLI import command accepts one --dependency and writes a host-contract package from submitted IL. The entry and SharedCliImport are not compiled by the package tool. OnStart logs ok. InvokeInt Measure(40) calls AddOne and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 193/193. The operator CLI validate command accepts a host-contract manifest. The process exits 0 and prints the package id HostCliValidate and its content hash. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 packaging tests passed 194/194. The operator CLI validate command rejects a host-contract manifest whose id changed without a new content hash. The process exits 2. The error contains content identity. The package directory remains. Gameplay validation is unchanged. This is not an iOS result.

@@ -1595,6 +1595,9 @@ On 2026-10-17 packaging tests passed 192/192. The operator CLI import command ac
 On 2026-10-17 packaging tests passed 193/193. The operator CLI validate command accepts a host-contract manifest. The process exits 0 and prints the package id HostCliValidate and its content hash. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 194/194. The operator CLI validate command rejects a host-contract manifest whose id changed without a new content hash. The process exits 2. The error contains content identity. The package directory remains. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
