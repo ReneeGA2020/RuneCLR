@@ -53,6 +53,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets a private assembly charge", HostInterfacePrivateCharges);
         yield return ("Compiled host-contract package lets a private assembly spawn", HostInterfacePrivateSpawns);
         yield return ("Compiled host-contract package lets a private assembly destroy", HostInterfacePrivateDestroys);
+        yield return ("Imported host-contract IL lets a private assembly destroy", HostInterfaceImportsPrivateDestroy);
         yield return ("Imported host-contract IL lets a private assembly spawn", HostInterfaceImportsPrivateSpawn);
         yield return ("Imported host-contract IL lets a private assembly charge", HostInterfaceImportsPrivateCharge);
         yield return ("Imported host-contract IL lets a private assembly read MapId", HostInterfaceImportsPrivateMapId);
@@ -1118,6 +1119,45 @@ internal static class PipelineCases
         var dll = Path.Combine(temp.Path, "HostImportPrivateSpawn.dll");
         File.WriteAllBytes(dll, compiled.Assembly!);
         var imported = PackageBuilder.Import("HostImportPrivateSpawn", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+        Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsPrivateDestroy()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedImportLife", """
+            using RuneCLR;
+            public static class SharedLife
+            {
+                public static void Cycle(IMapContext context)
+                {
+                    var id = context.SpawnEntity("fixture");
+                    context.DestroyEntity(id);
+                }
+            }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); SharedLife.Cycle(context); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportPrivateLife", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, helper]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportPrivateLife.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportPrivateLife", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
             [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
         Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
         var host = new RecordingMapContext();
