@@ -109,6 +109,8 @@ embedding requirement. Deterministic lockstep is not a runtime milestone.
 
 On 2026-10-16 the project owner confirmed that the UGC mechanism must not require an entity API. SpawnEntity, entity names, and the other current IMapContext members are rules of the prototype host session. A game without entities can use script loading, capability limits, execution, and unload through its own host API. That separation is not yet an implemented extension point, and no rename is selected.
 
+On 2026-10-17 the project owner set the host API shape. The game supplies a shared assembly and an ordinary CLR interface. The script receives an instance and calls its methods directly. RuneCLR still owns loading, capability limits, execution, and unload, and it does not define gameplay methods. SpawnEntity is not required, and calls are not dispatched by name. IMapContext remains the prototype sample and the current managed-il-gameplay-v1 allowlist. It is not renamed. A later restricted UGC allowlist names members of the host-supplied interface. Trusted hot updates are not limited to that allowlist. This decision does not implement the extension point.
+
 Dedicated acceptance issues: [trusted integration #12](https://github.com/ReneeGA2020/RuneCLR/issues/12),
 [same-source builds #13](https://github.com/ReneeGA2020/RuneCLR/issues/13),
 [object interoperability #14](https://github.com/ReneeGA2020/RuneCLR/issues/14) and

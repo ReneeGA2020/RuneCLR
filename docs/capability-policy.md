@@ -5,7 +5,7 @@ trusted developer-owned hot updates. A broader trusted integration profile is
 planned separately; the current versioned loader still applies this policy.
 See [product direction](product-direction.md) for that distinction.
 
-The game API row below is the current prototype host surface. It does not require a game to expose entities, and it does not define the UGC mechanism. A host-defined API is not implemented here.
+The game API row below is the current prototype host surface. It does not require a game to expose entities, and it does not define the UGC mechanism. A host-defined API is not implemented here. On 2026-10-17 its decided shape is a game-owned shared CLR interface called directly by the script. IMapContext is not renamed.
 
 The controlled-author profile for [#5](https://github.com/ReneeGA2020/RuneCLR/issues/5)
 adds a static API check to source/IL packaging and to versioned package loading.

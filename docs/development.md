@@ -33,6 +33,7 @@ restricted UGC. The custom-map analogy is one integration model.
   package terminology. Existing `Map` names remain until a separate coherent
   rename; no replacement term has been selected.
 - On 2026-10-16 the project owner confirmed that using UGC does not require MapContext.SpawnEntity or an entity concept. Those rules belong to the current prototype host. The framework mechanism is session loading, capability limits, execution, and unload. A host-defined API is the intended boundary. No extension point is implemented by this note, and no rename is selected.
+- On 2026-10-17 the project owner set that host API to a game-owned shared CLR interface. The script calls its methods directly. SpawnEntity is not required, and calls are not dispatched by name. IMapContext stays the prototype sample and the current managed-il-gameplay-v1 allowlist. The extension point is not implemented by this note.
 - Execution strategy accepted on 2026-10-12: interpret UGC map code/private
   dependencies across all target platforms first; explore UGC JIT after
   interpreter recovery and real-game evidence mature. Trusted host/framework

@@ -48,7 +48,7 @@ These rows are desktop results already recorded. A blank shape is not a pass.
 
 The gameplay profile allows IMapContext members get_MapId, SpawnEntity, DestroyEntity, Log, and Charge. It still excludes Signal, RaiseSignal, the tick schedule, Repeat, host-completed work, resource registration, and host-posted events. Delegate callbacks stay denied. Trusted updates are not limited to this profile.
 
-This profile is the current prototype host allowlist. It does not define the UGC mechanism, and it does not require a game to have entities. Trusted updates remain outside this profile. A host-defined API is not implemented here.
+This profile is the current prototype host allowlist. It does not define the UGC mechanism, and it does not require a game to have entities. Trusted updates remain outside this profile. A host-defined API is not implemented here. On 2026-10-17 its decided shape is a game-owned shared CLR interface called directly by the script. IMapContext is not renamed.
 
 ## Calls the selector does not make
 
