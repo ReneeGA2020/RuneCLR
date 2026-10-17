@@ -38,6 +38,7 @@ public sealed class HostContractSession : IDisposable
         if (manifest.Producer.InputKind is not ("source" or "il"))
             throw new InvalidDataException("Unsupported producer input kind.");
         RequireProducerInputs(manifest.Producer);
+        RequireHostContractReference(manifest.Producer, contract);
         if (!string.Equals(PackageManifestIO.ComputeContentSha256(manifest), manifest.ContentSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The package content identity does not match the manifest.");
         if (string.IsNullOrWhiteSpace(manifest.HostInterface) || manifest.AllowedMethods is null ||
@@ -88,6 +89,24 @@ public sealed class HostContractSession : IDisposable
     {
         if (hash is null || hash.Length != 64 || !hash.All(Uri.IsHexDigit))
             throw new InvalidDataException("Each content/input identity requires a SHA-256 hexadecimal digest.");
+    }
+
+    private static void RequireHostContractReference(PackageProducer producer, Type contract)
+    {
+        var expected = contract.Assembly.GetName().Name;
+        if (string.IsNullOrWhiteSpace(expected))
+            throw new InvalidDataException("Producer references must identify exactly one shared host contract.");
+        var matches = 0;
+        foreach (var input in producer.References)
+        {
+            if (input.AssemblyName is null)
+                continue;
+            if (string.Equals(new AssemblyName(input.AssemblyName).Name, expected, StringComparison.OrdinalIgnoreCase))
+                matches++;
+        }
+
+        if (matches != 1)
+            throw new InvalidDataException("Producer references must identify exactly one shared host contract.");
     }
 
     private static void RequireProducerInputs(PackageProducer producer)

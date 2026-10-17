@@ -50,6 +50,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects an unsupported producer input kind", OpenRejectsProducerKind);
         yield return ("Host contract Open rejects a producer with no references", OpenRejectsEmptyProducerReferences);
         yield return ("Host contract Open rejects a blank package id", OpenRejectsBlankPackageId);
+        yield return ("Host contract Open rejects a producer that does not name the contract assembly", OpenRejectsMissingContractReference);
         yield return ("Host contract Open rejects an entry path that escapes the package", OpenRejectsEscapingPath);
         yield return ("Host contract Open rejects an entry that is not a DLL", OpenRejectsNonDll);
         yield return ("Host contract Open rejects an entry missing from the file list", OpenRejectsUnlistedEntry);
@@ -953,6 +954,36 @@ internal static class HostContractSessionTests
         Check(host.Seen is null, "The blank package id ran.");
     }
 
+    private static InputIdentity ContractReference()
+    {
+        var assemblyName = typeof(IHostEcho).Assembly.GetName();
+        var identity = assemblyName.FullName ?? throw new InvalidOperationException("The test contract assembly has no identity.");
+        return new InputIdentity("host-contract.dll", new string('d', 64), identity);
+    }
+
+    private static void OpenRejectsMissingContractReference()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenContractRefScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifestPath = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenContractRefScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var manifest = PackageManifestIO.Read(manifestPath);
+        manifest = manifest with
+        {
+            Producer = manifest.Producer with
+            {
+                References = [new InputIdentity("other.dll", new string('d', 64), "Other.Contract, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null")]
+            }
+        };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(manifestPath, manifest);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifestPath, typeof(IHostEcho), host));
+        Check(error.Message.Contains("exactly one shared host contract", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The missing contract reference ran.");
+    }
+
+
 
 
 
@@ -1230,7 +1261,7 @@ internal static class HostContractSessionTests
         var secondHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(secondPath)));
         var empty = new string('c', 64);
         var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
-            [new InputIdentity("references.dll", empty)], [new InputIdentity("echo.dll", entryHash)]);
+            [new InputIdentity("references.dll", empty), ContractReference()], [new InputIdentity("echo.dll", entryHash)]);
         var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
             "host-open", "echo.dll", entryType, entryHash,
             [
@@ -1600,7 +1631,7 @@ internal static class HostContractSessionTests
         var dependencyName = DeclaredDependencyName(libraryPath);
         var empty = new string('c', 64);
         var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
-            [new InputIdentity("references.dll", empty)], [new InputIdentity("echo.dll", entryHash)]);
+            [new InputIdentity("references.dll", empty), ContractReference()], [new InputIdentity("echo.dll", entryHash)]);
         var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
             "host-open", "echo.dll", entryType, entryHash,
             [new PackageDependency("lib.dll", dependencyName, dependencyHash)],
@@ -1622,7 +1653,7 @@ internal static class HostContractSessionTests
             : new[] { new PackageFile("echo.dll", entryHash), new PackageFile(dependencyPath, dependencyHash) };
         var dependencies = extraFile ? Array.Empty<PackageDependency>() : new[] { new PackageDependency(dependencyPath, "Lib, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", dependencyHash) };
         var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
-            [new InputIdentity("references.dll", empty)], [new InputIdentity("echo.dll", entryHash)]);
+            [new InputIdentity("references.dll", empty), ContractReference()], [new InputIdentity("echo.dll", entryHash)]);
         var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
             "host-open", "echo.dll", "HostContract.OpenDependencyScript.Script", entryHash, dependencies, files, producer, "",
             typeof(IHostEcho).FullName, ["Echo"]);
@@ -1636,7 +1667,7 @@ internal static class HostContractSessionTests
     {
         var empty = new string('c', 64);
         var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
-            [new InputIdentity("references.dll", empty)], [new InputIdentity(entryPath, entryHash)]);
+            [new InputIdentity("references.dll", empty), ContractReference()], [new InputIdentity(entryPath, entryHash)]);
         var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
             "host-open", entryPath, "HostContract.OpenListScript.Script", entryHash, [], [new PackageFile(filePath, fileHash)], producer, "",
             typeof(IHostEcho).FullName, ["Echo"]);
@@ -1650,7 +1681,7 @@ internal static class HostContractSessionTests
     {
         var empty = new string('a', 64);
         var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
-            [new InputIdentity("references.dll", empty)], [new InputIdentity(entryPath, empty)]);
+            [new InputIdentity("references.dll", empty), ContractReference()], [new InputIdentity(entryPath, empty)]);
         var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
             "host-open", entryPath, "HostContract.OpenPathScript.Script", empty, [], [new PackageFile(entryPath, empty)], producer, "",
             typeof(IHostEcho).FullName, ["Echo"]);
@@ -1665,7 +1696,7 @@ internal static class HostContractSessionTests
         var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, assemblyFile))));
         var empty = new string('0', 64);
         var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
-            [new InputIdentity("references.dll", empty)], [new InputIdentity(assemblyFile, hash)]);
+            [new InputIdentity("references.dll", empty), ContractReference()], [new InputIdentity(assemblyFile, hash)]);
         var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
             "host-open", assemblyFile, entryType, hash, [], [new PackageFile(assemblyFile, hash)], producer, "",
             hostInterface, methods);
