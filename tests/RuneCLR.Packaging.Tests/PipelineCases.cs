@@ -39,6 +39,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package destroys an entity from OnStart", HostInterfaceOnStartDestroys);
         yield return ("Compiled host-contract package reads MapId from OnStart", HostInterfaceOnStartReadsMapId);
         yield return ("Compiled host-contract package rejects the MapId property name", HostInterfaceRejectsMapIdPropertyName);
+        yield return ("Imported host-contract IL rejects the MapId property name", HostInterfaceImportRejectsMapIdPropertyName);
         yield return ("Compiled host-contract package releases a stored entity", HostInterfaceReleasesStoredEntity);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
@@ -239,6 +240,23 @@ internal static class PipelineCases
         var output = Path.Combine(temp.Path, "package");
         var error = Check.Throws<InvalidDataException>(() => PackageBuilder.Compile("HostMapName", "GameScript",
             [new("GameScript.cs", OnStartMapIdScript)], Profile(), output,
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "MapId"]));
+        Check.Assert(error.Message.Contains("get_MapId", StringComparison.Ordinal), error.Message);
+        Check.Assert(error.Message.Contains("OnStart", StringComparison.Ordinal), error.Message);
+        Check.Assert(!Directory.Exists(output), "A property-name allow list published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void HostInterfaceImportRejectsMapIdPropertyName()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostImportMapName", [new("GameScript.cs", OnStartMapIdScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportMapName.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var output = Path.Combine(temp.Path, "package");
+        var error = Check.Throws<InvalidDataException>(() => PackageBuilder.Import("HostImportMapName", "GameScript", dll, Profile(), output,
             hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "MapId"]));
         Check.Assert(error.Message.Contains("get_MapId", StringComparison.Ordinal), error.Message);
         Check.Assert(error.Message.Contains("OnStart", StringComparison.Ordinal), error.Message);
