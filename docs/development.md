@@ -1601,6 +1601,9 @@ On 2026-10-17 packaging tests passed 194/194. The operator CLI validate command 
 On 2026-10-17 packaging tests passed 195/195. The operator CLI validate command rejects a host-contract package whose entry file byte changed. The manifest content hash is left unchanged. The process exits 2. The error names that file and contains hash mismatch. The package directory remains. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 196/196. The operator CLI validate command rejects a host-contract package that contains a file absent from the manifest. The process exits 2. The error contains missing or extra files. The extra file remains. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

@@ -57,6 +57,7 @@ internal static class PipelineCases
         yield return ("Operator CLI validates a host-contract package", HostInterfaceOperatorCliValidates);
         yield return ("Operator CLI rejects a tampered host-contract manifest", HostInterfaceOperatorCliRejectsTamperedManifest);
         yield return ("Operator CLI rejects a changed host-contract file", HostInterfaceOperatorCliRejectsChangedFile);
+        yield return ("Operator CLI rejects an extra host-contract file", HostInterfaceOperatorCliRejectsExtraFile);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -715,6 +716,22 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains(manifest.EntryAssembly, StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(Directory.Exists(Path.GetDirectoryName(build.ManifestPath!)), "Validate removed the package directory.");
+    }
+
+    private static void HostInterfaceOperatorCliRejectsExtraFile()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliExtra", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var packageDirectory = Path.GetDirectoryName(build.ManifestPath!)!;
+        var extra = Path.Combine(packageDirectory, "note.txt");
+        File.WriteAllText(extra, "extra");
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("missing or extra files", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(extra), "Validate removed the extra file.");
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
