@@ -62,6 +62,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a second private assembly log", HostInterfacePrivateChainLogs);
         yield return ("Compiled host-contract package rejects a second private spawn", HostInterfacePrivateChainRejectsSpawn);
+        yield return ("Imported host-contract IL rejects a second private spawn", HostInterfaceImportsPrivateChainRejectsSpawn);
         yield return ("Imported host-contract IL lets a second private assembly log", HostInterfaceImportsPrivateChainLogs);
         yield return ("Compiled host-contract package lets a private assembly call the entry", HostInterfacePrivateCallsEntry);
         yield return ("Compiled host-contract package constructs an author type", HostInterfaceConstructsAuthorType);
@@ -1319,6 +1320,40 @@ internal static class PipelineCases
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["ok", "from-second"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsPrivateChainRejectsSpawn()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedImportSpawnSecond", """
+            using RuneCLR;
+            public static class Second { public static void Note(IMapContext context) => context.SpawnEntity("nope"); }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedImportSpawnFirst", """
+            using RuneCLR;
+            public static class First { public static void Through(IMapContext context) => Second.Note(context); }
+            """, [second]);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); First.Through(context); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportChainSpawn", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, first]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportChainSpawn.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var output = Path.Combine(temp.Path, "package");
+        var error = Check.Throws<InvalidDataException>(() => PackageBuilder.Import("HostImportChainSpawn", "GameScript", dll, Profile(), output,
+            [first, second], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]));
+        Check.Assert(error.Message.Contains("OnStart", StringComparison.Ordinal), error.Message);
+        Check.Assert(error.Message.Contains("SpawnEntity", StringComparison.Ordinal), error.Message);
+        Check.Assert(!Directory.Exists(output), "An unlisted private spawn published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 
     private static void HostInterfaceImportsPrivate()
