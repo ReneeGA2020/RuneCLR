@@ -123,6 +123,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a private dependency identity", OperatorCliRejectsDependencyIdentity);
         yield return ("Operator CLI rejects a linked package file", OperatorCliRejectsPackageLink);
         yield return ("Operator CLI rejects a deeply nested package", OperatorCliRejectsPackageNesting);
+        yield return ("Operator CLI rejects a spoofed entry assembly", OperatorCliRejectsSpoofedEntry);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2530,6 +2531,37 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("Package directories", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(Directory.Exists(nested), "Validate removed the nested directory.");
+    }
+
+
+    private static void OperatorCliRejectsSpoofedEntry()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliSpoof", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var spoof = SourceCompiler.Compile("System.IO", [new("GameScript.cs", IntSessionScript)], CompilerFixture.ApprovedReferences());
+        Check.Assert(spoof.Succeeded, string.Join("; ", spoof.Diagnostics.Select(item => item.Message)));
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var entryPath = Path.Combine(Path.GetDirectoryName(build.ManifestPath!)!, manifest.EntryAssembly);
+        File.WriteAllBytes(entryPath, spoof.Assembly!);
+        var hash = Fixtures.Hash(spoof.Assembly!);
+        manifest = manifest with
+        {
+            EntrySha256 = hash,
+            Files = manifest.Files.Select(file => file.Path == manifest.EntryAssembly ? file with { Sha256 = hash } : file).ToArray()
+        };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("spoofs", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("System.IO", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(entryPath), "Validate removed the spoofed entry.");
     }
 
 
