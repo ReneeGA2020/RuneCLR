@@ -38,6 +38,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open lets a private method call the entry", OpenPrivateCallsEntry);
         yield return ("Host contract Open rejects a BCL call reached through the entry", OpenRejectsEntryCallFromPrivate);
         yield return ("Host contract constructs an author type", OpenConstructsAuthorType);
+        yield return ("Host contract Open constructs a private assembly type", OpenConstructsPrivateType);
+        yield return ("Host contract Open rejects a BCL call inside a private constructor", OpenRejectsPrivateConstructorCall);
         yield return ("Host contract rejects a framework constructor", OpenRejectsFrameworkNew);
         yield return ("Host contract Open rejects a missing dependency file", OpenRejectsMissingDependency);
         yield return ("Host contract Open rejects a changed dependency file", OpenRejectsChangedDependency);
@@ -489,6 +491,96 @@ internal static class HostContractSessionTests
             new HostContractSession(typeof(IHostEcho), host, path, "HostContract.BoxScript.Script", ["Echo"]));
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The framework constructor ran.");
+    }
+
+    private static void OpenConstructsPrivateType()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WritePrivateBox(library, "HostContract.PrivateBox", foreignCtor: false);
+        WriteEntryConstructsBox(entry, "HostContract.PrivateBoxCaller", library, "HostContract.PrivateBox.Box");
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.PrivateBoxCaller.Script");
+        var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
+        session.Dispose();
+        Check(host.Seen == 41, "The private object did not reach the host.");
+    }
+
+    private static void OpenRejectsPrivateConstructorCall()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WritePrivateBox(library, "HostContract.PrivateForeignBox", foreignCtor: true);
+        WriteEntryConstructsBox(entry, "HostContract.PrivateForeignBoxCaller", library, "HostContract.PrivateForeignBox.Box");
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.PrivateForeignBoxCaller.Script");
+        var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The private constructor call ran.");
+    }
+
+    private static void WritePrivateBox(string path, string assemblyName, bool foreignCtor)
+    {
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var box = module.DefineType(assemblyName + ".Box", TypeAttributes.Public | TypeAttributes.Class);
+        var field = box.DefineField("Value", typeof(int), FieldAttributes.Public);
+        var ctor = box.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, new[] { typeof(int) });
+        var il = ctor.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        if (foreignCtor)
+        {
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Call, typeof(string).GetMethod(nameof(string.IsNullOrEmpty), new[] { typeof(string) })!);
+            il.Emit(OpCodes.Pop);
+        }
+
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Stfld, field);
+        il.Emit(OpCodes.Ret);
+        var get = box.DefineMethod("Get", MethodAttributes.Public, typeof(int), Type.EmptyTypes);
+        var getIl = get.GetILGenerator();
+        getIl.Emit(OpCodes.Ldarg_0);
+        getIl.Emit(OpCodes.Ldfld, field);
+        getIl.Emit(OpCodes.Ret);
+        box.CreateType();
+        builder.Save(path);
+    }
+
+    private static void WriteEntryConstructsBox(string path, string assemblyName, string libraryPath, string boxType)
+    {
+        var library = Assembly.Load(File.ReadAllBytes(libraryPath));
+        var box = library.GetType(boxType, throwOnError: true)!;
+        var ctor = box.GetConstructor(new[] { typeof(int) })!;
+        var get = box.GetMethod("Get")!;
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 41);
+        il.Emit(OpCodes.Newobj, ctor);
+        il.Emit(OpCodes.Call, get);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void WriteAuthorBox(string path, bool frameworkNew)

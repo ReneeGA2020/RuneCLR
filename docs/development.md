@@ -1445,6 +1445,9 @@ On 2026-10-17 desktop runtime tests passed 103/103 and packaging tests passed 16
 
 On 2026-10-17 desktop runtime tests passed 105/105 and packaging tests passed 162/162. OnStart may construct a type declared by the entry or a private assembly, and that constructor is checked before it runs. An author box returns 41 to the host. new System.InvalidOperationException is rejected, and the host method is not called. Gameplay validation is unchanged. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 107/107 and packaging tests passed 164/164. OnStart can construct a type declared in a private assembly, and that constructor is checked before it runs. The private box returns 41 to the host. string.IsNullOrEmpty inside that constructor is rejected, and the host method is not called. Gameplay validation is unchanged. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

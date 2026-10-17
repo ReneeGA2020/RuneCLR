@@ -16,6 +16,8 @@ internal static class HostContractCapabilityCases
         yield return ("Host contract allows a private helper to call the entry", PrivateHelperCallsEntry);
         yield return ("Host contract rejects a BCL call reached through the entry", PrivateHelperEntryRejectsBcl);
         yield return ("Host contract constructs an author type", AuthorNewIsChecked);
+        yield return ("Host contract constructs a private assembly type", PrivateAuthorNewIsChecked);
+        yield return ("Host contract rejects a BCL call inside a private constructor", PrivateConstructorRejectsBcl);
         yield return ("Host contract rejects a framework constructor", FrameworkNewIsRejected);
     }
 
@@ -62,6 +64,46 @@ internal static class HostContractCapabilityCases
     }
 
 
+
+    private static void PrivateAuthorNewIsChecked()
+    {
+        var built = CompilePrivateBox(false);
+        GameplayCapabilityPolicy.ValidateHostContract(built.Script, "Script", "HostContract.IApi", ["Echo"], [built.Helper]);
+    }
+
+    private static void PrivateConstructorRejectsBcl()
+    {
+        var built = CompilePrivateBox(true);
+        var error = Check.Throws<InvalidDataException>(() =>
+            GameplayCapabilityPolicy.ValidateHostContract(built.Script, "Script", "HostContract.IApi", ["Echo"], [built.Helper]));
+        Check.Assert(error.Message.Contains("host contract member", StringComparison.Ordinal)
+            && error.Message.Contains("IsNullOrEmpty", StringComparison.Ordinal), error.Message);
+    }
+
+    private static (byte[] Script, byte[] Helper) CompilePrivateBox(bool foreignCtor)
+    {
+        var box = foreignCtor
+            ? "public sealed class Box { public int Value; public Box(int value) { _ = string.IsNullOrEmpty(\"x\"); Value = value; } public int Get() => Value; }"
+            : "public sealed class Box { public int Value; public Box(int value) { Value = value; } public int Get() => Value; }";
+        var helper = SourceCompiler.Compile("HostBox", [new("Box.cs", box)], CompilerFixture.ApprovedReferences());
+        Check.Assert(helper.Succeeded && helper.Assembly is not null,
+            "Private box did not compile: " + string.Join("; ", helper.Diagnostics.Select(item => item.Message)));
+        using var directory = new TempDirectory();
+        var contract = SourceCompiler.Compile("HostContract", [new("Contract.cs",
+            "namespace HostContract { public interface IApi { int Echo(int value); } }")],
+            CompilerFixture.ApprovedReferences());
+        Check.Assert(contract.Succeeded && contract.Assembly is not null, "Host contract did not compile.");
+        var contractPath = Path.Combine(directory.Path, "HostContract.dll");
+        var helperPath = Path.Combine(directory.Path, "HostBox.dll");
+        File.WriteAllBytes(contractPath, contract.Assembly!);
+        File.WriteAllBytes(helperPath, helper.Assembly!);
+        var script = SourceCompiler.Compile("HostScript", [new("Script.cs",
+            "public sealed class Script { public void OnStart(HostContract.IApi api) { api.Echo(new Box(41).Get()); } }")],
+            CompilerFixture.ApprovedReferences().Concat([contractPath, helperPath]).ToArray());
+        Check.Assert(script.Succeeded && script.Assembly is not null,
+            "Private box script did not compile: " + string.Join("; ", script.Diagnostics.Select(item => item.Message)));
+        return (script.Assembly!, helper.Assembly!);
+    }
 
     private static void AuthorNewIsChecked() =>
         GameplayCapabilityPolicy.ValidateHostContract(CompileContractType(
