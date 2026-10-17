@@ -1382,6 +1382,8 @@ On 2026-10-17 packaging tests passed 154/154. PackageBuilder and RuneCLR.Package
 
 On 2026-10-17 desktop runtime tests passed 62/62. HostContractSession.Invoke runs one later public parameterless void method on the same script instance. Its IL is checked before that method runs, using the host interface and allowed method names from construction. An unlisted call does not run, and the earlier Echo remains. Dispose drops the script reference, and a later Invoke throws ObjectDisposedException. The collectible context unloads. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 63/63. HostContractSession.Invoke can pass the same host instance into a later public void method that takes the host interface. A parameterless callback still runs. The IL check still happens before the method runs. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

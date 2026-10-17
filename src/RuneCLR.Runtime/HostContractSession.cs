@@ -8,6 +8,7 @@ public sealed class HostContractSession : IDisposable
 {
     private HostContractLoadContext? _context;
     private object? _script;
+    private object? _host;
     private Type? _contract;
     private HashSet<string>? _allowedMethods;
     private bool _disposed;
@@ -36,6 +37,7 @@ public sealed class HostContractSession : IDisposable
             var script = Activator.CreateInstance(entry!)!;
             start.Invoke(script, [instance]);
             _script = script;
+            _host = instance;
             _contract = contract;
             _allowedMethods = allowed;
         }
@@ -50,7 +52,7 @@ public sealed class HostContractSession : IDisposable
 
     public void Invoke(string methodName)
     {
-        if (_disposed || _script is null || _contract is null || _allowedMethods is null)
+        if (_disposed || _script is null || _host is null || _contract is null || _allowedMethods is null)
             throw new ObjectDisposedException(nameof(HostContractSession));
         ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
         if (methodName == "OnStart")
@@ -58,11 +60,14 @@ public sealed class HostContractSession : IDisposable
         var methods = _script.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(method => method.Name == methodName)
             .ToArray();
-        if (methods.Length != 1 || methods[0].ReturnType != typeof(void) || methods[0].GetParameters().Length != 0 || methods[0].IsGenericMethod)
-            throw new InvalidOperationException("The callback must be one public parameterless void method.");
+        var method = methods.Length == 1 ? methods[0] : null;
+        var parameters = method?.GetParameters() ?? [];
+        var takesHost = parameters.Length == 1 && parameters[0].ParameterType == _contract;
+        if (method is null || method.ReturnType != typeof(void) || method.IsGenericMethod || (parameters.Length != 0 && !takesHost))
+            throw new InvalidOperationException("The callback must be one public void method with no parameters or one host-contract parameter.");
         const string failure = "The callback calls a method that is not a host contract member.";
-        RequireContractCalls(methods[0], _contract, _allowedMethods, failure);
-        methods[0].Invoke(_script, null);
+        RequireContractCalls(method, _contract, _allowedMethods, failure);
+        method.Invoke(_script, takesHost ? [_host] : null);
     }
 
     public void Dispose()
@@ -70,6 +75,7 @@ public sealed class HostContractSession : IDisposable
         if (_disposed) return;
         _disposed = true;
         _script = null;
+        _host = null;
         _contract = null;
         _allowedMethods = null;
         _context?.Unload();

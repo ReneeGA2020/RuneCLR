@@ -12,6 +12,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects an interface method that is not allowed", RejectUnlistedInterfaceMethod);
         yield return ("Host contract Invoke runs a later callback on the same session", InvokeLaterCallback);
         yield return ("Host contract Invoke rejects an unlisted later call before it runs", InvokeRejectsUnlisted);
+        yield return ("Host contract Invoke passes the host interface into a later callback", InvokePassesTheHostAgain);
     }
 
     private static void EchoAndUnload()
@@ -126,6 +127,26 @@ internal static class HostContractSessionTests
         }
     }
 
+    private static void InvokePassesTheHostAgain()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "host-again.dll");
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        WriteStartAndHostParameter(path, "HostContract.HostAgainScript", echo, 1, 2);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.HostAgainScript.Script", ["Echo"]);
+        try
+        {
+            Check(host.Calls.SequenceEqual([1]), "OnStart did not call Echo(1).");
+            session.Invoke("OnTick");
+            Check(host.Calls.SequenceEqual([1, 2]), "OnTick did not receive the host instance.");
+        }
+        finally
+        {
+            session.Dispose();
+        }
+    }
+
     private static void RejectUnlistedInterfaceMethod()
     {
         var host = new RecordingEcho();
@@ -137,6 +158,37 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null && host.OtherSeen is null, "The author method was called.");
     }
+    private static void WriteStartAndHostParameter(string path, string assemblyName, MethodInfo later, int startValue, int laterValue)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var startIl = start.GetILGenerator();
+        startIl.Emit(OpCodes.Ldarg_1);
+        startIl.Emit(OpCodes.Ldc_I4, startValue);
+        startIl.Emit(OpCodes.Callvirt, echo);
+        startIl.Emit(OpCodes.Pop);
+        startIl.Emit(OpCodes.Ret);
+        var tick = type.DefineMethod("OnTick", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var tickIl = tick.GetILGenerator();
+        tickIl.Emit(OpCodes.Ldarg_1);
+        tickIl.Emit(OpCodes.Ldc_I4, laterValue);
+        tickIl.Emit(OpCodes.Callvirt, later);
+        tickIl.Emit(OpCodes.Pop);
+        tickIl.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
     private static void WriteStartAndLater(string path, string assemblyName, MethodInfo later, int startValue, int laterValue)
     {
         var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
