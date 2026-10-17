@@ -1848,6 +1848,8 @@ On 2026-10-17 packaging tests passed 287/287. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 288/288. The operator CLI validate command accepts a host-contract package, then rejects it after a second producer reference uses another input name but the same RuneCLR.Abstractions identity and the content hash is recomputed. The error names exactly one shared host contract. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 289/289. The operator CLI validate command accepts a host-contract package, then rejects it after the first producer source digest is changed to invalid and the content hash is recomputed. The error names SHA-256 hexadecimal digest. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 

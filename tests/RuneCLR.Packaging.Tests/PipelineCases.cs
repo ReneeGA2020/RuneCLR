@@ -150,6 +150,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a repeated producer source name", OperatorCliRejectsDuplicateProducerSource);
         yield return ("Operator CLI rejects a repeated producer reference name", OperatorCliRejectsDuplicateProducerReference);
         yield return ("Operator CLI rejects two host contract references", OperatorCliRejectsDuplicateContractReference);
+        yield return ("Operator CLI rejects a producer source digest that is not SHA-256", OperatorCliRejectsBadProducerSourceHash);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -3218,6 +3219,34 @@ internal static class PipelineCases
         var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
         Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
         Check.Assert(stderr.Contains("exactly one shared host contract", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsBadProducerSourceHash()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliSourceHash", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        Check.Assert(manifest.Producer.Sources.Length > 0, "Expected a producer source identity.");
+        manifest = manifest with
+        {
+            Producer = manifest.Producer with
+            {
+                Sources = manifest.Producer.Sources.Select((item, index) => index == 0 ? item with { Sha256 = "invalid" } : item).ToArray()
+            }
+        };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("SHA-256 hexadecimal digest", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
     }
