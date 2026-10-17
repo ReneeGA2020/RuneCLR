@@ -45,6 +45,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects a static field load before the author runs", RejectStaticFieldLoad);
         yield return ("Host contract rejects boxing an author value type", RejectAuthorBox);
         yield return ("Host contract rejects an author array type before the author runs", RejectAuthorArray);
+        yield return ("Host contract rejects a cast to an author type", RejectAuthorCast);
     }
 
     private static void EchoAndUnload()
@@ -838,6 +839,47 @@ internal static class HostContractSessionTests
         var il = start.GetILGenerator();
         il.Emit(OpCodes.Ldc_I4_1);
         il.Emit(OpCodes.Newarr, bomb);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        bomb.CreateType();
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void RejectAuthorCast()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "cast.dll");
+        WriteAuthorCast(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.CastScript.Script", ["Echo"]));
+        Check(error.Message.Contains("type initialization", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The author cast ran.");
+    }
+
+    private static void WriteAuthorCast(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.CastScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.CastScript");
+        var bomb = module.DefineType("HostContract.CastScript.Bomb", TypeAttributes.Public | TypeAttributes.Class);
+        var type = module.DefineType("HostContract.CastScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldnull);
+        il.Emit(OpCodes.Castclass, bomb);
         il.Emit(OpCodes.Pop);
         il.Emit(OpCodes.Ldarg_1);
         il.Emit(OpCodes.Ldc_I4, 1);

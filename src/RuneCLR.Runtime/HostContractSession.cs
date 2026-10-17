@@ -308,7 +308,7 @@ public sealed class HostContractSession : IDisposable
             {
                 throw new InvalidOperationException(failure);
             }
-            else if (operation.Value == OpCodes.Box.Value || operation.Value == OpCodes.Newarr.Value || operation.Value == OpCodes.Initobj.Value)
+            else if (HasForeignTypeOperand(operation))
             {
                 RejectForeignBox(constructor.Module, il, ref index);
             }
@@ -343,7 +343,7 @@ public sealed class HostContractSession : IDisposable
             {
                 throw new InvalidOperationException(failure);
             }
-            else if (operation.Value == OpCodes.Box.Value || operation.Value == OpCodes.Newarr.Value || operation.Value == OpCodes.Initobj.Value)
+            else if (HasForeignTypeOperand(operation))
             {
                 RejectForeignBox(method.Module, il, ref index);
             }
@@ -353,6 +353,15 @@ public sealed class HostContractSession : IDisposable
             }
         }
     }
+
+    private static bool HasForeignTypeOperand(OpCode operation) =>
+        operation.Value == OpCodes.Box.Value || operation.Value == OpCodes.Newarr.Value ||
+        operation.Value == OpCodes.Initobj.Value || operation.Value == OpCodes.Castclass.Value ||
+        operation.Value == OpCodes.Isinst.Value || operation.Value == OpCodes.Unbox.Value ||
+        operation.Value == OpCodes.Unbox_Any.Value || operation.Value == OpCodes.Ldobj.Value ||
+        operation.Value == OpCodes.Stobj.Value || operation.Value == OpCodes.Mkrefany.Value ||
+        operation.Value == OpCodes.Refanyval.Value || operation.Value == OpCodes.Sizeof.Value ||
+        operation.Value == OpCodes.Constrained.Value;
 
     private static void RejectForeignBox(Module module, byte[] il, ref int index)
     {

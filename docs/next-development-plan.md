@@ -445,3 +445,6 @@ On 2026-10-17 desktop runtime tests passed 90/90. HostContractSession rejects bo
 
 On 2026-10-17 desktop runtime tests passed 91/91. HostContractSession rejects newarr and initobj of a type that is not in System.Private.CoreLib or System.Runtime, using the same rule as box. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 92/92. The host-contract author-type check now also covers castclass, isinst, unbox, unbox.any, ldobj, stobj, mkrefany, refanyval, sizeof, and constrained. A castclass of an author class is rejected before the host method runs. This is not an iOS result.
+
