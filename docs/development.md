@@ -1846,6 +1846,8 @@ On 2026-10-17 packaging tests passed 286/286. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 287/287. The operator CLI validate command accepts a host-contract package, then rejects it after the producer reference list is two copies of the first reference identity and the content hash is recomputed. The error names Duplicate producer references input name. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 288/288. The operator CLI validate command accepts a host-contract package, then rejects it after a second producer reference uses another input name but the same RuneCLR.Abstractions identity and the content hash is recomputed. The error names exactly one shared host contract. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
