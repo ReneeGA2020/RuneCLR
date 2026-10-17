@@ -45,17 +45,18 @@ public sealed class HostContractSession : IDisposable
             ?? throw new InvalidDataException("The package manifest requires a directory.");
         RequireNoExtraFiles(directory, manifest);
         var privateAssemblies = new List<PrivateImage>();
+        long totalBytes = 0;
         var privateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var dependency in manifest.Dependencies)
         {
-            var image = ReadPrivateImage(directory, dependency.Path, dependency.Sha256, dependency.AssemblyName);
+            var image = ReadPrivateImage(directory, dependency.Path, dependency.Sha256, dependency.AssemblyName, ref totalBytes);
             if (!privateNames.Add(image.Name))
                 throw new InvalidDataException("Duplicate private dependency identity: " + image.Name + ".");
             privateAssemblies.Add(image);
         }
 
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
-        RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256);
+        RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256, ref totalBytes);
         return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods, privateAssemblies);
     }
 
@@ -115,9 +116,9 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
     }
 
-    private static PrivateImage ReadPrivateImage(string directory, string relative, string expected, string declaredIdentity)
+    private static PrivateImage ReadPrivateImage(string directory, string relative, string expected, string declaredIdentity, ref long totalBytes)
     {
-        var bytes = ReadHashed(directory, relative, expected);
+        var bytes = ReadHashed(directory, relative, expected, ref totalBytes);
         var info = ManagedAssemblyInspector.Inspect(bytes);
         if (ReservedAssembly(info.SimpleName))
             throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
@@ -127,14 +128,18 @@ public sealed class HostContractSession : IDisposable
         return new PrivateImage(info.SimpleName, bytes);
     }
 
-    private static void RequireFileHash(string directory, string relative, string expected) =>
-        ReadHashed(directory, relative, expected);
+    private static void RequireFileHash(string directory, string relative, string expected, ref long totalBytes) =>
+        ReadHashed(directory, relative, expected, ref totalBytes);
 
-    private static byte[] ReadHashed(string directory, string relative, string expected)
+    private static byte[] ReadHashed(string directory, string relative, string expected, ref long totalBytes)
     {
         var path = ResolveEntry(directory, relative);
         if (!File.Exists(path))
             throw new InvalidDataException("Package file hash mismatch: " + relative + ".");
+        var length = new FileInfo(path).Length;
+        if (length > PackageValidator.MaximumAssemblyBytes || totalBytes > PackageValidator.MaximumPackageBytes - length)
+            throw new InvalidDataException("The package exceeds the assembly/content size limits.");
+        totalBytes += length;
         var bytes = File.ReadAllBytes(path);
         var actual = Convert.ToHexString(SHA256.HashData(bytes));
         if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
