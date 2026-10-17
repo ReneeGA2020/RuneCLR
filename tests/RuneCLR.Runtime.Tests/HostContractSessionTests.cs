@@ -53,6 +53,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects an author catch type", RejectAuthorCatch);
         yield return ("Host contract still runs a catch of System.Exception", CoreCatchStillRuns);
         yield return ("Host contract rejects an exception filter", RejectExceptionFilter);
+        yield return ("Host contract rejects a generic OnStart", RejectGenericOnStart);
     }
 
     private static void EchoAndUnload()
@@ -1151,7 +1152,45 @@ internal static class HostContractSessionTests
         builder.Save(path);
     }
 
+    private static void RejectGenericOnStart()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "generic.dll");
+        WriteGenericOnStart(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.GenericScript.Script", ["Echo"]));
+        Check(error.Message.Contains("must not be generic", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The generic OnStart ran.");
+    }
+
+    private static void WriteGenericOnStart(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.GenericScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.GenericScript");
+        var type = module.DefineType("HostContract.GenericScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        start.DefineGenericParameters("T");
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
     private static void RejectUnlistedInterfaceMethod()
+
     {
         var host = new RecordingEcho();
         using var directory = new TemporaryDirectory();

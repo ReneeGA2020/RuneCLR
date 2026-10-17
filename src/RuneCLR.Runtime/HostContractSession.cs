@@ -261,6 +261,8 @@ public sealed class HostContractSession : IDisposable
         if (starts.Length != 1)
             throw new InvalidOperationException("The script entry must declare exactly one public instance method named OnStart.");
 
+        if (starts[0].IsGenericMethod)
+            throw new InvalidOperationException("OnStart must not be generic.");
         var parameters = starts[0].GetParameters();
         if (parameters.Length != 1 || parameters[0].ParameterType != contract)
             throw new InvalidOperationException("OnStart must take exactly one parameter of the host contract interface.");

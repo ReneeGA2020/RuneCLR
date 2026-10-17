@@ -463,3 +463,6 @@ On 2026-10-17 desktop runtime tests passed 96/96. HostContractSession reads exce
 
 On 2026-10-17 desktop runtime tests passed 98/98. A host-contract OnStart can catch System.Exception and still call the host. An exception filter is rejected before the method runs, and the host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 99/99. HostContractSession rejects a generic OnStart before the method runs. The host method is not called. A later callback was already required to be non-generic. This is not an iOS result.
+
