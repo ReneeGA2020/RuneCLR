@@ -1493,6 +1493,9 @@ On 2026-10-17 the desktop runtime suite stayed at 125/125. A later callback into
 On 2026-10-17 packaging tests passed 172/172. PackageBuilder.Compile rejects a supported later callback that calls a method outside the allowed list. OnStop calling SpawnEntity fails before a package is published. The error names OnStop and SpawnEntity. OnStart itself only calls Log. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 desktop runtime tests passed 126/126. HostContractSession.Open rejects a package directory that contains a file not listed in the manifest. An extra.dll beside a valid entry is rejected before the host method runs. The message contains missing or extra files. A listed entry and its declared dependencies still load. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

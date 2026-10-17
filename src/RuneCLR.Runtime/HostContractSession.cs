@@ -39,6 +39,7 @@ public sealed class HostContractSession : IDisposable
         RequireListedEntry(manifest);
         var directory = Path.GetDirectoryName(Path.GetFullPath(manifestPath))
             ?? throw new InvalidDataException("The package manifest requires a directory.");
+        RequireNoExtraFiles(directory, manifest);
         var privateAssemblies = new List<PrivateImage>();
         var privateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var dependency in manifest.Dependencies)
@@ -52,6 +53,27 @@ public sealed class HostContractSession : IDisposable
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
         RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256);
         return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods, privateAssemblies);
+    }
+
+    private static void RequireNoExtraFiles(string directory, PackageManifest manifest)
+    {
+        var listed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in manifest.Files)
+        {
+            if (file is null || string.IsNullOrWhiteSpace(file.Path) || !listed.Add(file.Path))
+                throw new InvalidDataException("The package contains missing or extra files.");
+        }
+
+        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            var full = Path.GetFullPath(path);
+            var manifestPath = Path.GetFullPath(Path.Combine(directory, PackageFormat.ManifestFileName));
+            if (string.Equals(full, manifestPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+            var relative = Path.GetRelativePath(directory, full).Replace(Path.DirectorySeparatorChar, '/');
+            if (!listed.Contains(relative))
+                throw new InvalidDataException("The package contains missing or extra files.");
+        }
     }
 
     private static void RequireListedEntry(PackageManifest manifest)

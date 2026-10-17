@@ -49,6 +49,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects an entry hash that disagrees with the file list", OpenRejectsMismatchedFileHash);
         yield return ("Host contract Open rejects a dependency path that escapes the package", OpenRejectsEscapingDependency);
         yield return ("Host contract Open rejects a file that is not the entry or a dependency", OpenRejectsExtraFile);
+        yield return ("Host contract Open rejects an extra file on disk", OpenRejectsExtraDiskFile);
         yield return ("Host contract Open accepts a dependency whose bytes match", OpenAcceptsDependency);
         yield return ("Host contract Open calls a method on a declared private assembly", OpenCallsPrivateAssembly);
         yield return ("Host contract Open rejects a private call outside the host contract", OpenRejectsPrivateForeignCall);
@@ -877,6 +878,19 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("canonical relative DLL", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The escaping dependency ran.");
+    }
+
+    private static void OpenRejectsExtraDiskFile()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.ExtraDiskScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 41, cast: false);
+        var manifest = WriteManifest(directory.Path, "echo.dll", "HostContract.ExtraDiskScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        File.WriteAllBytes(Path.Combine(directory.Path, "extra.dll"), [1, 2, 3, 4]);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("missing or extra files", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The extra disk file ran.");
     }
 
     private static void OpenRejectsExtraFile()
