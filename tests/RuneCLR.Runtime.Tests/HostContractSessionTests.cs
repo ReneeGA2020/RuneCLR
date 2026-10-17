@@ -26,6 +26,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
+        yield return ("Host contract rejects an assembly name that spoofs the framework", RejectSpoofedAssemblyName);
     }
 
     private static void EchoAndUnload()
@@ -391,6 +392,19 @@ internal static class HostContractSessionTests
         var flags = (uint)(pe.PEHeaders.CorHeader!.Flags & ~CorFlags.ILOnly);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(pe.PEHeaders.CorHeaderStartOffset + 16), flags);
         File.WriteAllBytes(path, bytes);
+    }
+
+    private static void RejectSpoofedAssemblyName()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "spoof.dll");
+        WriteScript(path, "System.IO", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 1, cast: false);
+        var error = CheckThrows<InvalidDataException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "System.IO.Script", ["Echo"]));
+        Check(error.Message.Contains("spoofs", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("System.IO", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The spoofed assembly ran.");
     }
 
     private static void RejectUnlistedInterfaceMethod()

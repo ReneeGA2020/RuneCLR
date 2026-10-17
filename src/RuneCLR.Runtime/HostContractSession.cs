@@ -66,7 +66,9 @@ public sealed class HostContractSession : IDisposable
         try
         {
             var bytes = File.ReadAllBytes(Path.GetFullPath(assemblyPath));
-            ManagedAssemblyInspector.Inspect(bytes);
+            var info = ManagedAssemblyInspector.Inspect(bytes);
+            if (ReservedAssembly(info.SimpleName))
+                throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
             using var stream = new MemoryStream(bytes, writable: false);
             var assembly = _context.LoadFromStream(stream);
             var entry = assembly.GetType(entryTypeName, throwOnError: false);
@@ -195,6 +197,16 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidOperationException("OnStart must take exactly one parameter of the host contract interface.");
         return starts[0];
     }
+
+    private static bool ReservedAssembly(string name) =>
+        name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("netstandard", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("RuneCLR", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("RuneCLR.", StringComparison.OrdinalIgnoreCase);
 
     private static void RequireOnlyObjectConstructor(ConstructorInfo constructor)
     {

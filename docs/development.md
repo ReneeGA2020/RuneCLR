@@ -1396,6 +1396,8 @@ On 2026-10-17 desktop runtime tests passed 71/71. HostContractSession rejects a 
 
 On 2026-10-17 desktop runtime tests passed 72/72. HostContractSession inspects the assembly before loading it. An image that is not IL-only is rejected, and the host method is not called. This is the structural intake check, not the gameplay member allowlist. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 73/73. HostContractSession rejects an author assembly whose simple name is mscorlib, netstandard, System, Microsoft, RuneCLR, or starts with System., Microsoft., or RuneCLR. The host method is not called. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
