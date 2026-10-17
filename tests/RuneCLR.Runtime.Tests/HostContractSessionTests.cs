@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Reflection.Emit;
 using System.Security.Cryptography;
@@ -49,6 +50,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects a function pointer before the author runs", RejectFunctionPointer);
         yield return ("Host contract rejects copying an author value type", RejectAuthorCopy);
         yield return ("Host contract rejects a field of another type", RejectForeignFieldLoad);
+        yield return ("Host contract rejects an author catch type", RejectAuthorCatch);
     }
 
     private static void EchoAndUnload()
@@ -1014,6 +1016,54 @@ internal static class HostContractSessionTests
         il.Emit(OpCodes.Pop);
         il.Emit(OpCodes.Ret);
         other.CreateType();
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void RejectAuthorCatch()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "catch.dll");
+        WriteAuthorCatch(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.CatchScript.Script", ["Echo"]));
+        Check(error.Message.Contains("author catch type", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The author catch ran.");
+
+    }
+
+    private static void WriteAuthorCatch(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.CatchScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.CatchScript");
+        var bomb = module.DefineType("HostContract.CatchScript.Bomb", TypeAttributes.Public | TypeAttributes.Class, typeof(Exception));
+        var bombCtor = bomb.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var bombIl = bombCtor.GetILGenerator();
+        bombIl.Emit(OpCodes.Ldarg_0);
+        bombIl.Emit(OpCodes.Call, typeof(Exception).GetConstructor(Type.EmptyTypes)!);
+        bombIl.Emit(OpCodes.Ret);
+        var type = module.DefineType("HostContract.CatchScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.BeginExceptionBlock();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.BeginCatchBlock(bomb);
+        il.Emit(OpCodes.Pop);
+        il.EndExceptionBlock();
+        il.Emit(OpCodes.Ret);
+        bomb.CreateType();
         type.CreateType();
         builder.Save(path);
     }

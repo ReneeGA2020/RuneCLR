@@ -1,4 +1,7 @@
+using System.Collections.Immutable;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using System.Reflection.Emit;
 using System.Runtime.Loader;
@@ -15,6 +18,8 @@ public sealed class HostContractSession : IDisposable
     private Type? _contract;
     private HashSet<string>? _allowedMethods;
     private bool _disposed;
+    private byte[]? _image;
+    private string? _entryTypeName;
     private bool _invoking;
 
     public static HostContractSession Open(string manifestPath, Type contract, object instance)
@@ -122,6 +127,8 @@ public sealed class HostContractSession : IDisposable
         try
         {
             var bytes = File.ReadAllBytes(Path.GetFullPath(assemblyPath));
+            RequireCoreCatchTypes(bytes, entryTypeName, ".ctor");
+            RequireCoreCatchTypes(bytes, entryTypeName, "OnStart");
             var info = ManagedAssemblyInspector.Inspect(bytes);
             if (ReservedAssembly(info.SimpleName))
                 throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
@@ -149,6 +156,8 @@ public sealed class HostContractSession : IDisposable
                 _host = instance;
                 _contract = contract;
                 _allowedMethods = allowed;
+                _image = bytes;
+                _entryTypeName = entryTypeName;
             }
             finally
             {
@@ -181,6 +190,7 @@ public sealed class HostContractSession : IDisposable
         var takesHost = parameters.Length == 1 && parameters[0].ParameterType == _contract;
         if (method is null || method.ReturnType != typeof(void) || method.IsGenericMethod || (parameters.Length != 0 && !takesHost))
             throw new InvalidOperationException("The callback must be one public void method with no parameters or one host-contract parameter.");
+        RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
         const string failure = "The callback calls a method that is not a host contract member.";
         RequireContractCalls(method, _contract, _allowedMethods, failure);
         _invoking = true;
@@ -207,6 +217,8 @@ public sealed class HostContractSession : IDisposable
         _disposed = true;
         _script = null;
         _host = null;
+        _image = null;
+        _entryTypeName = null;
         _contract = null;
         _allowedMethods = null;
         _context?.Unload();
@@ -360,6 +372,43 @@ public sealed class HostContractSession : IDisposable
                 SkipOperand(operation, il, ref index, failure);
             }
         }
+    }
+
+    private static void RequireCoreCatchTypes(byte[] image, string typeFullName, string methodName)
+    {
+        using var pe = new PEReader(ImmutableArray.CreateRange(image));
+        var reader = pe.GetMetadataReader();
+        foreach (var typeHandle in reader.TypeDefinitions)
+        {
+            var type = reader.GetTypeDefinition(typeHandle);
+            var typeName = reader.GetString(type.Name);
+            var typeNamespace = reader.GetString(type.Namespace);
+            var full = typeNamespace.Length == 0 ? typeName : typeNamespace + "." + typeName;
+            if (full != typeFullName && typeName != typeFullName) continue;
+            foreach (var methodHandle in type.GetMethods())
+            {
+                var definition = reader.GetMethodDefinition(methodHandle);
+                if (reader.GetString(definition.Name) != methodName || definition.RelativeVirtualAddress == 0) continue;
+                foreach (var region in pe.GetMethodBody(definition.RelativeVirtualAddress).ExceptionRegions)
+                {
+                    if (region.Kind == ExceptionRegionKind.Filter)
+                        throw new InvalidOperationException("Exception filters are unsupported.");
+                    if (region.Kind != ExceptionRegionKind.Catch) continue;
+                    var assembly = CatchAssembly(reader, region.CatchType);
+                    if (assembly is not ("System.Private.CoreLib" or "System.Runtime"))
+                        throw new InvalidOperationException("An author catch type is unsupported.");
+                }
+            }
+        }
+    }
+
+    private static string CatchAssembly(MetadataReader reader, EntityHandle handle)
+    {
+        if (handle.Kind != HandleKind.TypeReference) return "";
+        var type = reader.GetTypeReference((TypeReferenceHandle)handle);
+        if (type.ResolutionScope.Kind != HandleKind.AssemblyReference) return "";
+        var assembly = reader.GetAssemblyReference((AssemblyReferenceHandle)type.ResolutionScope);
+        return reader.GetString(assembly.Name);
     }
 
     private static bool IsInstanceField(OpCode operation) =>
