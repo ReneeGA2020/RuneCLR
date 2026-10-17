@@ -64,6 +64,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets a second private assembly read MapId", HostInterfacePrivateChainReadsMapId);
         yield return ("Compiled host-contract package lets a second private assembly charge", HostInterfacePrivateChainCharges);
         yield return ("Compiled host-contract package lets a second private assembly destroy", HostInterfacePrivateChainDestroys);
+        yield return ("Compiled host-contract package returns an entity from a second private assembly", HostInterfacePrivateChainReturnsEntity);
         yield return ("Imported host-contract IL lets a second private assembly destroy", HostInterfaceImportsPrivateChainDestroys);
         yield return ("Imported host-contract IL lets a second private assembly charge", HostInterfaceImportsPrivateChainCharges);
         yield return ("Imported host-contract IL lets a second private assembly read MapId", HostInterfaceImportsPrivateChainReadsMapId);
@@ -805,6 +806,43 @@ internal static class PipelineCases
             }
             """;
         var build = PackageBuilder.Compile("HostChainLife", "GameScript", [new("GameScript.cs", script)], Profile(),
+            Path.Combine(temp.Path, "package"), [first, second], hostInterface: "RuneCLR.IMapContext",
+            allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+        Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfacePrivateChainReturnsEntity()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedReturnSecond", """
+            using RuneCLR;
+            public static class Second { public static EntityId Create(IMapContext context) => context.SpawnEntity("fixture"); }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedReturnFirst", """
+            using RuneCLR;
+            public static class First { public static EntityId Through(IMapContext context) => Second.Create(context); }
+            """, [second]);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context)
+                {
+                    context.Log("ok");
+                    var id = First.Through(context);
+                    context.DestroyEntity(id);
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var build = PackageBuilder.Compile("HostChainReturn", "GameScript", [new("GameScript.cs", script)], Profile(),
             Path.Combine(temp.Path, "package"), [first, second], hostInterface: "RuneCLR.IMapContext",
             allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
         Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
