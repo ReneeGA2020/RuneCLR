@@ -9,6 +9,8 @@ namespace RuneCLR.Packages;
 
 public static partial class GameplayCapabilityPolicy
 {
+    private static string CheckedCallback = "OnStart";
+
     public static void ValidateHostContract(ReadOnlyMemory<byte> image, string entryType, string interfaceFullName,
         IReadOnlyCollection<string> allowedMethods) =>
         ValidateHostContract(image, entryType, interfaceFullName, allowedMethods, Array.Empty<byte[]>());
@@ -60,7 +62,16 @@ public static partial class GameplayCapabilityPolicy
                 var method = entryReader.GetMethodDefinition(handle);
                 if (entryReader.GetString(method.Name) == "OnStart") continue;
                 if (!IsSupportedCallback(entryReader, method, interfaceFullName)) continue;
-                WalkAuthorMethod(walk, entryImage, method);
+                var previousCallback = CheckedCallback;
+                CheckedCallback = entryReader.GetString(method.Name);
+                try
+                {
+                    WalkAuthorMethod(walk, entryImage, method);
+                }
+                finally
+                {
+                    CheckedCallback = previousCallback;
+                }
             }
         }
         catch (InvalidDataException)
@@ -367,7 +378,7 @@ public static partial class GameplayCapabilityPolicy
 
     private static InvalidDataException HostInvalid(string detail)
     {
-        var message = "Capability profile 'host-contract': OnStart calls a method that is not a host contract member.";
+        var message = "Capability profile 'host-contract': " + CheckedCallback + " calls a method that is not a host contract member.";
         if (!string.IsNullOrWhiteSpace(detail)) message += " " + detail;
         return new InvalidDataException(message);
     }

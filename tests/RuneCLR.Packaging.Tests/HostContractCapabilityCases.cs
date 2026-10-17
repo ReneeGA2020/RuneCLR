@@ -356,7 +356,7 @@ internal static class HostContractCapabilityCases
             GameplayCapabilityPolicy.ValidateHostContract(CompileContractType(
                 "public sealed class Script { public void OnStart(HostContract.IApi api) { api.Echo(1); } public void OnTick(HostContract.IApi api, int value) { _ = string.IsNullOrEmpty(\"x\"); api.Echo(value); } }"),
                 "Script", "HostContract.IApi", ["Echo"]));
-        Check.Assert(error.Message.Contains("host contract member", StringComparison.Ordinal)
+        Check.Assert(error.Message.Contains("OnTick calls a method that is not a host contract member.", StringComparison.Ordinal)
             && error.Message.Contains("IsNullOrEmpty", StringComparison.Ordinal), error.Message);
     }
 

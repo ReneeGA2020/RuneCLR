@@ -175,7 +175,7 @@ public sealed class HostContractSession : IDisposable
             var start = RequireOnStart(entry, contract);
             var allowed = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
             RequireContractCalls(start, contract, allowed, "OnStart calls a method that is not a host contract member.", images);
-            RequireLaterCallbacks(entry!, contract, allowed, "The callback calls a method that is not a host contract member.", images);
+            RequireLaterCallbacks(entry!, contract, allowed, images);
             var script = Activator.CreateInstance(entry!)!;
             _invoking = true;
             try
@@ -462,12 +462,13 @@ public sealed class HostContractSession : IDisposable
         if (!sawBase) throw new InvalidOperationException(failure);
     }
 
-    private static void RequireLaterCallbacks(Type entry, Type contract, HashSet<string> allowed, string failure, IReadOnlyDictionary<string, byte[]> images)
+    private static void RequireLaterCallbacks(Type entry, Type contract, HashSet<string> allowed, IReadOnlyDictionary<string, byte[]> images)
     {
         foreach (var method in entry.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
             if (method.Name == "OnStart" || !IsSupportedCallback(method, contract)) continue;
-            RequireContractCalls(method, contract, allowed, failure, images);
+            RequireContractCalls(method, contract, allowed,
+                "The callback " + method.Name + " calls a method that is not a host contract member.", images);
         }
     }
 
