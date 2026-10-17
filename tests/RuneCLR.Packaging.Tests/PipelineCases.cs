@@ -52,6 +52,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets a private assembly read MapId", HostInterfacePrivateReadsMapId);
         yield return ("Compiled host-contract package lets a private assembly charge", HostInterfacePrivateCharges);
         yield return ("Compiled host-contract package lets a private assembly spawn", HostInterfacePrivateSpawns);
+        yield return ("Imported host-contract IL lets a private assembly spawn", HostInterfaceImportsPrivateSpawn);
         yield return ("Imported host-contract IL lets a private assembly charge", HostInterfaceImportsPrivateCharge);
         yield return ("Imported host-contract IL lets a private assembly read MapId", HostInterfaceImportsPrivateMapId);
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
@@ -1051,6 +1052,43 @@ internal static class PipelineCases
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Charged == 7, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsPrivateSpawn()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedImportSpawn", """
+            using RuneCLR;
+            public static class SharedSpawn { public static EntityId Create(IMapContext context) => context.SpawnEntity("fixture"); }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context)
+                {
+                    context.Log("ok");
+                    var id = SharedSpawn.Create(context);
+                    context.DestroyEntity(id);
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportPrivateSpawn", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, helper]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportPrivateSpawn.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportPrivateSpawn", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+        Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
