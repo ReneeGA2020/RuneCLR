@@ -1760,6 +1760,9 @@ On 2026-10-17 packaging tests passed 247/247. Imported host-contract IL rejects 
 On 2026-10-17 packaging tests passed 248/248. A compiled host-contract package can let a second private assembly read MapId. OnStart passes the host through First.Through to Second.Id and logs fixture. Log and get_MapId are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 249/249. Imported host-contract IL can let a second private assembly read MapId. The entry, SharedImportIdFirst, and SharedImportIdSecond are submitted as IL, not compiled by PackageBuilder. OnStart passes the host through First.Through to Second.Id and logs fixture. Log and get_MapId are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

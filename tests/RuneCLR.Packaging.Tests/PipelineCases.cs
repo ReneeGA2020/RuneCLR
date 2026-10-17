@@ -62,6 +62,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a second private assembly log", HostInterfacePrivateChainLogs);
         yield return ("Compiled host-contract package lets a second private assembly read MapId", HostInterfacePrivateChainReadsMapId);
+        yield return ("Imported host-contract IL lets a second private assembly read MapId", HostInterfaceImportsPrivateChainReadsMapId);
         yield return ("Compiled host-contract package rejects a second private spawn", HostInterfacePrivateChainRejectsSpawn);
         yield return ("Imported host-contract IL rejects a second private spawn", HostInterfaceImportsPrivateChainRejectsSpawn);
         yield return ("Imported host-contract IL lets a second private assembly log", HostInterfaceImportsPrivateChainLogs);
@@ -1384,6 +1385,40 @@ internal static class PipelineCases
         Check.Assert(error.Message.Contains("SpawnEntity", StringComparison.Ordinal), error.Message);
         Check.Assert(!Directory.Exists(output), "An unlisted private spawn published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void HostInterfaceImportsPrivateChainReadsMapId()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedImportIdSecond", """
+            using RuneCLR;
+            public static class Second { public static string Id(IMapContext context) => context.MapId; }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedImportIdFirst", """
+            using RuneCLR;
+            public static class First { public static string Through(IMapContext context) => Second.Id(context); }
+            """, [second]);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log(First.Through(context)); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportChainMap", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, first]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportChainMap.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportChainMap", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [first, second], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "get_MapId"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfaceImportsPrivate()
