@@ -40,6 +40,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package calls a private assembly from a later callback", HostInterfacePrivateCallback);
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a private assembly call the entry", HostInterfacePrivateCallsEntry);
+        yield return ("Compiled host-contract package constructs an author type", HostInterfaceConstructsAuthorType);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -240,6 +241,38 @@ internal static class PipelineCases
         var host = new RecordingMapContext();
         var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
         var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private const string AuthorTypeScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            public void OnStart(IMapContext context) { context.Log("ok"); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+            public int Measure(int value) => new Box(value).Get();
+        }
+
+        public sealed class Box
+        {
+            private readonly int value;
+            public Box(int value) { this.value = value; }
+            public int Get() => value;
+        }
+        """;
+
+    private static void HostInterfaceConstructsAuthorType()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostBox", "GameScript", [new("GameScript.cs", AuthorTypeScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 41);
         session.Dispose();
         Check.Assert(result == 41, "Measure returned " + result + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));

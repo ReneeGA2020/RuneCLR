@@ -1553,6 +1553,9 @@ On 2026-10-17 packaging tests passed 178/178. A compiled host-contract package c
 On 2026-10-17 packaging tests passed 179/179. A compiled private assembly can call back into the host-contract entry. OnStart logs ok. InvokeInt Measure(40) goes through Helper.Through to GameScript.FromEntry and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 180/180. A compiled host-contract package can construct an author type from a later callback. OnStart logs ok. InvokeInt Measure(41) constructs Box and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
