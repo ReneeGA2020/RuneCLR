@@ -8,6 +8,7 @@ internal static class HostContractCapabilityCases
         yield return ("Host contract Echo is approved before loading", EchoApproved);
         yield return ("Host contract rejects Object.ToString before loading", RejectToString);
         yield return ("Host contract rejects an OnStart parameter that is not the host interface", RejectObjectParameter);
+        yield return ("Host contract rejects an interface method that is not allowed", RejectUnlistedMethod);
     }
 
     private static void EchoApproved() =>
@@ -32,6 +33,17 @@ internal static class HostContractCapabilityCases
             && error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
     }
 
+    private static void RejectUnlistedMethod()
+    {
+        var error = Check.Throws<InvalidDataException>(() =>
+            GameplayCapabilityPolicy.ValidateHostContract(CompileContractScript(
+                "namespace HostContract { public interface IApi { int Echo(int value); int Other(int value); } }",
+                "api.Other(1);"),
+                "Script", "HostContract.IApi", ["Echo"]));
+        Check.Assert(error.Message.Contains("Capability profile", StringComparison.Ordinal)
+            && error.Message.Contains("host contract member", StringComparison.Ordinal)
+            && error.Message.Contains("HostContract.IApi.Other", StringComparison.Ordinal), error.Message);
+    }
     private static byte[] CompileCustom(string source)
     {
         var script = SourceCompiler.Compile("HostScript", [new("Script.cs", source)], CompilerFixture.ApprovedReferences());
@@ -39,11 +51,10 @@ internal static class HostContractCapabilityCases
             "Host script did not compile: " + string.Join("; ", script.Diagnostics.Select(item => item.Message)));
         return script.Assembly!;
     }
-    private static byte[] CompileScript(string body)
+    private static byte[] CompileContractScript(string contractSource, string body)
     {
         using var directory = new TempDirectory();
-        var contract = SourceCompiler.Compile("HostContract", [new("Contract.cs",
-            "namespace HostContract { public interface IApi { int Echo(int value); } }")],
+        var contract = SourceCompiler.Compile("HostContract", [new("Contract.cs", contractSource)],
             CompilerFixture.ApprovedReferences());
         Check.Assert(contract.Succeeded && contract.Assembly is not null, "Host contract did not compile.");
         var contractPath = Path.Combine(directory.Path, "HostContract.dll");
@@ -55,4 +66,7 @@ internal static class HostContractCapabilityCases
             "Host script did not compile: " + string.Join("; ", script.Diagnostics.Select(item => item.Message)));
         return script.Assembly!;
     }
+
+    private static byte[] CompileScript(string body) => CompileContractScript(
+        "namespace HostContract { public interface IApi { int Echo(int value); } }", body);
 }

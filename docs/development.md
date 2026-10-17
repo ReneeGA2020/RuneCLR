@@ -1372,6 +1372,8 @@ On 2026-10-17 packaging tests passed 146/146 after adding ValidateHostContract. 
 
 On 2026-10-17 packaging tests passed 147/147 after also checking the OnStart parameter. The parameter type must be the named host interface. OnStart(object) is rejected before loading. Echo on HostContract.IApi still passes. PackageValidator.Validate is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 148/148 after rejecting an interface method that was not allowed. HostContract.IApi.Other is named in the error and is not called. Echo remains allowed. PackageValidator.Validate is unchanged. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
