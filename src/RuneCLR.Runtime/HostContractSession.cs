@@ -361,7 +361,8 @@ public sealed class HostContractSession : IDisposable
         operation.Value == OpCodes.Unbox_Any.Value || operation.Value == OpCodes.Ldobj.Value ||
         operation.Value == OpCodes.Stobj.Value || operation.Value == OpCodes.Mkrefany.Value ||
         operation.Value == OpCodes.Refanyval.Value || operation.Value == OpCodes.Sizeof.Value ||
-        operation.Value == OpCodes.Constrained.Value;
+        operation.Value == OpCodes.Constrained.Value || operation.Value == OpCodes.Ldelem.Value ||
+        operation.Value == OpCodes.Stelem.Value || operation.Value == OpCodes.Ldelema.Value;
 
     private static void RejectForeignBox(Module module, byte[] il, ref int index)
     {
@@ -384,8 +385,10 @@ public sealed class HostContractSession : IDisposable
             name.StartsWith("stind.", StringComparison.Ordinal))
             throw new InvalidOperationException("Unsafe IL is unsupported.");
         if (operation.Value == OpCodes.Ldsfld.Value || operation.Value == OpCodes.Stsfld.Value ||
-            operation.Value == OpCodes.Ldtoken.Value)
+            operation.Value == OpCodes.Ldsflda.Value || operation.Value == OpCodes.Ldtoken.Value)
             throw new InvalidOperationException("Static field and token loads are unsupported.");
+        if (operation.Value == OpCodes.Ldftn.Value || operation.Value == OpCodes.Ldvirtftn.Value)
+            throw new InvalidOperationException("Function pointers are unsupported.");
     }
 
     private static OpCode ReadOpCode(byte[] il, ref int index, string failure)

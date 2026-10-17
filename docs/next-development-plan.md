@@ -448,3 +448,6 @@ On 2026-10-17 desktop runtime tests passed 91/91. HostContractSession rejects ne
 
 On 2026-10-17 desktop runtime tests passed 92/92. The host-contract author-type check now also covers castclass, isinst, unbox, unbox.any, ldobj, stobj, mkrefany, refanyval, sizeof, and constrained. A castclass of an author class is rejected before the host method runs. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 93/93. HostContractSession rejects ldftn and ldvirtftn. An ldftn of Object.ToString is rejected before the host method runs. ldsflda is rejected with static field loads. ldelem, stelem, and ldelema use the author-type rule. This is not an iOS result.
+
