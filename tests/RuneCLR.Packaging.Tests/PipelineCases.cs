@@ -45,6 +45,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package constructs a private assembly type", HostInterfaceConstructsPrivateType);
         yield return ("Imported host-contract IL opens and returns an int", HostInterfaceImportsIl);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
+        yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -396,6 +397,32 @@ internal static class PipelineCases
         session.Dispose();
         Check.Assert(result == 41, "Measure returned " + result + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportRejectsFrameworkNew()
+    {
+        using var temp = new TempDirectory();
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public void Report() { _ = new System.InvalidOperationException("x"); }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportFramework", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportFramework.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var output = Path.Combine(temp.Path, "package");
+        var error = Check.Throws<InvalidDataException>(() => PackageBuilder.Import("HostImportFramework", "GameScript", dll, Profile(), output,
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]));
+        Check.Assert(error.Message.Contains("Report", StringComparison.Ordinal), error.Message);
+        Check.Assert(error.Message.Contains("InvalidOperationException..ctor", StringComparison.Ordinal), error.Message);
+        Check.Assert(!Directory.Exists(output), "A rejected framework constructor published a package.");
     }
 
 

@@ -1568,6 +1568,9 @@ On 2026-10-17 packaging tests passed 183/183. An imported host-contract IL packa
 On 2026-10-17 packaging tests passed 184/184. Imported host-contract IL can call a declared private assembly. The entry and SharedImport are submitted as IL. OnStart logs ok. InvokeInt Measure(40) calls AddOne and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 185/185. PackageBuilder.Import rejects host-contract IL whose later callback constructs System.InvalidOperationException. The message names Report and InvalidOperationException..ctor. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
