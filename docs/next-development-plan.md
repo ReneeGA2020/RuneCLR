@@ -442,3 +442,6 @@ On 2026-10-17 desktop runtime tests passed 89/89. HostContractSession.Open inspe
 
 On 2026-10-17 desktop runtime tests passed 90/90. HostContractSession rejects boxing a value type that is not in System.Private.CoreLib or System.Runtime. The check covers OnStart, a later callback, and the instance constructor. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 91/91. HostContractSession rejects newarr and initobj of a type that is not in System.Private.CoreLib or System.Runtime, using the same rule as box. The host method is not called. This is not an iOS result.
+

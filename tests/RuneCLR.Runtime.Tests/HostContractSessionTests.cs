@@ -44,6 +44,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects unsafe IL before the author runs", RejectUnsafeIl);
         yield return ("Host contract rejects a static field load before the author runs", RejectStaticFieldLoad);
         yield return ("Host contract rejects boxing an author value type", RejectAuthorBox);
+        yield return ("Host contract rejects an author array type before the author runs", RejectAuthorArray);
     }
 
     private static void EchoAndUnload()
@@ -772,7 +773,7 @@ internal static class HostContractSessionTests
         WriteAuthorBox(path);
         var error = CheckThrows<InvalidOperationException>(() =>
             new HostContractSession(typeof(IHostEcho), host, path, "HostContract.BoxScript.Script", ["Echo"]));
-        Check(error.Message.Contains("value-type initialization", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("type initialization", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The author box ran.");
     }
 
@@ -796,6 +797,47 @@ internal static class HostContractSessionTests
         var il = start.GetILGenerator();
         il.Emit(OpCodes.Ldc_I4_0);
         il.Emit(OpCodes.Box, bomb);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        bomb.CreateType();
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void RejectAuthorArray()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "array.dll");
+        WriteAuthorArray(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.ArrayScript.Script", ["Echo"]));
+        Check(error.Message.Contains("type initialization", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The author array ran.");
+    }
+
+    private static void WriteAuthorArray(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.ArrayScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.ArrayScript");
+        var bomb = module.DefineType("HostContract.ArrayScript.Bomb", TypeAttributes.Public | TypeAttributes.Class);
+        var type = module.DefineType("HostContract.ArrayScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldc_I4_1);
+        il.Emit(OpCodes.Newarr, bomb);
         il.Emit(OpCodes.Pop);
         il.Emit(OpCodes.Ldarg_1);
         il.Emit(OpCodes.Ldc_I4, 1);

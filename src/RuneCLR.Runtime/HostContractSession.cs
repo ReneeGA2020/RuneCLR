@@ -308,7 +308,7 @@ public sealed class HostContractSession : IDisposable
             {
                 throw new InvalidOperationException(failure);
             }
-            else if (operation.Value == OpCodes.Box.Value)
+            else if (operation.Value == OpCodes.Box.Value || operation.Value == OpCodes.Newarr.Value || operation.Value == OpCodes.Initobj.Value)
             {
                 RejectForeignBox(constructor.Module, il, ref index);
             }
@@ -343,7 +343,7 @@ public sealed class HostContractSession : IDisposable
             {
                 throw new InvalidOperationException(failure);
             }
-            else if (operation.Value == OpCodes.Box.Value)
+            else if (operation.Value == OpCodes.Box.Value || operation.Value == OpCodes.Newarr.Value || operation.Value == OpCodes.Initobj.Value)
             {
                 RejectForeignBox(method.Module, il, ref index);
             }
@@ -356,7 +356,7 @@ public sealed class HostContractSession : IDisposable
 
     private static void RejectForeignBox(Module module, byte[] il, ref int index)
     {
-        const string failure = "Author value-type initialization is unsupported.";
+        const string failure = "Author type initialization is unsupported.";
         var token = ReadInt32(il, ref index, failure);
         Type? resolved;
         try { resolved = module.ResolveType(token); }
