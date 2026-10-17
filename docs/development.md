@@ -1649,6 +1649,9 @@ On 2026-10-17 packaging tests passed 210/210. Imported host-contract IL can take
 On 2026-10-17 packaging tests passed 211/211. Imported host-contract IL can take only an int in a later callback. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok. Invoke Apply(41) calls Charge with 41. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 212/212. Imported host-contract IL can take the host and an int in a later void callback. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok. Invoke Report(41) calls Charge with 41. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

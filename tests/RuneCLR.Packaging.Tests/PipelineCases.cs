@@ -49,6 +49,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL opens and returns an int", HostInterfaceImportsIl);
         yield return ("Imported host-contract IL returns an int with the host", HostInterfaceImportsHostMeasure);
         yield return ("Imported host-contract IL passes only an int", HostInterfaceImportsIntOnly);
+        yield return ("Imported host-contract IL passes the host and an int", HostInterfaceImportsHostAndInt);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
@@ -480,6 +481,25 @@ internal static class PipelineCases
         var host = new RecordingMapContext();
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         session.Invoke("Apply", 41);
+        session.Dispose();
+        Check.Assert(host.Charged == 41, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsHostAndInt()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostImportReport", [new("GameScript.cs", HostAndIntScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportReport.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportReport", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "Charge"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Invoke("Report", 41);
         session.Dispose();
         Check.Assert(host.Charged == 41, "Charge received " + host.Charged + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
