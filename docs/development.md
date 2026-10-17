@@ -1610,6 +1610,9 @@ On 2026-10-17 packaging tests passed 197/197. The operator CLI compile command r
 On 2026-10-17 packaging tests passed 198/198. The operator CLI --help exits 0 and mentions --host-interface. An unknown command, compile without --framework-refs, and a repeated --id each exit 2. The errors name the unknown command, the missing option, and the repeated option. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 199/199. The operator CLI compile command rejects a repeated allowed method and a blank allowed method. Both processes exit 2. The error says the methods must be nonempty and unique. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

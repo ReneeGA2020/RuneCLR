@@ -60,6 +60,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects an extra host-contract file", HostInterfaceOperatorCliRejectsExtraFile);
         yield return ("Operator CLI rejects a partial host-contract pair", HostInterfaceOperatorCliRejectsPartialPair);
         yield return ("Operator CLI rejects unknown arguments", OperatorCliRejectsBadArguments);
+        yield return ("Operator CLI rejects a repeated or blank allowed method", OperatorCliRejectsRepeatedAllowedMethod);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -775,6 +776,33 @@ internal static class PipelineCases
         Check.Assert(missing.ExitCode == 2 && missing.Stderr.Contains("Missing --framework-refs.", StringComparison.Ordinal), missing.Stdout + missing.Stderr);
         var duplicate = RunPackageTool("compile", "--id", "A", "--id", "B");
         Check.Assert(duplicate.ExitCode == 2 && duplicate.Stderr.Contains("supplied more than once", StringComparison.Ordinal), duplicate.Stdout + duplicate.Stderr);
+    }
+
+    private static void OperatorCliRejectsRepeatedAllowedMethod()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), IntSessionScript);
+        Reject(Path.Combine(temp.Path, "repeated"), ["--allowed-method", "Log", "--allowed-method", "Log"]);
+        Reject(Path.Combine(temp.Path, "blank"), ["--allowed-method", ""]);
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+
+        void Reject(string output, string[] methods)
+        {
+            var arguments = new List<string>
+            {
+                "compile", "--source", source, "--id", "HostCliDup", "--entry-type", "GameScript",
+                "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+                "--output", output, "--host-interface", "RuneCLR.IMapContext",
+            };
+            arguments.AddRange(methods);
+            var (exit, stdout, stderr) = RunPackageTool(arguments.ToArray());
+            Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+            Check.Assert(stderr.Contains("nonempty and unique", StringComparison.Ordinal), stderr);
+            Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+            Check.Assert(!Directory.Exists(output), "A repeated or blank allowed method published a package.");
+        }
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
