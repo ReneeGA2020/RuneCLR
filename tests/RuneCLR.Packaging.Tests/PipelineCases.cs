@@ -38,6 +38,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package charges from OnStart", HostInterfaceOnStartCharges);
         yield return ("Compiled host-contract package destroys an entity from OnStart", HostInterfaceOnStartDestroys);
         yield return ("Compiled host-contract package reads MapId from OnStart", HostInterfaceOnStartReadsMapId);
+        yield return ("Compiled host-contract package rejects the MapId property name", HostInterfaceRejectsMapIdPropertyName);
         yield return ("Compiled host-contract package releases a stored entity", HostInterfaceReleasesStoredEntity);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
@@ -230,6 +231,19 @@ internal static class PipelineCases
         Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
         Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceRejectsMapIdPropertyName()
+    {
+        using var temp = new TempDirectory();
+        var output = Path.Combine(temp.Path, "package");
+        var error = Check.Throws<InvalidDataException>(() => PackageBuilder.Compile("HostMapName", "GameScript",
+            [new("GameScript.cs", OnStartMapIdScript)], Profile(), output,
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "MapId"]));
+        Check.Assert(error.Message.Contains("get_MapId", StringComparison.Ordinal), error.Message);
+        Check.Assert(error.Message.Contains("OnStart", StringComparison.Ordinal), error.Message);
+        Check.Assert(!Directory.Exists(output), "A property-name allow list published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 
     private const string LaterSessionScript = """
