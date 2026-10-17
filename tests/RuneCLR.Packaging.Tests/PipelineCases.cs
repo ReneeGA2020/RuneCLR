@@ -139,6 +139,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects an escaping dependency path", OperatorCliRejectsEscapingDependency);
         yield return ("Operator CLI rejects a dependency that is not a managed assembly", OperatorCliRejectsOpaqueDependency);
         yield return ("Operator CLI rejects a dependency that spoofs a framework name", OperatorCliRejectsSpoofedDependency);
+        yield return ("Operator CLI rejects a dependency that duplicates the entry", OperatorCliRejectsDuplicateEntryIdentity);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2934,6 +2935,42 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("System.IO", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(dependencyPath), "Validate removed the spoofed dependency.");
+    }
+
+
+    private static void OperatorCliRejectsDuplicateEntryIdentity()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "helper"), "SharedCliDup", """
+            public static class Helper { public static int Value() => 1; }
+            """);
+        var build = PackageBuilder.Compile("HostCliDup", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var duplicate = SourceCompiler.Compile("HostCliDup", [new("Helper.cs", "public static class Helper { public static int Value() => 2; }")],
+            CompilerFixture.ApprovedReferences());
+        Check.Assert(duplicate.Succeeded, string.Join("; ", duplicate.Diagnostics.Select(item => item.Message)));
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var relative = manifest.Dependencies.Single().Path;
+        var dependencyPath = Path.Combine(Path.GetDirectoryName(build.ManifestPath!)!, relative.Replace('/', Path.DirectorySeparatorChar));
+        File.WriteAllBytes(dependencyPath, duplicate.Assembly!);
+        var hash = Fixtures.Hash(duplicate.Assembly!);
+        var identity = ManagedAssemblyInspector.Inspect(duplicate.Assembly!).AssemblyName;
+        manifest = manifest with
+        {
+            Dependencies = [manifest.Dependencies[0] with { Sha256 = hash, AssemblyName = identity }],
+            Files = manifest.Files.Select(file => file.Path == relative ? file with { Sha256 = hash } : file).ToArray()
+        };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("duplicates the entry assembly identity", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(dependencyPath), "Validate removed the duplicate dependency.");
     }
 
 

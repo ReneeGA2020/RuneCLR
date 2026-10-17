@@ -1826,6 +1826,8 @@ On 2026-10-17 packaging tests passed 276/276. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 277/277. The operator CLI validate command accepts a host-contract package with one private assembly, then rejects it after that dependency is replaced by an assembly named System.IO and the file hash, content hash, and declared assembly identity are updated to match. The error names spoofs and System.IO. The dependency file stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 278/278. The operator CLI validate command accepts a host-contract package with one private assembly, then rejects it after that dependency is replaced by another assembly named HostCliDup and the file hash, content hash, and declared assembly identity are updated to match. The error names duplicates the entry assembly identity. The dependency file stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
