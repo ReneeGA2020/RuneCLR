@@ -140,6 +140,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a dependency that is not a managed assembly", OperatorCliRejectsOpaqueDependency);
         yield return ("Operator CLI rejects a dependency that spoofs a framework name", OperatorCliRejectsSpoofedDependency);
         yield return ("Operator CLI rejects a dependency that duplicates the entry", OperatorCliRejectsDuplicateEntryIdentity);
+        yield return ("Operator CLI rejects a dependency declared as the host contract", OperatorCliRejectsContractDependency);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2971,6 +2972,32 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("duplicates the entry assembly identity", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(dependencyPath), "Validate removed the duplicate dependency.");
+    }
+
+
+    private static void OperatorCliRejectsContractDependency()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "helper"), "SharedCliContract", """
+            public static class Helper { public static int Value() => 1; }
+            """);
+        var build = PackageBuilder.Compile("HostCliContractDep", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var declared = new System.Reflection.AssemblyName(
+            "RuneCLR.Abstractions, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null").FullName!;
+        manifest = manifest with { Dependencies = [manifest.Dependencies.Single() with { AssemblyName = declared }] };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("contract or duplicate private assembly identity", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
     }
 
 
