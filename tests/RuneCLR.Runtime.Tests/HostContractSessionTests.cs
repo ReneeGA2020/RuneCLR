@@ -49,6 +49,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a package directory nested too deeply", OpenRejectsDeepDirectory);
         yield return ("Host contract Open rejects an unsupported producer input kind", OpenRejectsProducerKind);
         yield return ("Host contract Open rejects a producer with no references", OpenRejectsEmptyProducerReferences);
+        yield return ("Host contract Open rejects a blank package id", OpenRejectsBlankPackageId);
         yield return ("Host contract Open rejects an entry path that escapes the package", OpenRejectsEscapingPath);
         yield return ("Host contract Open rejects an entry that is not a DLL", OpenRejectsNonDll);
         yield return ("Host contract Open rejects an entry missing from the file list", OpenRejectsUnlistedEntry);
@@ -935,6 +936,23 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("Producer references identities are required and bounded.", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The empty producer references ran.");
     }
+
+    private static void OpenRejectsBlankPackageId()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenBlankIdScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifestPath = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenBlankIdScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var manifest = PackageManifestIO.Read(manifestPath);
+        manifest = manifest with { Id = " " };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(manifestPath, manifest);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifestPath, typeof(IHostEcho), host));
+        Check(error.Message.Contains("Missing or oversized id.", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The blank package id ran.");
+    }
+
 
 
 

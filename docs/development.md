@@ -1514,6 +1514,9 @@ On 2026-10-17 desktop runtime tests passed 132/132. HostContractSession.Open rej
 On 2026-10-17 desktop runtime tests passed 133/133. HostContractSession.Open rejects a producer with no references, even after the content hash is recomputed. The message contains Producer references identities are required and bounded. The host method does not run. The same check requires sources, and compiler identities when the input kind is source. An il producer with one reference and one source still loads. This is not an iOS result.
 
 
+On 2026-10-17 desktop runtime tests passed 134/134. HostContractSession.Open rejects a blank package id, even after the content hash is recomputed. The message contains Missing or oversized id. The host method does not run. The same check bounds the entry type and requires SHA-256 hashes and a bounded file list. A normal id still loads. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

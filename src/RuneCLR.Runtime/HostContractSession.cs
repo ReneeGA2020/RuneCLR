@@ -32,6 +32,7 @@ public sealed class HostContractSession : IDisposable
             manifest.ApiVersion != PackageFormat.CurrentApiVersion ||
             manifest.InputProfile != PackageFormat.InputProfile)
             throw new InvalidDataException("Unsupported package format, API version or input profile.");
+        RequireManifestMetadata(manifest);
         if (manifest.Producer is null)
             throw new InvalidDataException("The package requires bounded files, dependencies and producer metadata.");
         if (manifest.Producer.InputKind is not ("source" or "il"))
@@ -63,6 +64,30 @@ public sealed class HostContractSession : IDisposable
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
         RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256, ref totalBytes);
         return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods, privateAssemblies);
+    }
+
+    private static void RequireManifestMetadata(PackageManifest manifest)
+    {
+        RequireText(manifest.Id, "id", 128);
+        RequireText(manifest.EntryType, "entryType", 1024);
+        RequireSha256(manifest.EntrySha256);
+        RequireSha256(manifest.ContentSha256);
+        if (manifest.Files is null || manifest.Dependencies is null ||
+            manifest.Files.Length == 0 || manifest.Files.Length > PackageValidator.MaximumFiles ||
+            manifest.Dependencies.Length >= PackageValidator.MaximumFiles)
+            throw new InvalidDataException("The package requires bounded files, dependencies and producer metadata.");
+    }
+
+    private static void RequireText(string value, string field, int maximumLength)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > maximumLength)
+            throw new InvalidDataException("Missing or oversized " + field + ".");
+    }
+
+    private static void RequireSha256(string hash)
+    {
+        if (hash is null || hash.Length != 64 || !hash.All(Uri.IsHexDigit))
+            throw new InvalidDataException("Each content/input identity requires a SHA-256 hexadecimal digest.");
     }
 
     private static void RequireProducerInputs(PackageProducer producer)
