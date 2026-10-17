@@ -54,6 +54,7 @@ internal static class PipelineCases
         yield return ("Operator CLI import rejects a framework constructor", HostInterfaceOperatorCliImportRejectsFrameworkNew);
         yield return ("Operator CLI compiles a private dependency", HostInterfaceOperatorCliCompilesDependency);
         yield return ("Operator CLI imports a private dependency", HostInterfaceOperatorCliImportsDependency);
+        yield return ("Operator CLI validates a host-contract package", HostInterfaceOperatorCliValidates);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -661,6 +662,20 @@ internal static class PipelineCases
         session.Dispose();
         Check.Assert(result == 41, "Measure returned " + result + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceOperatorCliValidates()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliValidate", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stdout.Contains("\"id\":\"HostCliValidate\"", StringComparison.Ordinal), stdout);
+        Check.Assert(stdout.Contains("\"contentSha256\":\"" + manifest.ContentSha256 + "\"", StringComparison.Ordinal), stdout);
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
