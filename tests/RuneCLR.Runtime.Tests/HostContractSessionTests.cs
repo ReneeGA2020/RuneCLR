@@ -19,6 +19,9 @@ internal static class HostContractSessionTests
         yield return ("Host contract Invoke passes an int to a later callback", InvokePassesAnInt);
         yield return ("Host contract Invoke rejects a BCL call in an int callback", InvokeIntRejectsBcl);
         yield return ("Host contract Invoke without an int does not run an int callback", InvokeIntRequiresTheValue);
+        yield return ("Host contract InvokeInt returns an int from a later callback", InvokeIntReturns);
+        yield return ("Host contract InvokeInt rejects a BCL call before returning", InvokeIntReturnRejectsBcl);
+        yield return ("Host contract InvokeInt rejects a void callback", InvokeIntRejectsVoid);
         yield return ("Host contract Invoke rejects an unlisted later call before it runs", InvokeRejectsUnlisted);
         yield return ("Host contract Invoke passes the host interface into a later callback", InvokePassesTheHostAgain);
         yield return ("Host contract Invoke rejects a reentrant callback", InvokeRejectsReentry);
@@ -198,6 +201,83 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("no parameters or one host-contract parameter", StringComparison.Ordinal), error.Message);
         Check(host.Calls.SequenceEqual([1]), "The int callback ran without a value.");
         session.Dispose();
+    }
+
+    private static void InvokeIntReturns()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "measure.dll");
+        WriteStartAndMeasure(path, "HostContract.MeasureScript", foreign: false);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.MeasureScript.Script", ["Echo"]);
+        Check(host.Calls.SequenceEqual([1]), "OnStart did not call Echo(1).");
+        var result = session.InvokeInt("Measure", 40);
+        Check(result == 41, "Measure did not return 41.");
+        Check(host.Calls.SequenceEqual([1]), "Measure called the host.");
+        session.Dispose();
+    }
+
+    private static void InvokeIntReturnRejectsBcl()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "measure.dll");
+        WriteStartAndMeasure(path, "HostContract.MeasureForeignScript", foreign: true);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.MeasureForeignScript.Script", ["Echo"]);
+        var error = CheckThrows<InvalidOperationException>(() => session.InvokeInt("Measure", 40));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.SequenceEqual([1]), "The returning callback ran.");
+        session.Dispose();
+    }
+
+    private static void InvokeIntRejectsVoid()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "measure.dll");
+        WriteStartAndInt(path, "HostContract.MeasureVoidScript", foreign: false);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.MeasureVoidScript.Script", ["Echo"]);
+        var error = CheckThrows<InvalidOperationException>(() => session.InvokeInt("OnTick", 40));
+        Check(error.Message.Contains("one public int method", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.SequenceEqual([1]), "The void callback ran through InvokeInt.");
+        session.Dispose();
+    }
+
+    private static void WriteStartAndMeasure(string path, string assemblyName, bool foreign)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var startIl = start.GetILGenerator();
+        startIl.Emit(OpCodes.Ldarg_1);
+        startIl.Emit(OpCodes.Ldc_I4, 1);
+        startIl.Emit(OpCodes.Callvirt, echo);
+        startIl.Emit(OpCodes.Pop);
+        startIl.Emit(OpCodes.Ret);
+        var measure = type.DefineMethod("Measure", MethodAttributes.Public, typeof(int), new[] { typeof(int) });
+        var measureIl = measure.GetILGenerator();
+        if (foreign)
+        {
+            measureIl.Emit(OpCodes.Ldnull);
+            measureIl.Emit(OpCodes.Call, typeof(string).GetMethod(nameof(string.IsNullOrEmpty), new[] { typeof(string) })!);
+            measureIl.Emit(OpCodes.Pop);
+        }
+
+        measureIl.Emit(OpCodes.Ldarg_1);
+        measureIl.Emit(OpCodes.Ldc_I4_1);
+        measureIl.Emit(OpCodes.Add);
+        measureIl.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void WriteStartAndInt(string path, string assemblyName, bool foreign)

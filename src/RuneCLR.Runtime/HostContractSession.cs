@@ -286,6 +286,49 @@ public sealed class HostContractSession : IDisposable
         }
     }
 
+    public int InvokeInt(string methodName, int value)
+    {
+        if (_disposed || _script is null || _host is null || _contract is null || _allowedMethods is null)
+            throw new ObjectDisposedException(nameof(HostContractSession));
+        if (_invoking)
+            throw new InvalidOperationException("A session lifecycle callback is already running.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
+        if (methodName == "OnStart")
+            throw new InvalidOperationException("OnStart has already run.");
+        var methods = _script.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(method => method.Name == methodName)
+            .ToArray();
+        var method = methods.Length == 1 ? methods[0] : null;
+        var parameters = method?.GetParameters() ?? [];
+        if (method is null || method.ReturnType != typeof(int) || method.IsGenericMethod ||
+            parameters.Length != 1 || parameters[0].ParameterType != typeof(int))
+            throw new InvalidOperationException("The callback must be one public int method with one int parameter.");
+        RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
+        const string failure = "The callback calls a method that is not a host contract member.";
+        RequireContractCalls(method, _contract, _allowedMethods, failure, _images!);
+        _invoking = true;
+        try
+        {
+            object? result;
+            try
+            {
+                result = method.Invoke(_script, [value]);
+            }
+            catch (Exception exception)
+            {
+                throw HostFailure(exception);
+            }
+
+            if (result is not int number)
+                throw new InvalidOperationException("The callback must return an int.");
+            return number;
+        }
+        finally
+        {
+            _invoking = false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
