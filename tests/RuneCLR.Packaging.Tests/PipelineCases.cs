@@ -52,6 +52,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a framework constructor", HostInterfaceOperatorCliRejectsFrameworkNew);
         yield return ("Operator CLI imports a host-contract assembly", HostInterfaceOperatorCliImportsIl);
         yield return ("Operator CLI import rejects a framework constructor", HostInterfaceOperatorCliImportRejectsFrameworkNew);
+        yield return ("Operator CLI compiles a private dependency", HostInterfaceOperatorCliCompilesDependency);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -575,6 +576,47 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("InvalidOperationException..ctor", StringComparison.Ordinal), stderr);
         Check.Assert(!Directory.Exists(output), "A rejected framework constructor published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void HostInterfaceOperatorCliCompilesDependency()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedLibrary", """
+            public static class SharedHelper { public static int AddOne(int value) => value + 1; }
+            """);
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public int Measure(int value) => SharedHelper.AddOne(value);
+            }
+            """;
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), script);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile",
+            "--source", source,
+            "--id", "HostCliPrivate",
+            "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory,
+            "--contract", Fixtures.ContractAssembly,
+            "--output", output,
+            "--dependency", helper,
+            "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log");
+        Check.Assert(exit == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + exit + ". " + stdout + stderr);
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)

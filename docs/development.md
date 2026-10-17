@@ -1586,6 +1586,9 @@ On 2026-10-17 packaging tests passed 189/189. The operator CLI import command wr
 On 2026-10-17 packaging tests passed 190/190. The operator CLI import command rejects submitted IL whose later callback constructs System.InvalidOperationException. The process exits 2. The error names Report and InvalidOperationException..ctor. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 191/191. The operator CLI compile command accepts one --dependency and writes a host-contract package. OnStart logs ok. InvokeInt Measure(40) calls SharedHelper.AddOne and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
