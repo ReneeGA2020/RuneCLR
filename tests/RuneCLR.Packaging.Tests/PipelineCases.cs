@@ -47,6 +47,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package rejects a framework constructor", HostInterfaceRejectsFrameworkNew);
         yield return ("Compiled host-contract package constructs a private assembly type", HostInterfaceConstructsPrivateType);
         yield return ("Imported host-contract IL opens and returns an int", HostInterfaceImportsIl);
+        yield return ("Imported host-contract IL returns an int with the host", HostInterfaceImportsHostMeasure);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
@@ -441,6 +442,26 @@ internal static class PipelineCases
         var result = session.InvokeInt("Measure", 40);
         session.Dispose();
         Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsHostMeasure()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostImportMeasure", [new("GameScript.cs", HostMeasureScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportMeasure.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportMeasure", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "Charge"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Charged == 40, "Charge received " + host.Charged + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
