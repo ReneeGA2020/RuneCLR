@@ -1448,6 +1448,9 @@ On 2026-10-17 desktop runtime tests passed 105/105 and packaging tests passed 16
 
 On 2026-10-17 desktop runtime tests passed 107/107 and packaging tests passed 164/164. OnStart can construct a type declared in a private assembly, and that constructor is checked before it runs. The private box returns 41 to the host. string.IsNullOrEmpty inside that constructor is rejected, and the host method is not called. Gameplay validation is unchanged. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 109/109 and packaging tests passed 166/166. One declared private assembly may call another. The call returns 41 to the host. string.IsNullOrEmpty reached through the second assembly is rejected, and the host method is not called. Gameplay validation is unchanged. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

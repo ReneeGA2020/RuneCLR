@@ -40,6 +40,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract constructs an author type", OpenConstructsAuthorType);
         yield return ("Host contract Open constructs a private assembly type", OpenConstructsPrivateType);
         yield return ("Host contract Open rejects a BCL call inside a private constructor", OpenRejectsPrivateConstructorCall);
+        yield return ("Host contract Open lets one private assembly call another", OpenPrivateCallsPrivate);
+        yield return ("Host contract Open rejects a BCL call reached through a second private assembly", OpenRejectsSecondPrivateCall);
         yield return ("Host contract rejects a framework constructor", OpenRejectsFrameworkNew);
         yield return ("Host contract Open rejects a missing dependency file", OpenRejectsMissingDependency);
         yield return ("Host contract Open rejects a changed dependency file", OpenRejectsChangedDependency);
@@ -491,6 +493,129 @@ internal static class HostContractSessionTests
             new HostContractSession(typeof(IHostEcho), host, path, "HostContract.BoxScript.Script", ["Echo"]));
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The framework constructor ran.");
+    }
+
+    private static void OpenPrivateCallsPrivate()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var first = Path.Combine(directory.Path, "a.dll");
+        var second = Path.Combine(directory.Path, "b.dll");
+        WriteSecondAdd(second, "HostContract.LibB", foreign: false);
+        WriteFirstPass(first, "HostContract.LibA", second, "HostContract.LibB.Math");
+        WriteEntryCallsFirst(entry, "HostContract.TwoCaller", first, "HostContract.LibA.Math");
+        var manifest = WriteTwoDependencies(directory.Path, entry, first, second, "HostContract.TwoCaller.Script");
+        var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
+        session.Dispose();
+        Check(host.Seen == 41, "The second private assembly did not reach the host.");
+    }
+
+    private static void OpenRejectsSecondPrivateCall()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var first = Path.Combine(directory.Path, "a.dll");
+        var second = Path.Combine(directory.Path, "b.dll");
+        WriteSecondAdd(second, "HostContract.ForeignLibB", foreign: true);
+        WriteFirstPass(first, "HostContract.ForeignLibA", second, "HostContract.ForeignLibB.Math");
+        WriteEntryCallsFirst(entry, "HostContract.ForeignTwoCaller", first, "HostContract.ForeignLibA.Math");
+        var manifest = WriteTwoDependencies(directory.Path, entry, first, second, "HostContract.ForeignTwoCaller.Script");
+        var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The second private BCL call ran.");
+    }
+
+    private static void WriteSecondAdd(string path, string assemblyName, bool foreign)
+    {
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Math", TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed);
+        var method = type.DefineMethod("AddOne", MethodAttributes.Public | MethodAttributes.Static, typeof(int), new[] { typeof(int) });
+        var il = method.GetILGenerator();
+        if (foreign)
+        {
+            il.Emit(OpCodes.Ldnull);
+            il.Emit(OpCodes.Call, typeof(string).GetMethod(nameof(string.IsNullOrEmpty), new[] { typeof(string) })!);
+            il.Emit(OpCodes.Pop);
+        }
+
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Ldc_I4_1);
+        il.Emit(OpCodes.Add);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void WriteFirstPass(string path, string assemblyName, string secondPath, string secondType)
+    {
+        var second = Assembly.Load(File.ReadAllBytes(secondPath));
+        var addOne = second.GetType(secondType, throwOnError: true)!.GetMethod("AddOne")!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Math", TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed);
+        var method = type.DefineMethod("Through", MethodAttributes.Public | MethodAttributes.Static, typeof(int), new[] { typeof(int) });
+        var il = method.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Call, addOne);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void WriteEntryCallsFirst(string path, string assemblyName, string firstPath, string firstType)
+    {
+        var first = Assembly.Load(File.ReadAllBytes(firstPath));
+        var through = first.GetType(firstType, throwOnError: true)!.GetMethod("Through")!;
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 40);
+        il.Emit(OpCodes.Call, through);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static string WriteTwoDependencies(string directory, string entryPath, string firstPath, string secondPath, string entryType)
+    {
+        var entryHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(entryPath)));
+        var firstHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(firstPath)));
+        var secondHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(secondPath)));
+        var empty = new string('c', 64);
+        var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
+            [new InputIdentity("references.dll", empty)], [new InputIdentity("echo.dll", entryHash)]);
+        var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
+            "host-open", "echo.dll", entryType, entryHash,
+            [
+                new PackageDependency("a.dll", "LibA, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", firstHash),
+                new PackageDependency("b.dll", "LibB, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", secondHash)
+            ],
+            [new PackageFile("echo.dll", entryHash), new PackageFile("a.dll", firstHash), new PackageFile("b.dll", secondHash)],
+            producer, "", typeof(IHostEcho).FullName, ["Echo"]);
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        var path = Path.Combine(directory, PackageFormat.ManifestFileName);
+        PackageManifestIO.Write(path, manifest);
+        return path;
     }
 
     private static void OpenConstructsPrivateType()

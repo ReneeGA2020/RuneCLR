@@ -18,6 +18,8 @@ internal static class HostContractCapabilityCases
         yield return ("Host contract constructs an author type", AuthorNewIsChecked);
         yield return ("Host contract constructs a private assembly type", PrivateAuthorNewIsChecked);
         yield return ("Host contract rejects a BCL call inside a private constructor", PrivateConstructorRejectsBcl);
+        yield return ("Host contract lets one private assembly call another", PrivateCallsPrivate);
+        yield return ("Host contract rejects a BCL call reached through a second private assembly", SecondPrivateRejectsBcl);
         yield return ("Host contract rejects a framework constructor", FrameworkNewIsRejected);
     }
 
@@ -64,6 +66,53 @@ internal static class HostContractCapabilityCases
     }
 
 
+
+    private static void PrivateCallsPrivate()
+    {
+        var built = CompileTwoPrivate(false);
+        GameplayCapabilityPolicy.ValidateHostContract(built.Script, "Script", "HostContract.IApi", ["Echo"], [built.First, built.Second]);
+    }
+
+    private static void SecondPrivateRejectsBcl()
+    {
+        var built = CompileTwoPrivate(true);
+        var error = Check.Throws<InvalidDataException>(() =>
+            GameplayCapabilityPolicy.ValidateHostContract(built.Script, "Script", "HostContract.IApi", ["Echo"], [built.First, built.Second]));
+        Check.Assert(error.Message.Contains("host contract member", StringComparison.Ordinal)
+            && error.Message.Contains("IsNullOrEmpty", StringComparison.Ordinal), error.Message);
+    }
+
+    private static (byte[] Script, byte[] First, byte[] Second) CompileTwoPrivate(bool foreign)
+    {
+        var secondSource = foreign
+            ? "public static class MathB { public static int AddOne(int value) { _ = string.IsNullOrEmpty(\"x\"); return value + 1; } }"
+            : "public static class MathB { public static int AddOne(int value) => value + 1; }";
+        var references = CompilerFixture.ApprovedReferences();
+        var second = SourceCompiler.Compile("HostLibB", [new("B.cs", secondSource)], references);
+        Check.Assert(second.Succeeded && second.Assembly is not null,
+            "Second private assembly did not compile: " + string.Join("; ", second.Diagnostics.Select(item => item.Message)));
+        using var directory = new TempDirectory();
+        var secondPath = Path.Combine(directory.Path, "HostLibB.dll");
+        File.WriteAllBytes(secondPath, second.Assembly!);
+        var first = SourceCompiler.Compile("HostLibA", [new("A.cs",
+            "public static class MathA { public static int Through(int value) => MathB.AddOne(value); }")],
+            references.Concat([secondPath]).ToArray());
+        Check.Assert(first.Succeeded && first.Assembly is not null,
+            "First private assembly did not compile: " + string.Join("; ", first.Diagnostics.Select(item => item.Message)));
+        var contract = SourceCompiler.Compile("HostContract", [new("Contract.cs",
+            "namespace HostContract { public interface IApi { int Echo(int value); } }")], references);
+        Check.Assert(contract.Succeeded && contract.Assembly is not null, "Host contract did not compile.");
+        var contractPath = Path.Combine(directory.Path, "HostContract.dll");
+        var firstPath = Path.Combine(directory.Path, "HostLibA.dll");
+        File.WriteAllBytes(contractPath, contract.Assembly!);
+        File.WriteAllBytes(firstPath, first.Assembly!);
+        var script = SourceCompiler.Compile("HostScript", [new("Script.cs",
+            "public sealed class Script { public void OnStart(HostContract.IApi api) { api.Echo(MathA.Through(40)); } }")],
+            references.Concat([contractPath, firstPath]).ToArray());
+        Check.Assert(script.Succeeded && script.Assembly is not null,
+            "Two-private script did not compile: " + string.Join("; ", script.Diagnostics.Select(item => item.Message)));
+        return (script.Assembly!, first.Assembly!, second.Assembly!);
+    }
 
     private static void PrivateAuthorNewIsChecked()
     {
