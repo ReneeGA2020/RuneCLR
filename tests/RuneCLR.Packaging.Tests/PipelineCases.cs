@@ -142,6 +142,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a dependency that duplicates the entry", OperatorCliRejectsDuplicateEntryIdentity);
         yield return ("Operator CLI rejects a dependency declared as the host contract", OperatorCliRejectsContractDependency);
         yield return ("Operator CLI rejects two dependencies with the same identity", OperatorCliRejectsDuplicateDependencyIdentity);
+        yield return ("Operator CLI rejects a missing dependency file", OperatorCliRejectsMissingDependency);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -3030,6 +3031,31 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("contract or duplicate private assembly identity", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsMissingDependency()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "helper"), "SharedCliMissing", """
+            public static class Helper { public static int Value() => 1; }
+            """);
+        var build = PackageBuilder.Compile("HostCliMissing", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var relative = manifest.Dependencies.Single().Path;
+        var dependencyPath = Path.Combine(Path.GetDirectoryName(build.ManifestPath!)!, relative.Replace('/', Path.DirectorySeparatorChar));
+        File.Delete(dependencyPath);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("missing or extra files", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+        Check.Assert(!File.Exists(dependencyPath), "Validate restored the missing dependency.");
     }
 
 
