@@ -1778,6 +1778,9 @@ On 2026-10-17 packaging tests passed 253/253. Imported host-contract IL can let 
 On 2026-10-17 packaging tests passed 254/254. A compiled host-contract package can return an EntityId from a second private assembly. OnStart logs ok, passes the host through First.Through to Second.Create, and destroys the returned entity. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 255/255. Imported host-contract IL can return an EntityId from a second private assembly. The entry, SharedImportReturnFirst, and SharedImportReturnSecond are submitted as IL, not compiled by PackageBuilder. OnStart logs ok, passes the host through First.Through to Second.Create, and destroys the returned entity. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
