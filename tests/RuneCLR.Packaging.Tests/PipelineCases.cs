@@ -63,6 +63,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets a second private assembly log", HostInterfacePrivateChainLogs);
         yield return ("Compiled host-contract package lets a second private assembly read MapId", HostInterfacePrivateChainReadsMapId);
         yield return ("Compiled host-contract package lets a second private assembly charge", HostInterfacePrivateChainCharges);
+        yield return ("Imported host-contract IL lets a second private assembly charge", HostInterfaceImportsPrivateChainCharges);
         yield return ("Imported host-contract IL lets a second private assembly read MapId", HostInterfaceImportsPrivateChainReadsMapId);
         yield return ("Compiled host-contract package rejects a second private spawn", HostInterfacePrivateChainRejectsSpawn);
         yield return ("Imported host-contract IL rejects a second private spawn", HostInterfaceImportsPrivateChainRejectsSpawn);
@@ -1450,6 +1451,41 @@ internal static class PipelineCases
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsPrivateChainCharges()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedImportBillSecond", """
+            using RuneCLR;
+            public static class Second { public static void Bill(IMapContext context) => context.Charge(7); }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedImportBillFirst", """
+            using RuneCLR;
+            public static class First { public static void Through(IMapContext context) => Second.Bill(context); }
+            """, [second]);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); First.Through(context); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportChainCharge", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, first]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportChainCharge.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportChainCharge", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [first, second], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "Charge"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Charged == 7, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfaceImportsPrivate()
