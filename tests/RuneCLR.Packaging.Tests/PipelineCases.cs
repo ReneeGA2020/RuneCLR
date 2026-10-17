@@ -58,6 +58,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL lets one private assembly call another", HostInterfaceImportsPrivateChain);
         yield return ("Imported host-contract IL runs OnStart", HostInterfaceImportsOnStart);
         yield return ("Imported host-contract IL charges from OnStart", HostInterfaceImportsOnStartCharge);
+        yield return ("Imported host-contract IL destroys an entity from OnStart", HostInterfaceImportsOnStartDestroy);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
@@ -707,6 +708,25 @@ internal static class PipelineCases
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Charged == 7, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsOnStartDestroy()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostImportDestroy", [new("GameScript.cs", OnStartDestroyScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportDestroy.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportDestroy", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "SpawnEntity", "DestroyEntity"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+        Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
