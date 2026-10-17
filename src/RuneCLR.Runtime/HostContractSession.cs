@@ -44,6 +44,8 @@ public sealed class HostContractSession : IDisposable
         if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.IndexOf((char)92) >= 0 || relative.IndexOf((char)58) >= 0 ||
             relative.Split('/').Any(part => part is "" or "." or ".."))
             throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
+        if (!relative.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
         var full = Path.GetFullPath(Path.Combine(directory, relative.Replace('/', Path.DirectorySeparatorChar)));
         var root = Path.GetFullPath(directory + Path.DirectorySeparatorChar);
         if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))

@@ -25,6 +25,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a different host interface", OpenRejectsInterface);
         yield return ("Host contract Open rejects a changed entry file", OpenRejectsEntryTamper);
         yield return ("Host contract Open rejects a manifest whose content hash does not match", OpenRejectsContentTamper);
+        yield return ("Host contract Open rejects an entry path that escapes the package", OpenRejectsEscapingPath);
+        yield return ("Host contract Open rejects an entry that is not a DLL", OpenRejectsNonDll);
         yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
@@ -308,6 +310,40 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("content identity", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The tampered manifest ran.");
+    }
+
+    private static void OpenRejectsEscapingPath()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var manifest = WriteManifestUnchecked(directory.Path, "../echo.dll");
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("canonical relative DLL", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The escaping entry ran.");
+    }
+
+    private static void OpenRejectsNonDll()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var manifest = WriteManifestUnchecked(directory.Path, "echo.txt");
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("canonical relative DLL", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The non-DLL entry ran.");
+    }
+
+    private static string WriteManifestUnchecked(string directory, string entryPath)
+    {
+        var empty = new string('a', 64);
+        var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
+            [new InputIdentity("references.dll", empty)], [new InputIdentity(entryPath, empty)]);
+        var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
+            "host-open", entryPath, "HostContract.OpenPathScript.Script", empty, [], [new PackageFile(entryPath, empty)], producer, "",
+            typeof(IHostEcho).FullName, ["Echo"]);
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        var path = Path.Combine(directory, PackageFormat.ManifestFileName);
+        PackageManifestIO.Write(path, manifest);
+        return path;
     }
 
     private static string WriteManifest(string directory, string assemblyFile, string entryType, string hostInterface, string[] methods)

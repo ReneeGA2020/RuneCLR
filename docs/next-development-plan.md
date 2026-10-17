@@ -424,3 +424,6 @@ On 2026-10-17 desktop runtime tests passed 76/76. HostContractSession rejects ld
 
 On 2026-10-17 desktop runtime tests passed 78/78. HostContractSession.Open rejects a changed entry file before loading it. The message contains hash mismatch. A manifest whose host interface was edited without updating the content hash is also rejected. The message contains content identity. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 80/80. HostContractSession.Open rejects an entry path containing .. and an entry that does not end in .dll. Both fail before the file is opened. The message says the path must be a canonical relative DLL path. The host method is not called. This is not an iOS result.
+
