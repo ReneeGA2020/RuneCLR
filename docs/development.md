@@ -1658,6 +1658,9 @@ On 2026-10-17 packaging tests passed 213/213. Imported host-contract IL can run 
 On 2026-10-17 packaging tests passed 214/214. Imported host-contract IL can construct an author type from a later callback. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok. InvokeInt Measure(41) constructs Box and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 215/215. Imported host-contract IL can construct a type declared in a private assembly. The entry and SharedImportBox are submitted as IL, not compiled by PackageBuilder. OnStart logs ok. InvokeInt Measure(41) constructs Box and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
