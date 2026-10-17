@@ -421,3 +421,6 @@ On 2026-10-17 desktop runtime tests passed 75/75. HostContractSession rejects lo
 
 On 2026-10-17 desktop runtime tests passed 76/76. HostContractSession rejects ldsfld, stsfld, and ldtoken in OnStart, a later callback, and the instance constructor. Instance fields can still store the host. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 78/78. HostContractSession.Open rejects a changed entry file before loading it. The message contains hash mismatch. A manifest whose host interface was edited without updating the content hash is also rejected. The message contains content identity. The host method is not called. This is not an iOS result.
+

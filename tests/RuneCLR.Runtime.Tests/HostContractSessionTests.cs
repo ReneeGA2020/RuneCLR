@@ -23,6 +23,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open uses the manifest allow list", OpenUsesManifest);
         yield return ("Host contract Open rejects a call outside the manifest allow list", OpenRejectsUnlisted);
         yield return ("Host contract Open rejects a different host interface", OpenRejectsInterface);
+        yield return ("Host contract Open rejects a changed entry file", OpenRejectsEntryTamper);
+        yield return ("Host contract Open rejects a manifest whose content hash does not match", OpenRejectsContentTamper);
         yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
@@ -277,6 +279,35 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("does not match", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The mismatched interface ran.");
+    }
+
+    private static void OpenRejectsEntryTamper()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenEntryScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifest = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenEntryScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var bytes = File.ReadAllBytes(path);
+        bytes[^1] ^= 0xFF;
+        File.WriteAllBytes(path, bytes);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("hash mismatch", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The tampered entry ran.");
+    }
+
+    private static void OpenRejectsContentTamper()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenContentScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifest = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenContentScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var json = File.ReadAllText(manifest).Replace(typeof(IHostEcho).FullName!, nameof(IHostEcho) + "0", StringComparison.Ordinal);
+        File.WriteAllText(manifest, json);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("content identity", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The tampered manifest ran.");
     }
 
     private static string WriteManifest(string directory, string assemblyFile, string entryType, string hostInterface, string[] methods)
