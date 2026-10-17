@@ -34,6 +34,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open accepts a dependency whose bytes match", OpenAcceptsDependency);
         yield return ("Host contract Open rejects a missing dependency file", OpenRejectsMissingDependency);
         yield return ("Host contract Open rejects a changed dependency file", OpenRejectsChangedDependency);
+        yield return ("Host contract Open rejects a dependency that is not a managed assembly", OpenRejectsOpaqueDependency);
+        yield return ("Host contract Open rejects a dependency that spoofs a framework name", OpenRejectsSpoofedDependency);
         yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
@@ -386,7 +388,7 @@ internal static class HostContractSessionTests
         var entry = Path.Combine(directory.Path, "echo.dll");
         var library = Path.Combine(directory.Path, "lib.dll");
         WriteScript(entry, "HostContract.OpenDependencyScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 41, cast: false);
-        File.WriteAllBytes(library, [1, 2, 3, 4]);
+        WriteScript(library, "HostContract.Library", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 1, cast: false);
         var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.OpenDependencyScript.Script");
         var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
         session.Dispose();
@@ -419,6 +421,34 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("hash mismatch", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The changed dependency ran.");
+    }
+
+    private static void OpenRejectsOpaqueDependency()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WriteScript(entry, "HostContract.OpenOpaqueScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        File.WriteAllBytes(library, [1, 2, 3, 4]);
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.OpenOpaqueScript.Script");
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("PE", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The opaque dependency ran.");
+    }
+
+    private static void OpenRejectsSpoofedDependency()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WriteScript(entry, "HostContract.OpenSpoofDepScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        WriteScript(library, "System.IO", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 1, cast: false);
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.OpenSpoofDepScript.Script");
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("spoofs", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The spoofed dependency ran.");
     }
 
     private static string WriteHashedDependency(string directory, string entryPath, string? libraryPath, string entryType)

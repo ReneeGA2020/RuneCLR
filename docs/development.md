@@ -1414,6 +1414,8 @@ On 2026-10-17 desktop runtime tests passed 84/84. HostContractSession.Open requi
 
 On 2026-10-17 desktop runtime tests passed 87/87. HostContractSession.Open checks each private dependency file hash before loading the entry. A missing or changed dependency is rejected. A matching dependency still lets the host method run. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 89/89. HostContractSession.Open inspects each private dependency after its hash matches. A file that is not a managed PE is rejected. A dependency named System.IO is rejected as a spoof. A valid IL dependency still lets the host method run. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

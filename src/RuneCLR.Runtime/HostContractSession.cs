@@ -34,7 +34,7 @@ public sealed class HostContractSession : IDisposable
         var directory = Path.GetDirectoryName(Path.GetFullPath(manifestPath))
             ?? throw new InvalidDataException("The package manifest requires a directory.");
         foreach (var dependency in manifest.Dependencies)
-            RequireFileHash(directory, dependency.Path, dependency.Sha256);
+            RequireDependencyImage(directory, dependency.Path, dependency.Sha256);
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
         RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256);
         return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods);
@@ -75,14 +75,26 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
     }
 
-    private static void RequireFileHash(string directory, string relative, string expected)
+    private static void RequireDependencyImage(string directory, string relative, string expected)
+    {
+        var info = ManagedAssemblyInspector.Inspect(ReadHashed(directory, relative, expected));
+        if (ReservedAssembly(info.SimpleName))
+            throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
+    }
+
+    private static void RequireFileHash(string directory, string relative, string expected) =>
+        ReadHashed(directory, relative, expected);
+
+    private static byte[] ReadHashed(string directory, string relative, string expected)
     {
         var path = ResolveEntry(directory, relative);
         if (!File.Exists(path))
             throw new InvalidDataException("Package file hash mismatch: " + relative + ".");
-        var actual = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+        var bytes = File.ReadAllBytes(path);
+        var actual = Convert.ToHexString(SHA256.HashData(bytes));
         if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Package file hash mismatch: " + relative + ".");
+        return bytes;
     }
 
     private static string ResolveEntry(string directory, string relative)
