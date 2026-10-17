@@ -117,6 +117,7 @@ internal static class PipelineCases
         yield return ("Operator CLI imports a MapId read", OperatorCliImportsMapId);
         yield return ("Operator CLI rejects the MapId property name", OperatorCliRejectsMapIdName);
         yield return ("Operator CLI import rejects the MapId property name", OperatorCliImportRejectsMapIdName);
+        yield return ("Operator CLI compiles two private dependencies", OperatorCliCompilesTwoDependencies);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2324,6 +2325,41 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(!Directory.Exists(output), "A property-name allow list published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void OperatorCliCompilesTwoDependencies()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedCliLogSecond", """
+            using RuneCLR;
+            public static class Second { public static void Note(IMapContext context) => context.Log("from-second"); }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedCliLogFirst", """
+            using RuneCLR;
+            public static class First { public static void Through(IMapContext context) => Second.Note(context); }
+            """, [second]);
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); First.Through(context); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile", "--source", source, "--id", "HostCliChain", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--dependency", first, "--dependency", second,
+            "--host-interface", "RuneCLR.IMapContext", "--allowed-method", "Log");
+        Check.Assert(exit == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal), "Package tool exited " + exit + ". " + stdout + stderr);
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["ok", "from-second"]), string.Join(", ", host.Logs));
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
