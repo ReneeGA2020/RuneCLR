@@ -1364,6 +1364,8 @@ On 2026-10-16 one Windows run at artifacts/trusted-composition-timing-20261016 e
 
 On 2026-10-16 the owner deferred a four-platform performance pass. Windows, macOS, iOS, and Android still need performance measurements, but that pass is not current work. The Windows composition timing above is one process aggregate and does not cover macOS, iOS, or Android. Do not start a runtime build, simulator, or emulator only to open that pass. Simulator and physical-device results stay separate. Physical iOS remains paused because the only phone is an iPhone XR locked to iOS 18.7. Issue 3 stays open.
 
+On 2026-10-17 desktop runtime tests passed 58/58 after adding HostContractSession. The script OnStart receives the game-supplied interface instance and calls Echo(41). The assembly is loaded from memory, and Dispose drops the collectible context. An OnStart parameter that is not that interface fails before the author method runs. The managed-il-gameplay-v1 allowlist is unchanged. IMapContext is not renamed. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
