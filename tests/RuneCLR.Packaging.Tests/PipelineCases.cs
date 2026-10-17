@@ -61,6 +61,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a partial host-contract pair", HostInterfaceOperatorCliRejectsPartialPair);
         yield return ("Operator CLI rejects unknown arguments", OperatorCliRejectsBadArguments);
         yield return ("Operator CLI rejects a repeated or blank allowed method", OperatorCliRejectsRepeatedAllowedMethod);
+        yield return ("Operator CLI rejects a non-source file", OperatorCliRejectsNonSourceFile);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -803,6 +804,25 @@ internal static class PipelineCases
             Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
             Check.Assert(!Directory.Exists(output), "A repeated or blank allowed method published a package.");
         }
+    }
+
+    private static void OperatorCliRejectsNonSourceFile()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), IntSessionScript);
+        File.WriteAllText(Path.Combine(source, "GameScript.csproj"), "<Project />");
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile", "--source", source, "--id", "HostCliSource", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext", "--allowed-method", "Log");
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("only regular .cs files", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(!Directory.Exists(output), "A non-source file published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)

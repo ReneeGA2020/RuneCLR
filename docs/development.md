@@ -1613,6 +1613,9 @@ On 2026-10-17 packaging tests passed 198/198. The operator CLI --help exits 0 an
 On 2026-10-17 packaging tests passed 199/199. The operator CLI compile command rejects a repeated allowed method and a blank allowed method. Both processes exit 2. The error says the methods must be nonempty and unique. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 200/200. The operator CLI compile command rejects a source directory that also contains a .csproj file. The process exits 2. The error says source input must contain only regular .cs files. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
