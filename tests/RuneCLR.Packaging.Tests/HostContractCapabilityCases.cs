@@ -24,6 +24,8 @@ internal static class HostContractCapabilityCases
         yield return ("Host contract checks a later host-and-int callback", LaterCallbackIsChecked);
         yield return ("Host contract rejects a BCL call in a later callback", LaterCallbackRejectsBcl);
         yield return ("Host contract ignores an unsupported public method", UnsupportedPublicMethodIsIgnored);
+        yield return ("Host contract checks a later callback into a private assembly", LaterPrivateCallbackIsChecked);
+        yield return ("Host contract rejects a BCL call reached from a later private callback", LaterPrivateCallbackRejectsBcl);
     }
 
     private static void EchoApproved() =>
@@ -301,6 +303,46 @@ internal static class HostContractCapabilityCases
         Check.Assert(script.Succeeded && script.Assembly is not null,
             "Host script did not compile: " + string.Join("; ", script.Diagnostics.Select(item => item.Message)));
         return script.Assembly!;
+    }
+
+    private static void LaterPrivateCallbackIsChecked()
+    {
+        var built = CompileLaterPrivate(false);
+        GameplayCapabilityPolicy.ValidateHostContract(built.Script, "Script", "HostContract.IApi", ["Echo"], [built.Helper]);
+    }
+
+    private static void LaterPrivateCallbackRejectsBcl()
+    {
+        var built = CompileLaterPrivate(true);
+        var error = Check.Throws<InvalidDataException>(() =>
+            GameplayCapabilityPolicy.ValidateHostContract(built.Script, "Script", "HostContract.IApi", ["Echo"], [built.Helper]));
+        Check.Assert(error.Message.Contains("host contract member", StringComparison.Ordinal)
+            && error.Message.Contains("IsNullOrEmpty", StringComparison.Ordinal), error.Message);
+    }
+
+    private static (byte[] Script, byte[] Helper) CompileLaterPrivate(bool foreign)
+    {
+        var helperSource = foreign
+            ? "public static class Math { public static int AddOne(int value) { _ = string.IsNullOrEmpty(\"x\"); return value + 1; } }"
+            : "public static class Math { public static int AddOne(int value) => value + 1; }";
+        var references = CompilerFixture.ApprovedReferences();
+        var helper = SourceCompiler.Compile("HostLater", [new("Later.cs", helperSource)], references);
+        Check.Assert(helper.Succeeded && helper.Assembly is not null,
+            "Later helper did not compile: " + string.Join("; ", helper.Diagnostics.Select(item => item.Message)));
+        using var directory = new TempDirectory();
+        var contract = SourceCompiler.Compile("HostContract", [new("Contract.cs",
+            "namespace HostContract { public interface IApi { int Echo(int value); } }")], references);
+        Check.Assert(contract.Succeeded && contract.Assembly is not null, "Host contract did not compile.");
+        var contractPath = Path.Combine(directory.Path, "HostContract.dll");
+        var helperPath = Path.Combine(directory.Path, "HostLater.dll");
+        File.WriteAllBytes(contractPath, contract.Assembly!);
+        File.WriteAllBytes(helperPath, helper.Assembly!);
+        var script = SourceCompiler.Compile("HostScript", [new("Script.cs",
+            "public sealed class Script { public void OnStart(HostContract.IApi api) { api.Echo(1); } public void OnTick(HostContract.IApi api, int value) { api.Echo(Math.AddOne(value)); } }")],
+            references.Concat([contractPath, helperPath]).ToArray());
+        Check.Assert(script.Succeeded && script.Assembly is not null,
+            "Later private script did not compile: " + string.Join("; ", script.Diagnostics.Select(item => item.Message)));
+        return (script.Assembly!, helper.Assembly!);
     }
 
     private static void LaterCallbackIsChecked() =>
