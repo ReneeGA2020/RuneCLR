@@ -298,6 +298,9 @@ public sealed class HostContractSession : IDisposable
             name.StartsWith("ldind.", StringComparison.Ordinal) ||
             name.StartsWith("stind.", StringComparison.Ordinal))
             throw new InvalidOperationException("Unsafe IL is unsupported.");
+        if (operation.Value == OpCodes.Ldsfld.Value || operation.Value == OpCodes.Stsfld.Value ||
+            operation.Value == OpCodes.Ldtoken.Value)
+            throw new InvalidOperationException("Static field and token loads are unsupported.");
     }
 
     private static OpCode ReadOpCode(byte[] il, ref int index, string failure)

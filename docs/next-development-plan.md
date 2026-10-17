@@ -418,3 +418,6 @@ On 2026-10-17 desktop runtime tests passed 74/74. HostContractSession allows ref
 
 On 2026-10-17 desktop runtime tests passed 75/75. HostContractSession rejects localloc, cpblk, initblk, ldind, and stind in OnStart, a later callback, and the instance constructor. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 76/76. HostContractSession rejects ldsfld, stsfld, and ldtoken in OnStart, a later callback, and the instance constructor. Instance fields can still store the host. The host method is not called. This is not an iOS result.
+
