@@ -53,6 +53,7 @@ internal static class PipelineCases
         yield return ("Operator CLI imports a host-contract assembly", HostInterfaceOperatorCliImportsIl);
         yield return ("Operator CLI import rejects a framework constructor", HostInterfaceOperatorCliImportRejectsFrameworkNew);
         yield return ("Operator CLI compiles a private dependency", HostInterfaceOperatorCliCompilesDependency);
+        yield return ("Operator CLI imports a private dependency", HostInterfaceOperatorCliImportsDependency);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -602,6 +603,49 @@ internal static class PipelineCases
             "compile",
             "--source", source,
             "--id", "HostCliPrivate",
+            "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory,
+            "--contract", Fixtures.ContractAssembly,
+            "--output", output,
+            "--dependency", helper,
+            "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log");
+        Check.Assert(exit == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + exit + ". " + stdout + stderr);
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceOperatorCliImportsDependency()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedCliImport", """
+            public static class SharedHelper { public static int AddOne(int value) => value + 1; }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public int Measure(int value) => SharedHelper.AddOne(value);
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostCliImportPrivate", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, helper]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostCliImportPrivate.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "import",
+            "--assembly", dll,
+            "--id", "HostCliImportPrivate",
             "--entry-type", "GameScript",
             "--framework-refs", Fixtures.FrameworkReferenceDirectory,
             "--contract", Fixtures.ContractAssembly,
