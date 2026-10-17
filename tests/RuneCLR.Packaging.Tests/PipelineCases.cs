@@ -44,6 +44,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package rejects a framework constructor", HostInterfaceRejectsFrameworkNew);
         yield return ("Compiled host-contract package constructs a private assembly type", HostInterfaceConstructsPrivateType);
         yield return ("Imported host-contract IL opens and returns an int", HostInterfaceImportsIl);
+        yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -356,6 +357,38 @@ internal static class PipelineCases
         File.WriteAllBytes(dll, compiled.Assembly!);
         var imported = PackageBuilder.Import("HostImport", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
             hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsPrivate()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedImport", """
+            public static class SharedHelper { public static int AddOne(int value) => value + 1; }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public int Measure(int value) => SharedHelper.AddOne(value);
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportPrivate", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, helper]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportPrivate.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportPrivate", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
         Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
         var host = new RecordingMapContext();
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);

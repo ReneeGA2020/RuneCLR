@@ -1565,6 +1565,9 @@ On 2026-10-17 packaging tests passed 182/182. A compiled host-contract package c
 On 2026-10-17 packaging tests passed 183/183. An imported host-contract IL package opens and returns an int. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok. InvokeInt Measure(40) returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 184/184. Imported host-contract IL can call a declared private assembly. The entry and SharedImport are submitted as IL. OnStart logs ok. InvokeInt Measure(40) calls AddOne and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
