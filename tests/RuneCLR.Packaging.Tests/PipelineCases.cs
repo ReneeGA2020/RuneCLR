@@ -62,6 +62,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects unknown arguments", OperatorCliRejectsBadArguments);
         yield return ("Operator CLI rejects a repeated or blank allowed method", OperatorCliRejectsRepeatedAllowedMethod);
         yield return ("Operator CLI rejects a non-source file", OperatorCliRejectsNonSourceFile);
+        yield return ("Operator CLI rejects a deeply nested source", OperatorCliRejectsDeepSource);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -822,6 +823,26 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("only regular .cs files", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(!Directory.Exists(output), "A non-source file published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void OperatorCliRejectsDeepSource()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        var deep = source;
+        for (var level = 0; level < 17; level++) deep = Path.Combine(deep, "n");
+        Directory.CreateDirectory(deep);
+        File.WriteAllText(Path.Combine(deep, "GameScript.cs"), IntSessionScript);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile", "--source", source, "--id", "HostCliDeep", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext", "--allowed-method", "Log");
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("nesting limit", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(!Directory.Exists(output), "A deeply nested source published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 
