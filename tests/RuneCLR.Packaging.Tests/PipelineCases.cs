@@ -66,6 +66,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a linked source directory", OperatorCliRejectsSourceLink);
         yield return ("Operator CLI rejects an oversized source directory", OperatorCliRejectsSourceLimit);
         yield return ("Operator CLI rejects an unknown option", OperatorCliRejectsUnknownOption);
+        yield return ("Operator CLI rejects a compiler error", OperatorCliRejectsCompileError);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -920,6 +921,25 @@ internal static class PipelineCases
             Check.Assert(result.Stderr.Contains("Unknown option or missing value", StringComparison.Ordinal), result.Stderr);
             Check.Assert(result.Stderr.Contains("\"success\":false", StringComparison.Ordinal), result.Stderr);
         }
+    }
+
+    private static void OperatorCliRejectsCompileError()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "Broken.cs"), "public class Broken { MissingType value; }\n");
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile", "--source", source, "--id", "HostCliDiag", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext", "--allowed-method", "Log");
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stdout.Contains("\"success\":false", StringComparison.Ordinal), stdout + stderr);
+        Check.Assert(stdout.Contains("CS0246", StringComparison.Ordinal), stdout + stderr);
+        Check.Assert(stdout.Contains("MissingType", StringComparison.Ordinal), stdout + stderr);
+        Check.Assert(!Directory.Exists(output), "A compiler error published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)

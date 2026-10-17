@@ -1628,6 +1628,9 @@ On 2026-10-17 packaging tests passed 203/203. The operator CLI compile command r
 On 2026-10-17 packaging tests passed 204/204. The operator CLI rejects an unknown option, an option with no value, and a value that starts with --. Each process exits 2. The error says unknown option or missing value. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 205/205. The operator CLI compile command rejects a source file that names MissingType. The process exits 2. Standard output contains success false and CS0246. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
