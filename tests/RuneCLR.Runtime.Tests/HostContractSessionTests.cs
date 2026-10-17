@@ -9,6 +9,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract OnStart receives the host instance and the context unloads", EchoAndUnload);
         yield return ("Host contract rejects an OnStart parameter that is not the host interface", RejectWrongParameter);
         yield return ("Host contract rejects an OnStart call that is not a host contract member", RejectForeignCall);
+        yield return ("Host contract rejects an interface method that is not allowed", RejectUnlistedInterfaceMethod);
     }
 
     private static void EchoAndUnload()
@@ -19,7 +20,7 @@ internal static class HostContractSessionTests
         {
             var path = Path.Combine(directory.Path, "echo.dll");
             WriteScript(path, "HostContract.EchoScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 41, cast: false);
-            var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.EchoScript.Script");
+            var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.EchoScript.Script", ["Echo"]);
             var reference = session.ContextReference;
             session.Dispose();
             Check(host.Seen == 41, "The host did not observe Echo(41).");
@@ -47,7 +48,7 @@ internal static class HostContractSessionTests
             var path = Path.Combine(directory.Path, "wrong.dll");
             WriteScript(path, "HostContract.WrongScript", typeof(object), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 7, cast: true);
             var error = CheckThrows<InvalidOperationException>(() =>
-                new HostContractSession(typeof(IHostEcho), host, path, "HostContract.WrongScript.Script"));
+                new HostContractSession(typeof(IHostEcho), host, path, "HostContract.WrongScript.Script", ["Echo"]));
             Check(error.Message.Contains("host contract interface", StringComparison.Ordinal), error.Message);
             Check(host.Seen is null, "The author method was called.");
         }
@@ -67,7 +68,7 @@ internal static class HostContractSessionTests
             var path = Path.Combine(directory.Path, "foreign.dll");
             WriteEchoAndForeignCall(path);
             var error = CheckThrows<InvalidOperationException>(() =>
-                new HostContractSession(typeof(IHostEcho), host, path, "HostContract.ForeignScript.Script"));
+                new HostContractSession(typeof(IHostEcho), host, path, "HostContract.ForeignScript.Script", ["Echo"]));
             Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
             Check(host.Seen is null, "The author method was called.");
         }
@@ -77,6 +78,18 @@ internal static class HostContractSessionTests
         }
     }
 
+
+    private static void RejectUnlistedInterfaceMethod()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "other.dll");
+        WriteScript(path, "HostContract.OtherScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Other))!, 5, cast: false);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.OtherScript.Script", ["Echo"]));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null && host.OtherSeen is null, "The author method was called.");
+    }
     private static void WriteEchoAndForeignCall(string path)
     {
         var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
@@ -165,15 +178,24 @@ internal static class HostContractSessionTests
 public interface IHostEcho
 {
     int Echo(int value);
+    int Other(int value);
 }
 
 sealed class RecordingEcho : IHostEcho
 {
     public int? Seen { get; private set; }
 
+    public int? OtherSeen { get; private set; }
+
     public int Echo(int value)
     {
         Seen = value;
+        return value;
+    }
+
+    public int Other(int value)
+    {
+        OtherSeen = value;
         return value;
     }
 }

@@ -1374,6 +1374,8 @@ On 2026-10-17 packaging tests passed 147/147 after also checking the OnStart par
 
 On 2026-10-17 packaging tests passed 148/148 after rejecting an interface method that was not allowed. HostContract.IApi.Other is named in the error and is not called. Echo remains allowed. PackageValidator.Validate is unchanged. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 60/60. HostContractSession now takes the allowed method names. An OnStart call to IHostEcho.Other is rejected before the host method runs when only Echo is allowed. Echo(41) still reaches the host. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

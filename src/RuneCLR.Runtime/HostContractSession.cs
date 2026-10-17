@@ -9,12 +9,13 @@ public sealed class HostContractSession : IDisposable
     private HostContractLoadContext? _context;
     private bool _disposed;
 
-    public HostContractSession(Type contract, object instance, string assemblyPath, string entryTypeName)
+    public HostContractSession(Type contract, object instance, string assemblyPath, string entryTypeName, IReadOnlyCollection<string> allowedMethods)
     {
         ArgumentNullException.ThrowIfNull(contract);
         ArgumentNullException.ThrowIfNull(instance);
         ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(entryTypeName);
+        ArgumentNullException.ThrowIfNull(allowedMethods);
         if (!contract.IsInterface || !contract.IsInstanceOfType(instance))
             throw new InvalidOperationException("The host contract must be the interface implemented by the supplied instance.");
 
@@ -27,7 +28,7 @@ public sealed class HostContractSession : IDisposable
             var assembly = _context.LoadFromStream(stream);
             var entry = assembly.GetType(entryTypeName, throwOnError: false);
             var start = RequireOnStart(entry, contract);
-            RequireContractCalls(start, contract);
+            RequireContractCalls(start, contract, allowedMethods);
             var script = Activator.CreateInstance(entry!)!;
             start.Invoke(script, [instance]);
         }
@@ -70,7 +71,7 @@ public sealed class HostContractSession : IDisposable
     }
 
 
-    private static void RequireContractCalls(MethodInfo start, Type contract)
+    private static void RequireContractCalls(MethodInfo start, Type contract, IReadOnlyCollection<string> allowedMethods)
     {
         var body = start.GetMethodBody() ?? throw new InvalidOperationException("OnStart calls a method that is not a host contract member.");
         var il = body.GetILAsByteArray() ?? throw new InvalidOperationException("OnStart calls a method that is not a host contract member.");
@@ -84,7 +85,8 @@ public sealed class HostContractSession : IDisposable
                 MethodBase? called;
                 try { called = start.Module.ResolveMethod(token); }
                 catch (ArgumentException) { called = null; }
-                if (called?.DeclaringType != contract)
+                var allowed = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
+                if (called?.DeclaringType != contract || !allowed.Contains(called.Name))
                     throw new InvalidOperationException("OnStart calls a method that is not a host contract member.");
             }
             else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Newobj.Value || operation.Value == OpCodes.Jmp.Value)
