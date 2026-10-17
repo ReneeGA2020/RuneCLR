@@ -111,6 +111,8 @@ public sealed class HostContractSession : IDisposable
 
     private static void RequireProducerInputs(PackageProducer producer)
     {
+        RequireText(producer.Tool, "producer.tool", 128);
+        RequireText(producer.ToolVersion, "producer.toolVersion", 128);
         RequireInputs(producer.Compiler, producer.InputKind == "source", "compiler");
         RequireInputs(producer.References, required: true, "references");
         RequireInputs(producer.Sources, required: true, "sources");
