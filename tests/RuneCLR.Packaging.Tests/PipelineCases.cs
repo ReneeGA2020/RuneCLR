@@ -152,6 +152,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects two host contract references", OperatorCliRejectsDuplicateContractReference);
         yield return ("Operator CLI rejects a producer source digest that is not SHA-256", OperatorCliRejectsBadProducerSourceHash);
         yield return ("Operator CLI rejects a blank producer source name", OperatorCliRejectsBlankProducerSourceName);
+        yield return ("Operator CLI rejects a non-canonical reference identity", OperatorCliRejectsNonCanonicalReference);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -3276,6 +3277,40 @@ internal static class PipelineCases
         var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
         Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
         Check.Assert(stderr.Contains("Missing or oversized input name", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsNonCanonicalReference()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliIdentityText", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        Check.Assert(manifest.Producer.References.Any(item => item.AssemblyName is not null), "Expected a reference assembly identity.");
+        var replaced = false;
+        manifest = manifest with
+        {
+            Producer = manifest.Producer with
+            {
+                References = manifest.Producer.References.Select(item =>
+                {
+                    if (replaced || item.AssemblyName is null) return item;
+                    replaced = true;
+                    return item with { AssemblyName = "NotCanonical" };
+                }).ToArray()
+            }
+        };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("full canonical assembly identity", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
     }
