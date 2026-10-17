@@ -30,6 +30,7 @@ internal static class PipelineCases
         yield return ("A packaged author exception cleans up, unloads and permits the next package", AuthorFailure);
         yield return ("Package build records the host interface and allowed methods", HostInterfaceFields);
         yield return ("Package build rejects an OnStart call outside the allowed methods", HostInterfaceRejectsUnlisted);
+        yield return ("Package build rejects a later callback outside the allowed methods", LaterCallbackRejectsUnlisted);
         yield return ("Package build requires both host interface fields", HostInterfacePairRequired);
     }
     private const string HostFieldScript = """
@@ -56,6 +57,30 @@ internal static class PipelineCases
         Check.Assert(manifest.HostInterface == "RuneCLR.IMapContext", "Host interface was not written.");
         Check.Assert(manifest.AllowedMethods is not null && manifest.AllowedMethods.SequenceEqual(["Log", "SpawnEntity"]),
             "Allowed methods were not stored canonically.");
+    }
+
+    private const string LaterCallbackScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            private IMapContext? context;
+            public void OnStart(IMapContext value) { context = value; context.Log("ok"); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { context!.SpawnEntity("late"); }
+        }
+        """;
+
+    private static void LaterCallbackRejectsUnlisted()
+    {
+        using var temp = new TempDirectory();
+        var output = Path.Combine(temp.Path, "package");
+        var error = Check.Throws<InvalidDataException>(() => PackageBuilder.Compile("HostFields", "GameScript",
+            [new("GameScript.cs", LaterCallbackScript)], Profile(), output,
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]));
+        Check.Assert(error.Message.Contains("OnStop", StringComparison.Ordinal), error.Message);
+        Check.Assert(error.Message.Contains("SpawnEntity", StringComparison.Ordinal), error.Message);
+        Check.Assert(!Directory.Exists(output), "A rejected later callback published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 
     private static void HostInterfaceRejectsUnlisted()
