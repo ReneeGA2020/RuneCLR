@@ -61,6 +61,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL lets a private assembly read MapId", HostInterfaceImportsPrivateMapId);
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a second private assembly log", HostInterfacePrivateChainLogs);
+        yield return ("Imported host-contract IL lets a second private assembly log", HostInterfaceImportsPrivateChainLogs);
         yield return ("Compiled host-contract package lets a private assembly call the entry", HostInterfacePrivateCallsEntry);
         yield return ("Compiled host-contract package constructs an author type", HostInterfaceConstructsAuthorType);
         yield return ("Compiled host-contract package rejects a framework constructor", HostInterfaceRejectsFrameworkNew);
@@ -1253,6 +1254,40 @@ internal static class PipelineCases
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["ok", "from-private"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsPrivateChainLogs()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedImportLogSecond", """
+            using RuneCLR;
+            public static class Second { public static void Note(IMapContext context) => context.Log("from-second"); }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedImportLogFirst", """
+            using RuneCLR;
+            public static class First { public static void Through(IMapContext context) => Second.Note(context); }
+            """, [second]);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); First.Through(context); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportChainLog", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, first]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportChainLog.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportChainLog", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [first, second], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["ok", "from-second"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfaceImportsPrivate()
