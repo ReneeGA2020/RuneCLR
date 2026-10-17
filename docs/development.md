@@ -1390,6 +1390,8 @@ On 2026-10-17 desktop runtime tests passed 65/65. A host-contract callback failu
 
 On 2026-10-17 desktop runtime tests passed 66/66. After a host-contract callback failure, Dispose still unloads the collectible context while the host keeps the text exception. An OnStart failure is also text with no InnerException, and the constructor does not return the session. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 69/69. HostContractSession.Open reads hostInterface and allowedMethods from package.json. It checks the content hash and the entry file hash, then uses that method list for OnStart. It does not run the managed-il-gameplay-v1 profile. A different interface name is rejected before the author runs. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

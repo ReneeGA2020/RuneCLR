@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Security.Cryptography;
+using RuneCLR.Packages;
 using RuneCLR.Runtime;
 
 internal static class HostContractSessionTests
@@ -16,6 +18,9 @@ internal static class HostContractSessionTests
         yield return ("Host contract Invoke rejects a reentrant callback", InvokeRejectsReentry);
         yield return ("Host contract Invoke reports callback failure as text and continues", InvokeFailureIsText);
         yield return ("Host contract OnStart failure is text and does not return the session", OnStartFailureIsText);
+        yield return ("Host contract Open uses the manifest allow list", OpenUsesManifest);
+        yield return ("Host contract Open rejects a call outside the manifest allow list", OpenRejectsUnlisted);
+        yield return ("Host contract Open rejects a different host interface", OpenRejectsInterface);
     }
 
     private static void EchoAndUnload()
@@ -218,6 +223,66 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("System.InvalidOperationException: host-failed", StringComparison.Ordinal), error.Message);
         Check(host.Calls.SequenceEqual([9]), "OnStart did not reach the host.");
         GC.KeepAlive(error);
+    }
+
+    private static void OpenUsesManifest()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 41, cast: false);
+        var manifest = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
+        var reference = session.ContextReference;
+        session.Dispose();
+        Check(host.Seen == 41, "The manifest allow list did not reach Echo.");
+        for (var attempt = 0; attempt < 10 && reference.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        Check(!reference.IsAlive, "The collectible context was still alive after Dispose.");
+    }
+
+    private static void OpenRejectsUnlisted()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenRejectScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifest = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenRejectScript.Script", typeof(IHostEcho).FullName!, ["Other"]);
+        var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The unlisted manifest call ran.");
+    }
+
+    private static void OpenRejectsInterface()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenInterfaceScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifest = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenInterfaceScript.Script", "Other.Contract", ["Echo"]);
+        var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("does not match", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The mismatched interface ran.");
+    }
+
+    private static string WriteManifest(string directory, string assemblyFile, string entryType, string hostInterface, string[] methods)
+    {
+        var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, assemblyFile))));
+        var empty = new string('0', 64);
+        var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
+            [new InputIdentity("references.dll", empty)], [new InputIdentity(assemblyFile, hash)]);
+        var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
+            "host-open", assemblyFile, entryType, hash, [], [new PackageFile(assemblyFile, hash)], producer, "",
+            hostInterface, methods);
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        var path = Path.Combine(directory, PackageFormat.ManifestFileName);
+        PackageManifestIO.Write(path, manifest);
+        return path;
     }
 
     private static void RejectUnlistedInterfaceMethod()

@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Packages/RuneCLR.Packages.csproj" />
     <ProjectReference Include="../RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../DependencyMap.A/DependencyMap.A.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../DependencyMap.B/DependencyMap.B.csproj" ReferenceOutputAssembly="false" />
