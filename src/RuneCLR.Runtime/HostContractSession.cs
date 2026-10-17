@@ -308,6 +308,10 @@ public sealed class HostContractSession : IDisposable
             {
                 throw new InvalidOperationException(failure);
             }
+            else if (operation.Value == OpCodes.Box.Value)
+            {
+                RejectForeignBox(constructor.Module, il, ref index);
+            }
             else
             {
                 SkipOperand(operation, il, ref index, failure);
@@ -339,11 +343,27 @@ public sealed class HostContractSession : IDisposable
             {
                 throw new InvalidOperationException(failure);
             }
+            else if (operation.Value == OpCodes.Box.Value)
+            {
+                RejectForeignBox(method.Module, il, ref index);
+            }
             else
             {
                 SkipOperand(operation, il, ref index, failure);
             }
         }
+    }
+
+    private static void RejectForeignBox(Module module, byte[] il, ref int index)
+    {
+        const string failure = "Author value-type initialization is unsupported.";
+        var token = ReadInt32(il, ref index, failure);
+        Type? resolved;
+        try { resolved = module.ResolveType(token); }
+        catch (ArgumentException) { resolved = null; }
+        var name = resolved?.Assembly.GetName().Name;
+        if (name is not ("System.Private.CoreLib" or "System.Runtime"))
+            throw new InvalidOperationException(failure);
     }
 
     private static void RejectUnsafe(OpCode operation)

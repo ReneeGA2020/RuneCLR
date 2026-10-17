@@ -43,6 +43,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects a reference outside the contract assembly", RejectUnapprovedReference);
         yield return ("Host contract rejects unsafe IL before the author runs", RejectUnsafeIl);
         yield return ("Host contract rejects a static field load before the author runs", RejectStaticFieldLoad);
+        yield return ("Host contract rejects boxing an author value type", RejectAuthorBox);
     }
 
     private static void EchoAndUnload()
@@ -759,6 +760,49 @@ internal static class HostContractSessionTests
         il.Emit(OpCodes.Callvirt, echo);
         il.Emit(OpCodes.Pop);
         il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void RejectAuthorBox()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "box.dll");
+        WriteAuthorBox(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.BoxScript.Script", ["Echo"]));
+        Check(error.Message.Contains("value-type initialization", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The author box ran.");
+    }
+
+    private static void WriteAuthorBox(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.BoxScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.BoxScript");
+        var bomb = module.DefineType("HostContract.BoxScript.Bomb",
+            TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.SequentialLayout | TypeAttributes.BeforeFieldInit, typeof(ValueType));
+        bomb.DefineField("value", typeof(int), FieldAttributes.Public);
+        var type = module.DefineType("HostContract.BoxScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldc_I4_0);
+        il.Emit(OpCodes.Box, bomb);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        bomb.CreateType();
         type.CreateType();
         builder.Save(path);
     }
