@@ -21,7 +21,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Invoke passes an int to a later callback", InvokePassesAnInt);
         yield return ("Host contract allows an unsupported public method", OpenAllowsUnsupportedMethod);
         yield return ("Host contract runs a later callback into a private assembly", OpenLaterPrivateCallback);
-        yield return ("Host contract rejects a later private BCL call before OnStart", OpenRejectsLaterPrivateCall);
+        yield return ("Host contract unloads when a later private call is rejected", OpenRejectsLaterPrivateCall);
         yield return ("Host contract constructs a private type from a later callback", OpenLaterConstructsPrivateType);
         yield return ("Host contract rejects a private constructor from a later callback before OnStart", OpenRejectsLaterPrivateConstructor);
         yield return ("Host contract rejects a bad int callback before OnStart", InvokeIntRejectsBcl);
@@ -292,10 +292,21 @@ internal static class HostContractSessionTests
         var library = Path.Combine(directory.Path, "lib.dll");
         WritePrivateAdd(library, "HostContract.LaterForeignLib", foreign: true);
         WriteTickCallsPrivate(entry, "HostContract.LaterForeignCaller", library, "HostContract.LaterForeignLib.Math");
+        var before = HostContractContextCount();
         var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.LaterForeignCaller.Script");
         var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
-        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("The callback OnTick calls a method that is not a host contract member.", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("ReadAllText", StringComparison.Ordinal), error.Message);
         Check(host.Calls.Count == 0, "OnStart ran despite the later private call.");
+        for (var attempt = 0; attempt < 10 && HostContractContextCount() > before; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        Check(HostContractContextCount() == before, "The rejected private-call context was still loaded.");
+        GC.KeepAlive(error);
     }
 
     private static void WriteTickCallsPrivate(string path, string assemblyName, string libraryPath, string mathType)
