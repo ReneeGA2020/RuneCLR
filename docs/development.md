@@ -1619,6 +1619,9 @@ On 2026-10-17 packaging tests passed 200/200. The operator CLI compile command r
 On 2026-10-17 packaging tests passed 201/201. The operator CLI compile command rejects a source tree nested past 16 directories. The process exits 2. The error says source directories exceed the nesting limit. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 202/202. The operator CLI compile command rejects a source directory that is a filesystem link and a source directory that contains one. Both processes exit 2. The error says source directories cannot contain filesystem links. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

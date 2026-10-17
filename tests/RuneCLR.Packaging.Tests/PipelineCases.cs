@@ -63,6 +63,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a repeated or blank allowed method", OperatorCliRejectsRepeatedAllowedMethod);
         yield return ("Operator CLI rejects a non-source file", OperatorCliRejectsNonSourceFile);
         yield return ("Operator CLI rejects a deeply nested source", OperatorCliRejectsDeepSource);
+        yield return ("Operator CLI rejects a linked source directory", OperatorCliRejectsSourceLink);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -844,6 +845,37 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(!Directory.Exists(output), "A deeply nested source published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static void OperatorCliRejectsSourceLink()
+    {
+        using var temp = new TempDirectory();
+        var real = Path.Combine(temp.Path, "real");
+        Directory.CreateDirectory(real);
+        File.WriteAllText(Path.Combine(real, "GameScript.cs"), IntSessionScript);
+        var linked = Path.Combine(temp.Path, "linked");
+        Directory.CreateSymbolicLink(linked, real);
+        var child = Path.Combine(temp.Path, "child");
+        Directory.CreateDirectory(child);
+        File.WriteAllText(Path.Combine(child, "GameScript.cs"), IntSessionScript);
+        Directory.CreateDirectory(Path.Combine(temp.Path, "target"));
+        Directory.CreateSymbolicLink(Path.Combine(child, "link"), Path.Combine(temp.Path, "target"));
+        Reject(linked);
+        Reject(child);
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+
+        void Reject(string source)
+        {
+            var output = Path.Combine(temp.Path, "package-" + Path.GetFileName(source));
+            var (exit, stdout, stderr) = RunPackageTool(
+                "compile", "--source", source, "--id", "HostCliLink", "--entry-type", "GameScript",
+                "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+                "--output", output, "--host-interface", "RuneCLR.IMapContext", "--allowed-method", "Log");
+            Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+            Check.Assert(stderr.Contains("filesystem links", StringComparison.Ordinal), stderr);
+            Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+            Check.Assert(!Directory.Exists(output), "A linked source published a package.");
+        }
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
