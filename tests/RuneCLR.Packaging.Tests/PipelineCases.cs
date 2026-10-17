@@ -58,6 +58,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a tampered host-contract manifest", HostInterfaceOperatorCliRejectsTamperedManifest);
         yield return ("Operator CLI rejects a changed host-contract file", HostInterfaceOperatorCliRejectsChangedFile);
         yield return ("Operator CLI rejects an extra host-contract file", HostInterfaceOperatorCliRejectsExtraFile);
+        yield return ("Operator CLI rejects a partial host-contract pair", HostInterfaceOperatorCliRejectsPartialPair);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -732,6 +733,33 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("missing or extra files", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(extra), "Validate removed the extra file.");
+    }
+
+    private static void HostInterfaceOperatorCliRejectsPartialPair()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), IntSessionScript);
+        Reject(Path.Combine(temp.Path, "interface-only"), hostInterface: true);
+        Reject(Path.Combine(temp.Path, "method-only"), hostInterface: false);
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+
+        void Reject(string output, bool hostInterface)
+        {
+            var arguments = new List<string>
+            {
+                "compile", "--source", source, "--id", "HostCliPair", "--entry-type", "GameScript",
+                "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly, "--output", output,
+            };
+            if (hostInterface) arguments.AddRange(["--host-interface", "RuneCLR.IMapContext"]);
+            else arguments.AddRange(["--allowed-method", "Log"]);
+            var (exit, stdout, stderr) = RunPackageTool(arguments.ToArray());
+            Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+            Check.Assert(stderr.Contains("must both be present", StringComparison.Ordinal), stderr);
+            Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+            Check.Assert(!Directory.Exists(output), "A partial host-contract pair published a package.");
+        }
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)

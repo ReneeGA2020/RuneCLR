@@ -1604,6 +1604,9 @@ On 2026-10-17 packaging tests passed 195/195. The operator CLI validate command 
 On 2026-10-17 packaging tests passed 196/196. The operator CLI validate command rejects a host-contract package that contains a file absent from the manifest. The process exits 2. The error contains missing or extra files. The extra file remains. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 197/197. The operator CLI compile command rejects a host-contract build that supplies only --host-interface or only --allowed-method. The process exits 2. The error says both must be present. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
