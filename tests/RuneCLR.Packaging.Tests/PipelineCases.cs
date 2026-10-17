@@ -53,6 +53,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL runs a later callback", HostInterfaceImportsLaterCallback);
         yield return ("Imported host-contract IL constructs an author type", HostInterfaceImportsAuthorType);
         yield return ("Imported host-contract IL constructs a private type", HostInterfaceImportsPrivateType);
+        yield return ("Imported host-contract IL lets one private assembly call another", HostInterfaceImportsPrivateChain);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
@@ -577,6 +578,41 @@ internal static class PipelineCases
         var host = new RecordingMapContext();
         var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         var result = session.InvokeInt("Measure", 41);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsPrivateChain()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedImportSecond", """
+            public static class Second { public static int AddOne(int value) => value + 1; }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedImportFirst", """
+            public static class First { public static int Through(int value) => Second.AddOne(value); }
+            """, [second]);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public int Measure(int value) => First.Through(value);
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportChain", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, first]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportChain.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportChain", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [first, second], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
         session.Dispose();
         Check.Assert(result == 41, "Measure returned " + result + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
