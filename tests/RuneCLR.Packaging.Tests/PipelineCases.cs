@@ -46,6 +46,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL opens and returns an int", HostInterfaceImportsIl);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
+        yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -423,6 +424,45 @@ internal static class PipelineCases
         Check.Assert(error.Message.Contains("Report", StringComparison.Ordinal), error.Message);
         Check.Assert(error.Message.Contains("InvalidOperationException..ctor", StringComparison.Ordinal), error.Message);
         Check.Assert(!Directory.Exists(output), "A rejected framework constructor published a package.");
+    }
+
+    private static void HostInterfaceImportPrivateCallsEntry()
+    {
+        using var temp = new TempDirectory();
+        var stub = EmitDependency(Path.Combine(temp.Path, "stub"), "HostImportReturn", """
+            [assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
+            public sealed class GameScript { public static int FromEntry(int value) => value + 1; }
+            """);
+        var helper = EmitDependency(Path.Combine(temp.Path, "helper"), "SharedImportReturn", """
+            [assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
+            public static class Helper { public static int Through(int value) => GameScript.FromEntry(value); }
+            """, [stub]);
+        const string script = """
+            using RuneCLR;
+            [assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
+            public sealed class GameScript : IMapScript
+            {
+                public static int FromEntry(int value) => value + 1;
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public int Measure(int value) => Helper.Through(value);
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostImportReturn", [new("GameScript.cs", script)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly, helper]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportReturn.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportReturn", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
 
