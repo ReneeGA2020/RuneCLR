@@ -1788,6 +1788,8 @@ On 2026-10-17 packaging tests passed 257/257. The operator CLI import command ac
 
 On 2026-10-17 packaging tests passed 258/258. The operator CLI validate command accepts a host-contract package with two private assemblies, then rejects that package after one byte in the second assembly changes. The error names the hash mismatch and lib/SharedCliSealSecond.dll. The changed file stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 259/259. The operator CLI validate command accepts a host-contract package with one private assembly. After the manifest assembly identity is changed to Version=9.0.0.0 and the content hash is recomputed, validate exits 2. The error names identity mismatch and lib/SharedCliIdentity.dll. The dependency file stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
