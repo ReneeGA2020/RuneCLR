@@ -141,6 +141,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a dependency that spoofs a framework name", OperatorCliRejectsSpoofedDependency);
         yield return ("Operator CLI rejects a dependency that duplicates the entry", OperatorCliRejectsDuplicateEntryIdentity);
         yield return ("Operator CLI rejects a dependency declared as the host contract", OperatorCliRejectsContractDependency);
+        yield return ("Operator CLI rejects two dependencies with the same identity", OperatorCliRejectsDuplicateDependencyIdentity);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2991,6 +2992,37 @@ internal static class PipelineCases
         var declared = new System.Reflection.AssemblyName(
             "RuneCLR.Abstractions, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null").FullName!;
         manifest = manifest with { Dependencies = [manifest.Dependencies.Single() with { AssemblyName = declared }] };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("contract or duplicate private assembly identity", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsDuplicateDependencyIdentity()
+    {
+        using var temp = new TempDirectory();
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedCliDupA", """
+            public static class First { public static int Value() => 1; }
+            """);
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedCliDupB", """
+            public static class Second { public static int Value() => 2; }
+            """);
+        var build = PackageBuilder.Compile("HostCliDupDeps", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), [first, second], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        Check.Assert(manifest.Dependencies.Length == 2, "Expected two private dependencies.");
+        manifest = manifest with
+        {
+            Dependencies = [manifest.Dependencies[0], manifest.Dependencies[1] with { AssemblyName = manifest.Dependencies[0].AssemblyName }]
+        };
         manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
         PackageManifestIO.Write(build.ManifestPath!, manifest);
         var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
