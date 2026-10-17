@@ -1378,6 +1378,8 @@ On 2026-10-17 desktop runtime tests passed 60/60. HostContractSession now takes 
 
 On 2026-10-17 packaging tests passed 151/151. package.json may include hostInterface and allowedMethods. When either is present, PackageValidator.Validate requires both and runs ValidateHostContract on the entry before the gameplay profile. Omitting both leaves existing manifests and their content hashes unchanged. Allowed methods remain simple names, not signatures. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 154/154. PackageBuilder and RuneCLR.PackageTool write hostInterface and allowedMethods when both are supplied. Loading then checks OnStart against that interface and those method names. A build that supplies only one of them is rejected. Omitting both leaves ordinary gameplay manifests unchanged, because the OnStart check still rejects calls that are not on the named interface. Allowed methods remain simple names. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

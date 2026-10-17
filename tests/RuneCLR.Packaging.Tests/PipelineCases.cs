@@ -28,7 +28,53 @@ internal static class PipelineCases
         yield return ("Version-distinct private dependencies stay isolated in source and IL packages", PrivateDependencies);
         yield return ("Undeclared transitive dependencies fail intake before publication", UndeclaredDependency);
         yield return ("A packaged author exception cleans up, unloads and permits the next package", AuthorFailure);
+        yield return ("Package build records the host interface and allowed methods", HostInterfaceFields);
+        yield return ("Package build rejects an OnStart call outside the allowed methods", HostInterfaceRejectsUnlisted);
+        yield return ("Package build requires both host interface fields", HostInterfacePairRequired);
     }
+    private const string HostFieldScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            public void OnStart(IMapContext context)
+            {
+                context.Log("ok");
+                context.SpawnEntity("fixture");
+            }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+        }
+        """;
+
+    private static void HostInterfaceFields()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostFields", "GameScript", [new("GameScript.cs", HostFieldScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["SpawnEntity", "Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        Check.Assert(manifest.HostInterface == "RuneCLR.IMapContext", "Host interface was not written.");
+        Check.Assert(manifest.AllowedMethods is not null && manifest.AllowedMethods.SequenceEqual(["Log", "SpawnEntity"]),
+            "Allowed methods were not stored canonically.");
+    }
+
+    private static void HostInterfaceRejectsUnlisted()
+    {
+        using var temp = new TempDirectory();
+        var error = Check.Throws<InvalidDataException>(() => PackageBuilder.Compile("HostFields", "GameScript",
+            [new("GameScript.cs", HostFieldScript)], Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]));
+        Check.Assert(error.Message.Contains("SpawnEntity", StringComparison.Ordinal), error.Message);
+    }
+
+    private static void HostInterfacePairRequired()
+    {
+        using var temp = new TempDirectory();
+        Check.Throws<InvalidDataException>(() => PackageBuilder.Compile("HostFields", "GameScript",
+            [new("GameScript.cs", HostFieldScript)], Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext"));
+    }
+
     private static ReferenceProfile Profile() => new(Fixtures.FrameworkReferenceDirectory, Fixtures.ContractAssembly);
     private static PackageBuildResult Build(string output, string source = Script, ReferenceProfile? profile = null) =>
         PackageBuilder.Compile("Gameplay", "GameScript", [new("GameScript.cs", source)], profile ?? Profile(), output);

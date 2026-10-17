@@ -13,15 +13,18 @@ public sealed record PackageBuildResult(string? ManifestPath, CompilationDiagnos
 public static class PackageBuilder
 {
     public static PackageBuildResult Compile(string id, string entryType, IReadOnlyList<SourceFile> sources,
-        ReferenceProfile profile, string outputDirectory, IReadOnlyList<string>? dependencies = null) =>
-        Build(id, entryType, sources, null, profile, outputDirectory, dependencies ?? []);
+        ReferenceProfile profile, string outputDirectory, IReadOnlyList<string>? dependencies = null,
+        string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null) =>
+        Build(id, entryType, sources, null, profile, outputDirectory, dependencies ?? [], hostInterface, allowedMethods);
 
     public static PackageBuildResult Import(string id, string entryType, string entryAssembly,
-        ReferenceProfile profile, string outputDirectory, IReadOnlyList<string>? dependencies = null) =>
-        Build(id, entryType, null, entryAssembly, profile, outputDirectory, dependencies ?? []);
+        ReferenceProfile profile, string outputDirectory, IReadOnlyList<string>? dependencies = null,
+        string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null) =>
+        Build(id, entryType, null, entryAssembly, profile, outputDirectory, dependencies ?? [], hostInterface, allowedMethods);
 
     private static PackageBuildResult Build(string id, string entryType, IReadOnlyList<SourceFile>? sources,
-        string? entryAssembly, ReferenceProfile profile, string outputDirectory, IReadOnlyList<string> dependencies)
+        string? entryAssembly, ReferenceProfile profile, string outputDirectory, IReadOnlyList<string> dependencies,
+        string? hostInterface, IReadOnlyCollection<string>? allowedMethods)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > 64 || !id.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '.' or '_' or '-')
             || id is "." or "..") throw new InvalidDataException("Package id must contain 1-64 ASCII letters, digits, '.', '_' or '-'.");
@@ -113,8 +116,10 @@ public static class PackageBuilder
             var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", sources is null ? "il" : "source", compiler,
                 profile.Images.Select(image => image.Identity).Concat(privateIdentities).ToArray(),
                 sourceIdentities.Concat(privateIdentities).ToArray());
+            var hostMethods = HostMethods(hostInterface, allowedMethods);
             var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion,
-                PackageFormat.InputProfile, id, entryName, entryType, entryHash, declared.ToArray(), files.ToArray(), producer, "");
+                PackageFormat.InputProfile, id, entryName, entryType, entryHash, declared.ToArray(), files.ToArray(), producer, "",
+                hostInterface, hostMethods);
             manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
             var stagedManifest = Path.Combine(packageDirectory, PackageFormat.ManifestFileName);
             PackageManifestIO.Write(stagedManifest, manifest);
@@ -130,6 +135,16 @@ public static class PackageBuilder
                 throw new InvalidOperationException("Invalid build staging cleanup target.");
             Directory.Delete(staging, recursive: true);
         }
+    }
+
+    private static string[]? HostMethods(string? hostInterface, IReadOnlyCollection<string>? allowedMethods)
+    {
+        if (hostInterface is null && allowedMethods is null) return null;
+        if (string.IsNullOrWhiteSpace(hostInterface) || allowedMethods is null || allowedMethods.Count == 0 ||
+            allowedMethods.Any(string.IsNullOrWhiteSpace) ||
+            allowedMethods.Distinct(StringComparer.Ordinal).Count() != allowedMethods.Count)
+            throw new InvalidDataException("The host interface and allowed methods must both be present, nonempty and unique.");
+        return allowedMethods.ToArray();
     }
 
     private static bool Reserved(string name) => name.StartsWith("System.", StringComparison.OrdinalIgnoreCase)

@@ -7,6 +7,8 @@ See [product direction](product-direction.md) for that distinction.
 
 The game API row below is the current prototype host surface. It does not require a game to expose entities, and it does not define the UGC mechanism. A host-defined API is not implemented here. On 2026-10-17 its decided shape is a game-owned shared CLR interface called directly by the script. IMapContext is not renamed.
 
+The operator package tool writes hostInterface and allowedMethods only when both are supplied. PackageBuilder does the same. When either field is present, package loading requires both and checks the entry OnStart against that interface and those method names before the gameplay profile. Omitting both leaves an ordinary gameplay manifest and its content hash unchanged. Allowed methods are simple names, not signatures. That OnStart check still rejects a call whose declaring type is not the named interface, so a normal gameplay script that also calls approved framework members is not given these fields by default. A configurable allow list that includes the BCL is later work.
+
 The controlled-author profile for [#5](https://github.com/ReneeGA2020/RuneCLR/issues/5)
 adds a static API check to source/IL packaging and to versioned package loading.
 It is implemented in

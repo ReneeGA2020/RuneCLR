@@ -7,21 +7,23 @@ try
     if (args.Length == 0 || args[0] is "--help" or "-h")
     {
         Console.WriteLine("RuneCLR.PackageTool (trusted operator/server tool; author projects are never executed)");
-        Console.WriteLine("compile --source <C#-only directory> --id <id> --entry-type <type> --framework-refs <approved reference directory> --contract <approved RuneCLR.Abstractions.dll> --output <new directory> [--dependency <private IL DLL>]...");
-        Console.WriteLine("import --assembly <IL DLL> --id <id> --entry-type <type> --framework-refs <directory> --contract <DLL> --output <new directory> [--dependency <private IL DLL>]...");
+        Console.WriteLine("compile --source <C#-only directory> --id <id> --entry-type <type> --framework-refs <approved reference directory> --contract <approved RuneCLR.Abstractions.dll> --output <new directory> [--dependency <private IL DLL>]... [--host-interface <type> --allowed-method <name>...]");
+        Console.WriteLine("import --assembly <IL DLL> --id <id> --entry-type <type> --framework-refs <directory> --contract <DLL> --output <new directory> [--dependency <private IL DLL>]... [--host-interface <type> --allowed-method <name>...]");
         Console.WriteLine("validate --manifest <package.json>");
         return 0;
     }
     var command = args[0];
     if (command is not ("compile" or "import" or "validate")) throw new ArgumentException("Unknown command. Use --help.");
-    var allowed = command == "validate" ? new[] { "--manifest" } : new[] { "--id", "--entry-type", "--framework-refs", "--contract", "--output", "--dependency", command == "compile" ? "--source" : "--assembly" };
+    var allowed = command == "validate" ? new[] { "--manifest" } : new[] { "--id", "--entry-type", "--framework-refs", "--contract", "--output", "--dependency", "--host-interface", "--allowed-method", command == "compile" ? "--source" : "--assembly" };
     var options = new Dictionary<string, string>(StringComparer.Ordinal);
     var dependencies = new List<string>();
+    var allowedMethods = new List<string>();
     for (var index = 1; index < args.Length; index += 2)
     {
         if (!allowed.Contains(args[index]) || index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             throw new ArgumentException("Unknown option or missing value. Use --help.");
         if (args[index] == "--dependency") dependencies.Add(args[index + 1]);
+        else if (args[index] == "--allowed-method") allowedMethods.Add(args[index + 1]);
         else if (!options.TryAdd(args[index], args[index + 1])) throw new ArgumentException("An option was supplied more than once.");
     }
     string Required(string name) => options.TryGetValue(name, out var value) ? value : throw new ArgumentException($"Missing {name}.");
@@ -49,9 +51,9 @@ try
                 throw new InvalidDataException("Source directory exceeds the compiler input limits.");
             sources.Add(new(Path.GetRelativePath(directory, path).Replace(Path.DirectorySeparatorChar, '/'), File.ReadAllText(path)));
         }
-        result = PackageBuilder.Compile(Required("--id"), Required("--entry-type"), sources.OrderBy(item => item.Name, StringComparer.Ordinal).ToArray(), profile, Required("--output"), dependencies);
+        result = PackageBuilder.Compile(Required("--id"), Required("--entry-type"), sources.OrderBy(item => item.Name, StringComparer.Ordinal).ToArray(), profile, Required("--output"), dependencies, options.GetValueOrDefault("--host-interface"), allowedMethods.Count == 0 ? null : allowedMethods);
     }
-    else result = PackageBuilder.Import(Required("--id"), Required("--entry-type"), Required("--assembly"), profile, Required("--output"), dependencies);
+    else result = PackageBuilder.Import(Required("--id"), Required("--entry-type"), Required("--assembly"), profile, Required("--output"), dependencies, options.GetValueOrDefault("--host-interface"), allowedMethods.Count == 0 ? null : allowedMethods);
     Console.WriteLine(JsonSerializer.Serialize(new { success = result.Succeeded, manifest = result.ManifestPath, diagnostics = result.Diagnostics }));
     return result.Succeeded ? 0 : 2;
 }
