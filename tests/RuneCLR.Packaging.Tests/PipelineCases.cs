@@ -37,6 +37,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package opens and runs OnStart", HostInterfaceSession);
         yield return ("Compiled host-contract package charges from OnStart", HostInterfaceOnStartCharges);
         yield return ("Compiled host-contract package destroys an entity from OnStart", HostInterfaceOnStartDestroys);
+        yield return ("Compiled host-contract package reads MapId from OnStart", HostInterfaceOnStartReadsMapId);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
         yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
@@ -173,6 +174,28 @@ internal static class PipelineCases
         Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
         Check.Assert(host.Destroyed == new EntityId(1), "Destroy received " + host.Destroyed + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private const string OnStartMapIdScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            public void OnStart(IMapContext context) { context.Log(context.MapId); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+        }
+        """;
+
+    private static void HostInterfaceOnStartReadsMapId()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostMapId", "GameScript", [new("GameScript.cs", OnStartMapIdScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "get_MapId"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
     }
 
     private const string LaterSessionScript = """

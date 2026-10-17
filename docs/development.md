@@ -1679,6 +1679,9 @@ On 2026-10-17 packaging tests passed 220/220. A compiled host-contract package c
 On 2026-10-17 packaging tests passed 221/221. Imported host-contract IL can spawn and destroy an entity from OnStart. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok, spawns fixture, and destroys that entity. Log, SpawnEntity, and DestroyEntity are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 222/222. A compiled host-contract package can read MapId from OnStart. The allowed names are Log and get_MapId. OnStart logs fixture. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
