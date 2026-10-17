@@ -37,6 +37,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Invoke rejects a reentrant callback", InvokeRejectsReentry);
         yield return ("Host contract Invoke reports callback failure as text and continues", InvokeFailureIsText);
         yield return ("Host contract OnStart failure is text and does not return the session", OnStartFailureIsText);
+        yield return ("Host contract unloads when OnStart fails", OnStartFailureUnloads);
         yield return ("Host contract Open uses the manifest allow list", OpenUsesManifest);
         yield return ("Host contract Open rejects a call outside the manifest allow list", OpenRejectsUnlisted);
         yield return ("Host contract Open rejects a different host interface", OpenRejectsInterface);
@@ -704,6 +705,29 @@ internal static class HostContractSessionTests
         {
             session.Dispose();
         }
+    }
+
+    private static void OnStartFailureUnloads()
+    {
+        var before = HostContractContextCount();
+        var host = new RecordingEcho { ThrowOn = 9 };
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "start-failure.dll");
+        WriteScript(path, "HostContract.StartUnloadScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 9, cast: false);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.StartUnloadScript.Script", ["Echo"]));
+        Check(error.InnerException is null, "The OnStart exception was retained.");
+        Check(error.Message.Contains("System.InvalidOperationException: host-failed", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.SequenceEqual([9]), "OnStart did not reach the host.");
+        for (var attempt = 0; attempt < 10 && HostContractContextCount() > before; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        Check(HostContractContextCount() == before, "The failed OnStart context was still loaded.");
+        GC.KeepAlive(error);
     }
 
     private static void OnStartFailureIsText()
