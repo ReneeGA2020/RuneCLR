@@ -56,6 +56,7 @@ internal static class PipelineCases
         yield return ("Operator CLI imports a private dependency", HostInterfaceOperatorCliImportsDependency);
         yield return ("Operator CLI validates a host-contract package", HostInterfaceOperatorCliValidates);
         yield return ("Operator CLI rejects a tampered host-contract manifest", HostInterfaceOperatorCliRejectsTamperedManifest);
+        yield return ("Operator CLI rejects a changed host-contract file", HostInterfaceOperatorCliRejectsChangedFile);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -695,6 +696,25 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("content identity", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(Directory.Exists(Path.GetDirectoryName(manifestPath)), "Validate removed the package directory.");
+    }
+
+    private static void HostInterfaceOperatorCliRejectsChangedFile()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliBytes", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var entryPath = Path.Combine(Path.GetDirectoryName(build.ManifestPath!)!, manifest.EntryAssembly);
+        var bytes = File.ReadAllBytes(entryPath);
+        bytes[^1] ^= 0xFF;
+        File.WriteAllBytes(entryPath, bytes);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("hash mismatch", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains(manifest.EntryAssembly, StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(Directory.Exists(Path.GetDirectoryName(build.ManifestPath!)), "Validate removed the package directory.");
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
