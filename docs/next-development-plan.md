@@ -622,3 +622,5 @@ On 2026-10-17 packaging tests passed 215/215. Imported host-contract IL can cons
 On 2026-10-17 packaging tests passed 216/216. Imported host-contract IL can let one declared private assembly call another. The entry, SharedImportFirst, and SharedImportSecond are submitted as IL, not compiled by PackageBuilder. OnStart logs ok. InvokeInt Measure(40) goes through First.Through to Second.AddOne and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 217/217. Imported host-contract IL can run OnStart with Log and SpawnEntity. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok and spawns fixture. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 packaging tests passed 218/218. A compiled host-contract package can call Charge from OnStart. OnStart logs ok and charges 7. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.

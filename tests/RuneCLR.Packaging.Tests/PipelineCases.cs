@@ -35,6 +35,7 @@ internal static class PipelineCases
         yield return ("Package build rejects a later callback outside the allowed methods", LaterCallbackRejectsUnlisted);
         yield return ("Package build requires both host interface fields", HostInterfacePairRequired);
         yield return ("Compiled host-contract package opens and runs OnStart", HostInterfaceSession);
+        yield return ("Compiled host-contract package charges from OnStart", HostInterfaceOnStartCharges);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
         yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
@@ -117,6 +118,29 @@ internal static class PipelineCases
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
         Check.Assert(host.Spawned == "fixture", host.Spawned ?? "no entity");
+    }
+
+    private const string OnStartChargeScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            public void OnStart(IMapContext context) { context.Log("ok"); context.Charge(7); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+        }
+        """;
+
+    private static void HostInterfaceOnStartCharges()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCharge", "GameScript", [new("GameScript.cs", OnStartChargeScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "Charge"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Dispose();
+        Check.Assert(host.Charged == 7, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
     private const string LaterSessionScript = """
