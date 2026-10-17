@@ -119,6 +119,7 @@ internal static class PipelineCases
         yield return ("Operator CLI import rejects the MapId property name", OperatorCliImportRejectsMapIdName);
         yield return ("Operator CLI compiles two private dependencies", OperatorCliCompilesTwoDependencies);
         yield return ("Operator CLI imports two private dependencies", OperatorCliImportsTwoDependencies);
+        yield return ("Operator CLI rejects a changed private dependency", OperatorCliRejectsChangedDependency);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2400,6 +2401,46 @@ internal static class PipelineCases
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["ok", "from-second"]), string.Join(", ", host.Logs));
     }
+
+    private static void OperatorCliRejectsChangedDependency()
+    {
+        using var temp = new TempDirectory();
+        var second = EmitDependency(Path.Combine(temp.Path, "second"), "SharedCliSealSecond", """
+            using RuneCLR;
+            public static class Second { public static void Note(IMapContext context) => context.Log("from-second"); }
+            """);
+        var first = EmitDependency(Path.Combine(temp.Path, "first"), "SharedCliSealFirst", """
+            using RuneCLR;
+            public static class First { public static void Through(IMapContext context) => Second.Note(context); }
+            """, [second]);
+        var build = PackageBuilder.Compile("HostCliSealDeps", "GameScript", [new("GameScript.cs", """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); First.Through(context); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """)], Profile(), Path.Combine(temp.Path, "package"), [first, second],
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var relative = manifest.Dependencies.Single(item => item.Path.Contains("SharedCliSealSecond", StringComparison.Ordinal)).Path;
+        var dependencyPath = Path.Combine(Path.GetDirectoryName(build.ManifestPath!)!, relative.Replace('/', Path.DirectorySeparatorChar));
+        var bytes = File.ReadAllBytes(dependencyPath);
+        bytes[^1] ^= 0xFF;
+        File.WriteAllBytes(dependencyPath, bytes);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("hash mismatch", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains(relative, StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(dependencyPath), "Validate removed the changed dependency.");
+    }
+
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
     {

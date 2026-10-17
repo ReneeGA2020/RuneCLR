@@ -1786,6 +1786,8 @@ On 2026-10-17 packaging tests passed 256/256. The operator CLI compile command a
 
 On 2026-10-17 packaging tests passed 257/257. The operator CLI import command accepts two --dependency arguments. The assemblies are submitted as IL, not compiled by the package tool. OnStart logs ok and passes the host through First.Through to Second.Note, which logs from-second. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 258/258. The operator CLI validate command accepts a host-contract package with two private assemblies, then rejects that package after one byte in the second assembly changes. The error names the hash mismatch and lib/SharedCliSealSecond.dll. The changed file stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
