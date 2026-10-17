@@ -65,6 +65,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a changed dependency file", OpenRejectsChangedDependency);
         yield return ("Host contract Open rejects a dependency that is not a managed assembly", OpenRejectsOpaqueDependency);
         yield return ("Host contract Open rejects a dependency that spoofs a framework name", OpenRejectsSpoofedDependency);
+        yield return ("Host contract Open rejects a dependency whose assembly identity does not match", OpenRejectsDependencyIdentity);
         yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
@@ -1108,8 +1109,8 @@ internal static class HostContractSessionTests
         var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
             "host-open", "echo.dll", entryType, entryHash,
             [
-                new PackageDependency("a.dll", "LibA, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", firstHash),
-                new PackageDependency("b.dll", "LibB, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", secondHash)
+                new PackageDependency("a.dll", ManagedAssemblyInspector.Inspect(File.ReadAllBytes(firstPath)).AssemblyName, firstHash),
+                new PackageDependency("b.dll", ManagedAssemblyInspector.Inspect(File.ReadAllBytes(secondPath)).AssemblyName, secondHash)
             ],
             [new PackageFile("echo.dll", entryHash), new PackageFile("a.dll", firstHash), new PackageFile("b.dll", secondHash)],
             producer, "", typeof(IHostEcho).FullName, ["Echo"]);
@@ -1430,16 +1431,54 @@ internal static class HostContractSessionTests
         Check(host.Seen is null, "The spoofed dependency ran.");
     }
 
+    private static void OpenRejectsDependencyIdentity()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WriteScript(entry, "HostContract.IdentityScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 41, cast: false);
+        WriteScript(library, "HostContract.NotLib", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 1, cast: false);
+        var manifestPath = WriteHashedDependency(directory.Path, entry, library, "HostContract.IdentityScript.Script");
+        var manifest = PackageManifestIO.Read(manifestPath);
+        manifest = manifest with
+        {
+            Dependencies = [manifest.Dependencies[0] with { AssemblyName = "Lib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=null" }]
+        };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(manifestPath, manifest);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifestPath, typeof(IHostEcho), host));
+        Check(error.Message.Contains("identity mismatch", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("lib.dll", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The mismatched dependency ran.");
+    }
+
+
+    private static string DeclaredDependencyName(string? libraryPath)
+    {
+        const string placeholder = "Lib, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
+        if (libraryPath is null || !File.Exists(libraryPath)) return placeholder;
+        try
+        {
+            return ManagedAssemblyInspector.Inspect(File.ReadAllBytes(libraryPath)).AssemblyName;
+        }
+        catch (Exception error) when (error is InvalidDataException or BadImageFormatException)
+        {
+            return placeholder;
+        }
+    }
+
     private static string WriteHashedDependency(string directory, string entryPath, string? libraryPath, string entryType)
     {
         var entryHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(entryPath)));
         var dependencyHash = libraryPath is null ? new string('b', 64) : Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(libraryPath)));
+        var dependencyName = DeclaredDependencyName(libraryPath);
         var empty = new string('c', 64);
         var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
             [new InputIdentity("references.dll", empty)], [new InputIdentity("echo.dll", entryHash)]);
         var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
             "host-open", "echo.dll", entryType, entryHash,
-            [new PackageDependency("lib.dll", "Lib, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", dependencyHash)],
+            [new PackageDependency("lib.dll", dependencyName, dependencyHash)],
             [new PackageFile("echo.dll", entryHash), new PackageFile("lib.dll", dependencyHash)], producer, "",
             typeof(IHostEcho).FullName, ["Echo"]);
         manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };

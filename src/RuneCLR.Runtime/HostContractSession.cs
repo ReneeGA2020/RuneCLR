@@ -44,7 +44,7 @@ public sealed class HostContractSession : IDisposable
         var privateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var dependency in manifest.Dependencies)
         {
-            var image = ReadPrivateImage(directory, dependency.Path, dependency.Sha256);
+            var image = ReadPrivateImage(directory, dependency.Path, dependency.Sha256, dependency.AssemblyName);
             if (!privateNames.Add(image.Name))
                 throw new InvalidDataException("Duplicate private dependency identity: " + image.Name + ".");
             privateAssemblies.Add(image);
@@ -111,12 +111,15 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
     }
 
-    private static PrivateImage ReadPrivateImage(string directory, string relative, string expected)
+    private static PrivateImage ReadPrivateImage(string directory, string relative, string expected, string declaredIdentity)
     {
         var bytes = ReadHashed(directory, relative, expected);
         var info = ManagedAssemblyInspector.Inspect(bytes);
         if (ReservedAssembly(info.SimpleName))
             throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
+        if (string.IsNullOrWhiteSpace(declaredIdentity) ||
+            !string.Equals(info.AssemblyName, declaredIdentity, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Dependency metadata identity mismatch: " + relative + ".");
         return new PrivateImage(info.SimpleName, bytes);
     }
 
