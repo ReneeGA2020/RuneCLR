@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Reflection.Emit;
@@ -12,6 +13,7 @@ internal static class HostContractSessionTests
     internal static IEnumerable<(string Name, Action Run)> Cases()
     {
         yield return ("Host contract OnStart receives the host instance and the context unloads", EchoAndUnload);
+        yield return ("Host contract unloads when a later callback is rejected", RejectedCallbackUnloads);
         yield return ("Host contract rejects an OnStart parameter that is not the host interface", RejectWrongParameter);
         yield return ("Host contract rejects an OnStart call that is not a host contract member", RejectForeignCall);
         yield return ("Host contract rejects an interface method that is not allowed", RejectUnlistedInterfaceMethod);
@@ -106,6 +108,32 @@ internal static class HostContractSessionTests
             directory.Dispose();
         }
     }
+
+    private static void RejectedCallbackUnloads()
+    {
+        var before = HostContractContextCount();
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "tick.dll");
+        WriteStartAndInt(path, "HostContract.UnloadForeignScript", foreign: true);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.UnloadForeignScript.Script", ["Echo"]));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.Count == 0, "OnStart ran despite the rejected callback.");
+        for (var attempt = 0; attempt < 10 && HostContractContextCount() > before; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        Check(HostContractContextCount() == before, "The rejected session context was still loaded.");
+        GC.KeepAlive(error);
+    }
+
+    private static int HostContractContextCount() =>
+        AssemblyLoadContext.All.Count(context => context.Name != null &&
+            context.Name.StartsWith("RuneCLR.HostContract:", StringComparison.Ordinal));
 
     private static void RejectWrongParameter()
     {
