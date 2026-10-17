@@ -32,10 +32,11 @@ public sealed class HostContractSession : IDisposable
             manifest.ApiVersion != PackageFormat.CurrentApiVersion ||
             manifest.InputProfile != PackageFormat.InputProfile)
             throw new InvalidDataException("Unsupported package format, API version or input profile.");
-        if (manifest.Producer is null || manifest.Producer.InputKind is not ("source" or "il"))
-            throw new InvalidDataException(manifest.Producer is null
-                ? "The package requires bounded files, dependencies and producer metadata."
-                : "Unsupported producer input kind.");
+        if (manifest.Producer is null)
+            throw new InvalidDataException("The package requires bounded files, dependencies and producer metadata.");
+        if (manifest.Producer.InputKind is not ("source" or "il"))
+            throw new InvalidDataException("Unsupported producer input kind.");
+        RequireProducerInputs(manifest.Producer);
         if (!string.Equals(PackageManifestIO.ComputeContentSha256(manifest), manifest.ContentSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The package content identity does not match the manifest.");
         if (string.IsNullOrWhiteSpace(manifest.HostInterface) || manifest.AllowedMethods is null ||
@@ -62,6 +63,54 @@ public sealed class HostContractSession : IDisposable
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
         RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256, ref totalBytes);
         return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods, privateAssemblies);
+    }
+
+    private static void RequireProducerInputs(PackageProducer producer)
+    {
+        RequireInputs(producer.Compiler, producer.InputKind == "source", "compiler");
+        RequireInputs(producer.References, required: true, "references");
+        RequireInputs(producer.Sources, required: true, "sources");
+    }
+
+    private static void RequireInputs(InputIdentity[] inputs, bool required, string category)
+    {
+        if (inputs is null || inputs.Length > PackageValidator.MaximumFiles || (required && inputs.Length == 0))
+            throw new InvalidDataException("Producer " + category + " identities are required and bounded.");
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var input in inputs)
+        {
+            if (input is null)
+                throw new InvalidDataException("Null producer input identity.");
+            if (string.IsNullOrWhiteSpace(input.Name) || input.Name.Length > 1024)
+                throw new InvalidDataException("Missing or oversized input name.");
+            if (input.Sha256 is null || input.Sha256.Length != 64 || !input.Sha256.All(Uri.IsHexDigit))
+                throw new InvalidDataException("Each content/input identity requires a SHA-256 hexadecimal digest.");
+            if (!names.Add(input.Name))
+                throw new InvalidDataException("Duplicate producer " + category + " input name.");
+            if (input.AssemblyName is not null)
+                RequireCanonicalIdentity(input.AssemblyName);
+        }
+    }
+
+    private static void RequireCanonicalIdentity(string identity)
+    {
+        if (string.IsNullOrWhiteSpace(identity) || identity.Length > 4096)
+            throw new InvalidDataException("Missing or oversized assembly identity.");
+        try
+        {
+            var name = new AssemblyName(identity);
+            if (name.Version is null || name.Name is null ||
+                !string.Equals(name.FullName, identity, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("A full canonical assembly identity is required.");
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is ArgumentException or FileLoadException)
+        {
+            throw new InvalidDataException("Invalid assembly identity.", exception);
+        }
     }
 
     private static void RequireNoExtraFiles(string directory, PackageManifest manifest)
