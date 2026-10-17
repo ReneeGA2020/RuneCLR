@@ -18,6 +18,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Invoke runs a later callback on the same session", InvokeLaterCallback);
         yield return ("Host contract Invoke passes an int to a later callback", InvokePassesAnInt);
         yield return ("Host contract allows an unsupported public method", OpenAllowsUnsupportedMethod);
+        yield return ("Host contract runs a later callback into a private assembly", OpenLaterPrivateCallback);
+        yield return ("Host contract rejects a later private BCL call before OnStart", OpenRejectsLaterPrivateCall);
         yield return ("Host contract rejects a bad int callback before OnStart", InvokeIntRejectsBcl);
         yield return ("Host contract Invoke without an int does not run an int callback", InvokeIntRequiresTheValue);
         yield return ("Host contract InvokeInt returns an int from a later callback", InvokeIntReturns);
@@ -166,6 +168,70 @@ internal static class HostContractSessionTests
         }
 
         Check(!reference.IsAlive, "The collectible context was still alive after Dispose.");
+    }
+
+    private static void OpenLaterPrivateCallback()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WritePrivateAdd(library, "HostContract.LaterLib", foreign: false);
+        WriteTickCallsPrivate(entry, "HostContract.LaterCaller", library, "HostContract.LaterLib.Math");
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.LaterCaller.Script");
+        var session = HostContractSession.Open(manifest, typeof(IHostEcho), host);
+        Check(host.Calls.SequenceEqual([1]), "OnStart did not call Echo(1).");
+        session.Invoke("OnTick", 40);
+        Check(host.Calls.SequenceEqual([1, 41]), "The later private call did not return 41.");
+        session.Dispose();
+    }
+
+    private static void OpenRejectsLaterPrivateCall()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var entry = Path.Combine(directory.Path, "echo.dll");
+        var library = Path.Combine(directory.Path, "lib.dll");
+        WritePrivateAdd(library, "HostContract.LaterForeignLib", foreign: true);
+        WriteTickCallsPrivate(entry, "HostContract.LaterForeignCaller", library, "HostContract.LaterForeignLib.Math");
+        var manifest = WriteHashedDependency(directory.Path, entry, library, "HostContract.LaterForeignCaller.Script");
+        var error = CheckThrows<InvalidOperationException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.Count == 0, "OnStart ran despite the later private call.");
+    }
+
+    private static void WriteTickCallsPrivate(string path, string assemblyName, string libraryPath, string mathType)
+    {
+        var library = Assembly.Load(File.ReadAllBytes(libraryPath));
+        var addOne = library.GetType(mathType, throwOnError: true)!.GetMethod("AddOne")!;
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var startIl = start.GetILGenerator();
+        startIl.Emit(OpCodes.Ldarg_1);
+        startIl.Emit(OpCodes.Ldc_I4, 1);
+        startIl.Emit(OpCodes.Callvirt, echo);
+        startIl.Emit(OpCodes.Pop);
+        startIl.Emit(OpCodes.Ret);
+        var tick = type.DefineMethod("OnTick", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho), typeof(int) });
+        var tickIl = tick.GetILGenerator();
+        tickIl.Emit(OpCodes.Ldarg_1);
+        tickIl.Emit(OpCodes.Ldarg_2);
+        tickIl.Emit(OpCodes.Call, addOne);
+        tickIl.Emit(OpCodes.Callvirt, echo);
+        tickIl.Emit(OpCodes.Pop);
+        tickIl.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void OpenAllowsUnsupportedMethod()
