@@ -427,3 +427,6 @@ On 2026-10-17 desktop runtime tests passed 78/78. HostContractSession.Open rejec
 
 On 2026-10-17 desktop runtime tests passed 80/80. HostContractSession.Open rejects an entry path containing .. and an entry that does not end in .dll. Both fail before the file is opened. The message says the path must be a canonical relative DLL path. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 82/82. HostContractSession.Open requires the entry path to appear once in the file list with the same hash. A missing entry or a different file hash is rejected before the file is opened. The message says the file list must exactly match the entry. The host method is not called. This is not an iOS result.
+

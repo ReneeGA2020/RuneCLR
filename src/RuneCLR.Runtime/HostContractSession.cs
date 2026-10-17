@@ -30,6 +30,7 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidDataException("The host interface and allowed methods must both be present, nonempty and unique.");
         if (!string.Equals(manifest.HostInterface, contract.FullName, StringComparison.Ordinal))
             throw new InvalidOperationException("The package host interface does not match the supplied contract.");
+        RequireListedEntry(manifest);
         var directory = Path.GetDirectoryName(Path.GetFullPath(manifestPath))
             ?? throw new InvalidDataException("The package manifest requires a directory.");
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
@@ -37,6 +38,19 @@ public sealed class HostContractSession : IDisposable
         if (!string.Equals(hash, manifest.EntrySha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Package file hash mismatch: " + manifest.EntryAssembly + ".");
         return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods);
+    }
+
+    private static void RequireListedEntry(PackageManifest manifest)
+    {
+        if (manifest.Files is null || manifest.Dependencies is null)
+            throw new InvalidDataException("The file list must exactly match the entry.");
+        var listed = manifest.Files.Where(file => file is not null &&
+            string.Equals(file.Path, manifest.EntryAssembly, StringComparison.Ordinal)).ToArray();
+        if (listed.Length != 1 || !string.Equals(listed[0].Sha256, manifest.EntrySha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The file list must exactly match the entry.");
+        if (manifest.Dependencies.Any(dependency => dependency is not null &&
+            string.Equals(dependency.Path, manifest.EntryAssembly, StringComparison.Ordinal)))
+            throw new InvalidDataException("The file list must exactly match the entry.");
     }
 
     private static string ResolveEntry(string directory, string relative)

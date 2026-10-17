@@ -27,6 +27,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a manifest whose content hash does not match", OpenRejectsContentTamper);
         yield return ("Host contract Open rejects an entry path that escapes the package", OpenRejectsEscapingPath);
         yield return ("Host contract Open rejects an entry that is not a DLL", OpenRejectsNonDll);
+        yield return ("Host contract Open rejects an entry missing from the file list", OpenRejectsUnlistedEntry);
+        yield return ("Host contract Open rejects an entry hash that disagrees with the file list", OpenRejectsMismatchedFileHash);
         yield return ("Host contract rejects a type initializer before the author runs", RejectTypeInitializer);
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
@@ -330,6 +332,40 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("canonical relative DLL", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The non-DLL entry ran.");
+    }
+
+    private static void OpenRejectsUnlistedEntry()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var manifest = WriteListedManifest(directory.Path, "echo.dll", new string('a', 64), "other.dll", new string('b', 64));
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("exactly match the entry", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The unlisted entry ran.");
+    }
+
+    private static void OpenRejectsMismatchedFileHash()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var manifest = WriteListedManifest(directory.Path, "echo.dll", new string('a', 64), "echo.dll", new string('b', 64));
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("exactly match the entry", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The mismatched entry ran.");
+    }
+
+    private static string WriteListedManifest(string directory, string entryPath, string entryHash, string filePath, string fileHash)
+    {
+        var empty = new string('c', 64);
+        var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", "il", [],
+            [new InputIdentity("references.dll", empty)], [new InputIdentity(entryPath, entryHash)]);
+        var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
+            "host-open", entryPath, "HostContract.OpenListScript.Script", entryHash, [], [new PackageFile(filePath, fileHash)], producer, "",
+            typeof(IHostEcho).FullName, ["Echo"]);
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        var path = Path.Combine(directory, PackageFormat.ManifestFileName);
+        PackageManifestIO.Write(path, manifest);
+        return path;
     }
 
     private static string WriteManifestUnchecked(string directory, string entryPath)
