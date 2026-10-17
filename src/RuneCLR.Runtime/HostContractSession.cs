@@ -69,6 +69,7 @@ public sealed class HostContractSession : IDisposable
             var info = ManagedAssemblyInspector.Inspect(bytes);
             if (ReservedAssembly(info.SimpleName))
                 throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
+            RequireApprovedReferences(info, contract);
             using var stream = new MemoryStream(bytes, writable: false);
             var assembly = _context.LoadFromStream(stream);
             var entry = assembly.GetType(entryTypeName, throwOnError: false);
@@ -196,6 +197,24 @@ public sealed class HostContractSession : IDisposable
         if (parameters.Length != 1 || parameters[0].ParameterType != contract)
             throw new InvalidOperationException("OnStart must take exactly one parameter of the host contract interface.");
         return starts[0];
+    }
+
+    private static void RequireApprovedReferences(ManagedAssemblyInfo info, Type contract)
+    {
+        var contractName = contract.Assembly.GetName().Name;
+        foreach (var reference in info.References)
+        {
+            string? simple;
+            try { simple = new AssemblyName(reference).Name; }
+            catch (Exception exception) when (exception is ArgumentException or FileLoadException)
+            {
+                throw new InvalidDataException("A referenced assembly identity is invalid.", exception);
+            }
+
+            if (simple is "System.Runtime" or "System.Private.CoreLib" or "netstandard") continue;
+            if (string.Equals(simple, contractName, StringComparison.OrdinalIgnoreCase)) continue;
+            throw new InvalidDataException("Assembly '" + simple + "' is not approved.");
+        }
     }
 
     private static bool ReservedAssembly(string name) =>

@@ -27,6 +27,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
         yield return ("Host contract rejects an assembly name that spoofs the framework", RejectSpoofedAssemblyName);
+        yield return ("Host contract rejects a reference outside the contract assembly", RejectUnapprovedReference);
     }
 
     private static void EchoAndUnload()
@@ -405,6 +406,44 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("spoofs", StringComparison.Ordinal), error.Message);
         Check(error.Message.Contains("System.IO", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The spoofed assembly ran.");
+    }
+
+    private static void RejectUnapprovedReference()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "reference.dll");
+        WriteExtraReference(path);
+        var error = CheckThrows<InvalidDataException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.ReferenceScript.Script", ["Echo"]));
+        Check(error.Message.Contains("not approved", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains("RuneCLR.Packages", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The extra reference ran.");
+    }
+
+    private static void WriteExtraReference(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.ReferenceScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.ReferenceScript");
+        var type = module.DefineType("HostContract.ReferenceScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        type.DefineField("extra", typeof(PackageManifest), FieldAttributes.Private);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void RejectUnlistedInterfaceMethod()

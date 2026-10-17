@@ -412,3 +412,6 @@ On 2026-10-17 desktop runtime tests passed 72/72. HostContractSession inspects t
 
 On 2026-10-17 desktop runtime tests passed 73/73. HostContractSession rejects an author assembly whose simple name is mscorlib, netstandard, System, Microsoft, RuneCLR, or starts with System., Microsoft., or RuneCLR. The host method is not called. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 74/74. HostContractSession allows references only to System.Runtime, System.Private.CoreLib, netstandard, and the assembly that declares the host contract. A reference to RuneCLR.Packages is rejected before the host method runs. This is not an iOS result.
+
