@@ -41,6 +41,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package lets one private assembly call another", HostInterfacePrivateChain);
         yield return ("Compiled host-contract package lets a private assembly call the entry", HostInterfacePrivateCallsEntry);
         yield return ("Compiled host-contract package constructs an author type", HostInterfaceConstructsAuthorType);
+        yield return ("Compiled host-contract package rejects a framework constructor", HostInterfaceRejectsFrameworkNew);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -276,6 +277,29 @@ internal static class PipelineCases
         session.Dispose();
         Check.Assert(result == 41, "Measure returned " + result + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private const string FrameworkNewScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            public void OnStart(IMapContext context) { context.Log("ok"); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { }
+            public void Report() { _ = new System.InvalidOperationException("x"); }
+        }
+        """;
+
+    private static void HostInterfaceRejectsFrameworkNew()
+    {
+        using var temp = new TempDirectory();
+        var output = Path.Combine(temp.Path, "package");
+        var error = Check.Throws<InvalidDataException>(() => PackageBuilder.Compile("HostFrameworkNew", "GameScript",
+            [new("GameScript.cs", FrameworkNewScript)], Profile(), output,
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]));
+        Check.Assert(error.Message.Contains("Report", StringComparison.Ordinal), error.Message);
+        Check.Assert(error.Message.Contains("InvalidOperationException..ctor", StringComparison.Ordinal), error.Message);
+        Check.Assert(!Directory.Exists(output), "A rejected framework constructor published a package.");
     }
 
 

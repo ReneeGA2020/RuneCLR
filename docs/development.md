@@ -1556,6 +1556,9 @@ On 2026-10-17 packaging tests passed 179/179. A compiled private assembly can ca
 On 2026-10-17 packaging tests passed 180/180. A compiled host-contract package can construct an author type from a later callback. OnStart logs ok. InvokeInt Measure(41) constructs Box and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 181/181. PackageBuilder.Compile rejects a later callback that constructs System.InvalidOperationException. The message names Report and InvalidOperationException..ctor. No package directory is published. Publishing and staging cleanup retry an access-denied move or delete a few times. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

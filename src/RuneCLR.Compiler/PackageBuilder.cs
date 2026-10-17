@@ -124,7 +124,7 @@ public static class PackageBuilder
             var stagedManifest = Path.Combine(packageDirectory, PackageFormat.ManifestFileName);
             PackageManifestIO.Write(stagedManifest, manifest);
             PackageValidator.Validate(manifest, stagedManifest);
-            Directory.Move(packageDirectory, destination);
+            MovePublishedPackage(packageDirectory, destination);
             return new(Path.Combine(destination, PackageFormat.ManifestFileName), []);
         }
         finally
@@ -133,7 +133,40 @@ public static class PackageBuilder
             if (Path.GetDirectoryName(Path.GetFullPath(staging)) != parent
                 || !Path.GetFileName(staging).StartsWith(".runeclr-build-", StringComparison.Ordinal))
                 throw new InvalidOperationException("Invalid build staging cleanup target.");
-            Directory.Delete(staging, recursive: true);
+            DeleteStaging(staging);
+        }
+    }
+
+
+    private static void MovePublishedPackage(string source, string destination)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Directory.Move(source, destination);
+                return;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                Thread.Sleep(50);
+            }
+        }
+    }
+
+    private static void DeleteStaging(string staging)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+                return;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                Thread.Sleep(50);
+            }
         }
     }
 
