@@ -1368,7 +1368,7 @@ On 2026-10-17 desktop runtime tests passed 58/58 after adding HostContractSessio
 
 On 2026-10-17 desktop runtime tests passed 59/59 after rejecting a foreign OnStart call. OnStart may call only methods declared by the game-supplied interface. Object.ToString is rejected before the author method runs, and the host echo is not called. This is not a full packaging allowlist. IMapContext is not renamed. This is not an iOS result.
 
-On 2026-10-17 packaging tests passed 146/146 after adding ValidateHostContract. It reads the entry OnStart without loading the author assembly. A call to Echo on HostContract.IApi is accepted. Object.ToString is rejected before loading, and the message contains Capability profile and host contract member. Existing managed-il-gameplay-v1 validation is unchanged. IMapContext is not renamed. This is not an iOS result.
+On 2026-10-17 packaging tests passed 146/146 after adding ValidateHostContract. It reads the entry OnStart without loading the author assembly. A call to Echo on HostContract.IApi is accepted. Object.ToString is rejected before loading, and the message contains Capability profile and host contract member. Existing managed-il-gameplay-v1 validation is unchanged. PackageValidator.Validate does not call ValidateHostContract, so gameplay packages keep the prototype profile. IMapContext is not renamed. This is not an iOS result.
 
 ## Preserve experiment evidence
 
