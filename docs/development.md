@@ -1810,6 +1810,8 @@ On 2026-10-17 packaging tests passed 268/268. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 269/269. The operator CLI validate command accepts a host-contract package, then rejects it after the producer tool is a single space and the content hash is recomputed. The error names Missing or oversized producer.tool. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 270/270. The operator CLI validate command accepts a host-contract package, then rejects it after the entry path is changed to ../entry.dll and the content hash is recomputed. The error names canonical relative DLL. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
