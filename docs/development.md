@@ -1426,6 +1426,8 @@ On 2026-10-17 desktop runtime tests passed 93/93. HostContractSession rejects ld
 
 On 2026-10-17 desktop runtime tests passed 94/94. HostContractSession rejects cpobj of a type that is not in System.Private.CoreLib or System.Runtime. Copying an author value type is rejected before the host method runs. This is not an iOS result.
 
+On 2026-10-17 desktop runtime tests passed 95/95. HostContractSession allows ldfld, stfld, and ldflda only for a field declared on the method's own type. A field of another type is rejected before the host method runs. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

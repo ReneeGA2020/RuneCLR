@@ -312,6 +312,10 @@ public sealed class HostContractSession : IDisposable
             {
                 RejectForeignBox(constructor.Module, il, ref index);
             }
+            else if (IsInstanceField(operation))
+            {
+                RejectForeignField(constructor.Module, constructor.DeclaringType, il, ref index);
+            }
             else
             {
                 SkipOperand(operation, il, ref index, failure);
@@ -347,11 +351,29 @@ public sealed class HostContractSession : IDisposable
             {
                 RejectForeignBox(method.Module, il, ref index);
             }
+            else if (IsInstanceField(operation))
+            {
+                RejectForeignField(method.Module, method.DeclaringType, il, ref index);
+            }
             else
             {
                 SkipOperand(operation, il, ref index, failure);
             }
         }
+    }
+
+    private static bool IsInstanceField(OpCode operation) =>
+        operation.Value == OpCodes.Ldfld.Value || operation.Value == OpCodes.Stfld.Value || operation.Value == OpCodes.Ldflda.Value;
+
+    private static void RejectForeignField(Module module, Type? owner, byte[] il, ref int index)
+    {
+        const string failure = "A field of another type is unsupported.";
+        var token = ReadInt32(il, ref index, failure);
+        FieldInfo? field;
+        try { field = module.ResolveField(token); }
+        catch (ArgumentException) { field = null; }
+        if (field?.DeclaringType != owner)
+            throw new InvalidOperationException(failure);
     }
 
     private static bool HasForeignTypeOperand(OpCode operation) =>

@@ -48,6 +48,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects a cast to an author type", RejectAuthorCast);
         yield return ("Host contract rejects a function pointer before the author runs", RejectFunctionPointer);
         yield return ("Host contract rejects copying an author value type", RejectAuthorCopy);
+        yield return ("Host contract rejects a field of another type", RejectForeignFieldLoad);
     }
 
     private static void EchoAndUnload()
@@ -971,6 +972,48 @@ internal static class HostContractSessionTests
         il.Emit(OpCodes.Pop);
         il.Emit(OpCodes.Ret);
         bomb.CreateType();
+        type.CreateType();
+        builder.Save(path);
+    }
+
+    private static void RejectForeignFieldLoad()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "field.dll");
+        WriteForeignField(path);
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.FieldScript.Script", ["Echo"]));
+        Check(error.Message.Contains("another type", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The foreign field ran.");
+    }
+
+    private static void WriteForeignField(string path)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName("HostContract.FieldScript") { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule("HostContract.FieldScript");
+        var other = module.DefineType("HostContract.FieldScript.Other", TypeAttributes.Public | TypeAttributes.Class);
+        var field = other.DefineField("item", typeof(int), FieldAttributes.Public);
+        var type = module.DefineType("HostContract.FieldScript.Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), [typeof(IHostEcho)]);
+        var il = start.GetILGenerator();
+        il.Emit(OpCodes.Ldnull);
+        il.Emit(OpCodes.Ldfld, field);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Ldc_I4, 1);
+        il.Emit(OpCodes.Callvirt, echo);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ret);
+        other.CreateType();
         type.CreateType();
         builder.Save(path);
     }
