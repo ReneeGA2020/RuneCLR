@@ -1860,6 +1860,8 @@ On 2026-10-17 packaging tests passed 293/293. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 294/294. The operator CLI validate command accepts a host-contract package, then rejects it after the API version is increased while the format version stays current and the content hash is recomputed. The error names API version. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 295/295. The operator CLI validate command accepts a host-contract package, then rejects it after the input profile is changed to other while the format version and API version stay current and the content hash is recomputed. The error names input profile. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
