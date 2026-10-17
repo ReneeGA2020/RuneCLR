@@ -1505,6 +1505,9 @@ On 2026-10-17 desktop runtime tests passed 128/128. HostContractSession.Open rej
 On 2026-10-17 desktop runtime tests passed 129/129. HostContractSession.Open rejects an entry larger than the assembly size limit before loading it. The message contains size limits. The host method does not run. The same read also stops when the listed files would pass the package size limit. A normal-sized entry still loads. This is not an iOS result.
 
 
+On 2026-10-17 desktop runtime tests passed 131/131. HostContractSession.Open rejects a filesystem link in the package directory before loading. Replacing the entry with a symbolic link does not run the host method. The message contains filesystem links. A directory nested past the package limit is also rejected. The message contains nesting limit. A normal package still loads. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

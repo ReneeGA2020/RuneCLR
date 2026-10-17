@@ -45,6 +45,8 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a manifest whose content hash does not match", OpenRejectsContentTamper);
         yield return ("Host contract Open rejects an unsupported package format", OpenRejectsUnsupportedFormat);
         yield return ("Host contract Open rejects an entry over the assembly size limit", OpenRejectsOversizedEntry);
+        yield return ("Host contract Open rejects a filesystem link", OpenRejectsFilesystemLink);
+        yield return ("Host contract Open rejects a package directory nested too deeply", OpenRejectsDeepDirectory);
         yield return ("Host contract Open rejects an entry path that escapes the package", OpenRejectsEscapingPath);
         yield return ("Host contract Open rejects an entry that is not a DLL", OpenRejectsNonDll);
         yield return ("Host contract Open rejects an entry missing from the file list", OpenRejectsUnlistedEntry);
@@ -862,6 +864,42 @@ internal static class HostContractSessionTests
         var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
         Check(error.Message.Contains("size limits", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The oversized entry ran.");
+    }
+
+    private static void OpenRejectsFilesystemLink()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var package = Path.Combine(directory.Path, "package");
+        Directory.CreateDirectory(package);
+        var path = Path.Combine(package, "echo.dll");
+        WriteScript(path, "HostContract.OpenLinkScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifest = WriteManifest(package, "echo.dll", "HostContract.OpenLinkScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var target = Path.Combine(directory.Path, "target.dll");
+        File.Move(path, target);
+        File.CreateSymbolicLink(path, target);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("filesystem links", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The linked entry ran.");
+    }
+
+    private static void OpenRejectsDeepDirectory()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenDeepScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifest = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenDeepScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var nested = directory.Path;
+        for (var level = 0; level < 17; level++)
+        {
+            nested = Path.Combine(nested, "n");
+            Directory.CreateDirectory(nested);
+        }
+
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifest, typeof(IHostEcho), host));
+        Check(error.Message.Contains("nesting limit", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The deep directory ran.");
     }
 
     private static void OpenRejectsEscapingPath()

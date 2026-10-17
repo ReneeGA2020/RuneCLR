@@ -69,15 +69,32 @@ public sealed class HostContractSession : IDisposable
                 throw new InvalidDataException("The package contains missing or extra files.");
         }
 
-        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        foreach (var relative in EnumeratePackageFiles(directory, directory, 0))
         {
-            var full = Path.GetFullPath(path);
-            var manifestPath = Path.GetFullPath(Path.Combine(directory, PackageFormat.ManifestFileName));
-            if (string.Equals(full, manifestPath, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(relative, PackageFormat.ManifestFileName, StringComparison.OrdinalIgnoreCase))
                 continue;
-            var relative = Path.GetRelativePath(directory, full).Replace(Path.DirectorySeparatorChar, '/');
             if (!listed.Contains(relative))
                 throw new InvalidDataException("The package contains missing or extra files.");
+        }
+    }
+
+    private static IEnumerable<string> EnumeratePackageFiles(string root, string directory, int depth)
+    {
+        if (depth > 16)
+            throw new InvalidDataException("Package directories exceed the nesting limit.");
+        foreach (var path in Directory.EnumerateFileSystemEntries(directory))
+        {
+            var attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("Package content cannot contain filesystem links.");
+            if ((attributes & FileAttributes.Directory) != 0)
+            {
+                foreach (var nested in EnumeratePackageFiles(root, path, depth + 1))
+                    yield return nested;
+                continue;
+            }
+
+            yield return Path.GetRelativePath(root, Path.GetFullPath(path)).Replace(Path.DirectorySeparatorChar, '/');
         }
     }
 
