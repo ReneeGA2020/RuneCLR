@@ -1806,6 +1806,8 @@ On 2026-10-17 packaging tests passed 266/266. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 267/267. The operator CLI validate command accepts a host-contract package, then rejects it after the producer references name Other.Contract instead of the shared host contract and the content hash is recomputed. The error names exactly one shared host contract. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 268/268. The operator CLI validate command accepts a host-contract package, then rejects it after the package id is a single space and the content hash is recomputed. The error names Missing or oversized id. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
