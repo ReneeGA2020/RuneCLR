@@ -262,9 +262,10 @@ public sealed class HostContractSession : IDisposable
             .ToArray();
         var method = methods.Length == 1 ? methods[0] : null;
         var parameters = method?.GetParameters() ?? [];
-        if (method is null || method.ReturnType != typeof(void) || method.IsGenericMethod ||
-            parameters.Length != 1 || parameters[0].ParameterType != typeof(int))
-            throw new InvalidOperationException("The callback must be one public void method with one int parameter.");
+        var takesInt = parameters.Length == 1 && parameters[0].ParameterType == typeof(int);
+        var takesHostAndInt = parameters.Length == 2 && parameters[0].ParameterType == _contract && parameters[1].ParameterType == typeof(int);
+        if (method is null || method.ReturnType != typeof(void) || method.IsGenericMethod || (!takesInt && !takesHostAndInt))
+            throw new InvalidOperationException("The callback must be one public void method with one int parameter or the host contract and one int.");
         RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
         const string failure = "The callback calls a method that is not a host contract member.";
         RequireContractCalls(method, _contract, _allowedMethods, failure, _images!);
@@ -273,7 +274,7 @@ public sealed class HostContractSession : IDisposable
         {
             try
             {
-                method.Invoke(_script, [value]);
+                method.Invoke(_script, takesHostAndInt ? [_host, value] : [value]);
             }
             catch (Exception exception)
             {
@@ -300,9 +301,10 @@ public sealed class HostContractSession : IDisposable
             .ToArray();
         var method = methods.Length == 1 ? methods[0] : null;
         var parameters = method?.GetParameters() ?? [];
-        if (method is null || method.ReturnType != typeof(int) || method.IsGenericMethod ||
-            parameters.Length != 1 || parameters[0].ParameterType != typeof(int))
-            throw new InvalidOperationException("The callback must be one public int method with one int parameter.");
+        var takesInt = parameters.Length == 1 && parameters[0].ParameterType == typeof(int);
+        var takesHostAndInt = parameters.Length == 2 && parameters[0].ParameterType == _contract && parameters[1].ParameterType == typeof(int);
+        if (method is null || method.ReturnType != typeof(int) || method.IsGenericMethod || (!takesInt && !takesHostAndInt))
+            throw new InvalidOperationException("The callback must be one public int method with one int parameter or the host contract and one int.");
         RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
         const string failure = "The callback calls a method that is not a host contract member.";
         RequireContractCalls(method, _contract, _allowedMethods, failure, _images!);
@@ -312,7 +314,7 @@ public sealed class HostContractSession : IDisposable
             object? result;
             try
             {
-                result = method.Invoke(_script, [value]);
+                result = method.Invoke(_script, takesHostAndInt ? [_host, value] : [value]);
             }
             catch (Exception exception)
             {

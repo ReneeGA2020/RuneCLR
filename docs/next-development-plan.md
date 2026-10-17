@@ -482,3 +482,5 @@ On 2026-10-17 desktop runtime tests passed 109/109 and packaging tests passed 16
 On 2026-10-17 desktop runtime tests passed 112/112. HostContractSession.Invoke can pass one int to a later public void method. The method is checked before it runs. OnTick receives 41. string.IsNullOrEmpty in that callback is rejected, and the earlier Echo(1) remains. Invoke without the int does not run the int method. This is not an iOS result.
 
 On 2026-10-17 desktop runtime tests passed 115/115. HostContractSession.InvokeInt calls a public int method with one int parameter and returns its int. Measure(40) returns 41 without calling the host again. string.IsNullOrEmpty in that method is rejected, and the earlier Echo(1) remains. A void callback is rejected by InvokeInt. This is not an iOS result.
+
+On 2026-10-17 desktop runtime tests passed 118/118. A later callback may take the host contract and then one int. Invoke passes 41 to OnTick. InvokeInt Measure(40) echoes 40 and returns 41. string.IsNullOrEmpty in that shape is rejected, and the earlier Echo(1) remains. This is not an iOS result.
