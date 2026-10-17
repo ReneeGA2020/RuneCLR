@@ -51,6 +51,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL passes only an int", HostInterfaceImportsIntOnly);
         yield return ("Imported host-contract IL passes the host and an int", HostInterfaceImportsHostAndInt);
         yield return ("Imported host-contract IL runs a later callback", HostInterfaceImportsLaterCallback);
+        yield return ("Imported host-contract IL constructs an author type", HostInterfaceImportsAuthorType);
         yield return ("Imported host-contract IL calls a private assembly", HostInterfaceImportsPrivate);
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
@@ -522,6 +523,25 @@ internal static class PipelineCases
         session.Invoke("OnStop");
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["ok", "stopped"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsAuthorType()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostImportBox", [new("GameScript.cs", AuthorTypeScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportBox.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportBox", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 41);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
     private static void HostInterfaceImportsPrivate()

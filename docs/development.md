@@ -1655,6 +1655,9 @@ On 2026-10-17 packaging tests passed 212/212. Imported host-contract IL can take
 On 2026-10-17 packaging tests passed 213/213. Imported host-contract IL can run a later callback after Open. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok, and Invoke OnStop logs stopped through the same IMapContext. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 214/214. Imported host-contract IL can construct an author type from a later callback. The assembly is submitted as IL, not compiled by PackageBuilder. OnStart logs ok. InvokeInt Measure(41) constructs Box and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
