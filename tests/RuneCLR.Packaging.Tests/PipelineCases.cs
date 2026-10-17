@@ -125,6 +125,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a deeply nested package", OperatorCliRejectsPackageNesting);
         yield return ("Operator CLI rejects a spoofed entry assembly", OperatorCliRejectsSpoofedEntry);
         yield return ("Operator CLI rejects an oversized entry", OperatorCliRejectsOversizedEntry);
+        yield return ("Operator CLI rejects an unsupported package format", OperatorCliRejectsPackageFormat);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2584,6 +2585,27 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("size limits", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(new FileInfo(entryPath).Length == PackageValidator.MaximumAssemblyBytes + 1, "Validate changed the oversized entry.");
+    }
+
+
+    private static void OperatorCliRejectsPackageFormat()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliFormat", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        manifest = manifest with { FormatVersion = PackageFormat.CurrentVersion + 1 };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("Unsupported package format", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
     }
 
 
