@@ -1856,6 +1856,8 @@ On 2026-10-17 packaging tests passed 291/291. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 292/292. The operator CLI validate command accepts a host-contract package, then rejects it after the file list repeats the entry path with the same entry hash and the content hash is recomputed. The error names Duplicate package path and that entry path. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 293/293. The operator CLI validate command accepts a host-contract package, then rejects it after the entry file is deleted. The manifest is left unchanged. The error names missing or extra files. The manifest stays in place and the entry file stays absent. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 

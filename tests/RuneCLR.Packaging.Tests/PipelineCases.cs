@@ -154,6 +154,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a blank producer source name", OperatorCliRejectsBlankProducerSourceName);
         yield return ("Operator CLI rejects a non-canonical reference identity", OperatorCliRejectsNonCanonicalReference);
         yield return ("Operator CLI rejects a repeated package path", OperatorCliRejectsDuplicatePackagePath);
+        yield return ("Operator CLI rejects a missing entry file", OperatorCliRejectsMissingEntryFile);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -3336,6 +3337,27 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains(manifest.EntryAssembly, StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsMissingEntryFile()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliMissingEntry", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var entryPath = Path.Combine(Path.GetDirectoryName(build.ManifestPath!)!, manifest.EntryAssembly);
+        File.Delete(entryPath);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("missing or extra files", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+        Check.Assert(!File.Exists(entryPath), "Validate restored the missing entry.");
     }
 
 
