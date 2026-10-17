@@ -130,6 +130,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects empty producer references", OperatorCliRejectsEmptyProducerReferences);
         yield return ("Operator CLI rejects a missing host contract reference", OperatorCliRejectsMissingContractReference);
         yield return ("Operator CLI rejects a blank package id", OperatorCliRejectsBlankPackageId);
+        yield return ("Operator CLI rejects a blank producer tool", OperatorCliRejectsBlankProducerTool);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2698,6 +2699,27 @@ internal static class PipelineCases
         var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
         Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
         Check.Assert(stderr.Contains("Missing or oversized id", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsBlankProducerTool()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliTool", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        manifest = manifest with { Producer = manifest.Producer with { Tool = " " } };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("Missing or oversized producer.tool", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
     }
