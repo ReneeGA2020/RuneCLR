@@ -40,6 +40,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package reads MapId from OnStart", HostInterfaceOnStartReadsMapId);
         yield return ("Compiled host-contract package rejects the MapId property name", HostInterfaceRejectsMapIdPropertyName);
         yield return ("Compiled host-contract package reads MapId from a later callback", HostInterfaceLaterReadsMapId);
+        yield return ("Imported host-contract IL reads MapId from a later callback", HostInterfaceImportsLaterMapId);
         yield return ("Imported host-contract IL rejects the MapId property name", HostInterfaceImportRejectsMapIdPropertyName);
         yield return ("Compiled host-contract package releases a stored entity", HostInterfaceReleasesStoredEntity);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
@@ -284,6 +285,24 @@ internal static class PipelineCases
         Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
         var host = new RecordingMapContext();
         var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Invoke("OnStop");
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["ok", "fixture"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceImportsLaterMapId()
+    {
+        using var temp = new TempDirectory();
+        var compiled = SourceCompiler.Compile("HostImportLaterMap", [new("GameScript.cs", LaterMapIdScript)],
+            CompilerFixture.ApprovedReferences().Concat([Fixtures.ContractAssembly]).ToArray());
+        Check.Assert(compiled.Succeeded, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        var dll = Path.Combine(temp.Path, "HostImportLaterMap.dll");
+        File.WriteAllBytes(dll, compiled.Assembly!);
+        var imported = PackageBuilder.Import("HostImportLaterMap", "GameScript", dll, Profile(), Path.Combine(temp.Path, "package"),
+            hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "get_MapId"]);
+        Check.Assert(imported.Succeeded, string.Join("; ", imported.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(imported.ManifestPath!, typeof(IMapContext), host);
         session.Invoke("OnStop");
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["ok", "fixture"]), string.Join(", ", host.Logs));
