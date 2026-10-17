@@ -248,6 +248,44 @@ public sealed class HostContractSession : IDisposable
         }
     }
 
+    public void Invoke(string methodName, int value)
+    {
+        if (_disposed || _script is null || _host is null || _contract is null || _allowedMethods is null)
+            throw new ObjectDisposedException(nameof(HostContractSession));
+        if (_invoking)
+            throw new InvalidOperationException("A session lifecycle callback is already running.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
+        if (methodName == "OnStart")
+            throw new InvalidOperationException("OnStart has already run.");
+        var methods = _script.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(method => method.Name == methodName)
+            .ToArray();
+        var method = methods.Length == 1 ? methods[0] : null;
+        var parameters = method?.GetParameters() ?? [];
+        if (method is null || method.ReturnType != typeof(void) || method.IsGenericMethod ||
+            parameters.Length != 1 || parameters[0].ParameterType != typeof(int))
+            throw new InvalidOperationException("The callback must be one public void method with one int parameter.");
+        RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
+        const string failure = "The callback calls a method that is not a host contract member.";
+        RequireContractCalls(method, _contract, _allowedMethods, failure, _images!);
+        _invoking = true;
+        try
+        {
+            try
+            {
+                method.Invoke(_script, [value]);
+            }
+            catch (Exception exception)
+            {
+                throw HostFailure(exception);
+            }
+        }
+        finally
+        {
+            _invoking = false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;

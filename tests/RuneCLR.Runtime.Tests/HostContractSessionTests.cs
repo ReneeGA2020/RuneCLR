@@ -16,6 +16,9 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects an OnStart call that is not a host contract member", RejectForeignCall);
         yield return ("Host contract rejects an interface method that is not allowed", RejectUnlistedInterfaceMethod);
         yield return ("Host contract Invoke runs a later callback on the same session", InvokeLaterCallback);
+        yield return ("Host contract Invoke passes an int to a later callback", InvokePassesAnInt);
+        yield return ("Host contract Invoke rejects a BCL call in an int callback", InvokeIntRejectsBcl);
+        yield return ("Host contract Invoke without an int does not run an int callback", InvokeIntRequiresTheValue);
         yield return ("Host contract Invoke rejects an unlisted later call before it runs", InvokeRejectsUnlisted);
         yield return ("Host contract Invoke passes the host interface into a later callback", InvokePassesTheHostAgain);
         yield return ("Host contract Invoke rejects a reentrant callback", InvokeRejectsReentry);
@@ -156,6 +159,89 @@ internal static class HostContractSessionTests
         }
 
         Check(!reference.IsAlive, "The collectible context was still alive after Dispose.");
+    }
+
+    private static void InvokePassesAnInt()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "tick.dll");
+        WriteStartAndInt(path, "HostContract.IntScript", foreign: false);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.IntScript.Script", ["Echo"]);
+        Check(host.Calls.SequenceEqual([1]), "OnStart did not call Echo(1).");
+        session.Invoke("OnTick", 41);
+        Check(host.Calls.SequenceEqual([1, 41]), "OnTick did not receive 41.");
+        session.Dispose();
+    }
+
+    private static void InvokeIntRejectsBcl()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "tick.dll");
+        WriteStartAndInt(path, "HostContract.IntForeignScript", foreign: true);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.IntForeignScript.Script", ["Echo"]);
+        var error = CheckThrows<InvalidOperationException>(() => session.Invoke("OnTick", 41));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.SequenceEqual([1]), "The int callback ran.");
+        session.Dispose();
+    }
+
+    private static void InvokeIntRequiresTheValue()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "tick.dll");
+        WriteStartAndInt(path, "HostContract.IntShapeScript", foreign: false);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.IntShapeScript.Script", ["Echo"]);
+        var error = CheckThrows<InvalidOperationException>(() => session.Invoke("OnTick"));
+        Check(error.Message.Contains("no parameters or one host-contract parameter", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.SequenceEqual([1]), "The int callback ran without a value.");
+        session.Dispose();
+    }
+
+    private static void WriteStartAndInt(string path, string assemblyName, bool foreign)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var field = type.DefineField("host", typeof(IHostEcho), FieldAttributes.Private);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var startIl = start.GetILGenerator();
+        startIl.Emit(OpCodes.Ldarg_0);
+        startIl.Emit(OpCodes.Ldarg_1);
+        startIl.Emit(OpCodes.Stfld, field);
+        startIl.Emit(OpCodes.Ldarg_0);
+        startIl.Emit(OpCodes.Ldfld, field);
+        startIl.Emit(OpCodes.Ldc_I4, 1);
+        startIl.Emit(OpCodes.Callvirt, echo);
+        startIl.Emit(OpCodes.Pop);
+        startIl.Emit(OpCodes.Ret);
+        var tick = type.DefineMethod("OnTick", MethodAttributes.Public, typeof(void), new[] { typeof(int) });
+        var tickIl = tick.GetILGenerator();
+        if (foreign)
+        {
+            tickIl.Emit(OpCodes.Ldnull);
+            tickIl.Emit(OpCodes.Call, typeof(string).GetMethod(nameof(string.IsNullOrEmpty), new[] { typeof(string) })!);
+            tickIl.Emit(OpCodes.Pop);
+        }
+
+        tickIl.Emit(OpCodes.Ldarg_0);
+        tickIl.Emit(OpCodes.Ldfld, field);
+        tickIl.Emit(OpCodes.Ldarg_1);
+        tickIl.Emit(OpCodes.Callvirt, echo);
+        tickIl.Emit(OpCodes.Pop);
+        tickIl.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
     }
 
     private static void InvokeRejectsUnlisted()
