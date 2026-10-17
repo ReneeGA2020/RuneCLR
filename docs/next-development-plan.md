@@ -716,3 +716,5 @@ On 2026-10-17 packaging tests passed 262/262. The operator CLI validate command 
 On 2026-10-17 packaging tests passed 263/263. The operator CLI validate command accepts a host-contract package, then rejects it after the entry file is extended past the assembly size limit. The error names size limits. The oversized file stays in place and is not hashed. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 264/264. The operator CLI validate command accepts a host-contract package, then rejects it after the format version is increased and the content hash is recomputed. The error names Unsupported package format. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 packaging tests passed 265/265. The operator CLI validate command accepts a host-contract package, then rejects it after the producer input kind is changed to native and the content hash is recomputed. The error names Unsupported producer input kind. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
