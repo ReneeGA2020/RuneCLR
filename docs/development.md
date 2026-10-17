@@ -1802,6 +1802,8 @@ On 2026-10-17 packaging tests passed 264/264. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 265/265. The operator CLI validate command accepts a host-contract package, then rejects it after the producer input kind is changed to native and the content hash is recomputed. The error names Unsupported producer input kind. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 266/266. The operator CLI validate command accepts a host-contract package, then rejects it after the producer references are removed and the content hash is recomputed. The error names Producer references identities are required. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
