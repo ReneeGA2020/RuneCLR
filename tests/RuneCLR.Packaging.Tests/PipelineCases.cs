@@ -162,6 +162,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects an entry path that contains a backslash", OperatorCliRejectsBackslashPath);
         yield return ("Operator CLI rejects an entry path that contains a colon", OperatorCliRejectsColonPath);
         yield return ("Operator CLI rejects an entry path that contains a question mark", OperatorCliRejectsReservedPathCharacter);
+        yield return ("Operator CLI rejects an entry path that contains a tab", OperatorCliRejectsControlPath);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -3508,6 +3509,27 @@ internal static class PipelineCases
             "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
         var manifest = PackageManifestIO.Read(build.ManifestPath!);
         manifest = manifest with { EntryAssembly = "echo?.dll" };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("canonical relative DLL", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsControlPath()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliTab", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        manifest = manifest with { EntryAssembly = "ech\t.dll" };
         manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
         PackageManifestIO.Write(build.ManifestPath!, manifest);
         var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
