@@ -642,3 +642,5 @@ On 2026-10-17 packaging tests passed 225/225. Imported host-contract IL can stor
 On 2026-10-17 packaging tests passed 226/226. A compiled host-contract package rejects an allow list that names MapId instead of get_MapId. The error names OnStart and get_MapId. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 227/227. Imported host-contract IL rejects an allow list that names MapId instead of get_MapId. The assembly is submitted as IL, not compiled by PackageBuilder. The error names OnStart and get_MapId. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 packaging tests passed 228/228. A compiled host-contract package can read MapId from a later callback. OnStart logs ok. Invoke OnStop logs fixture through the stored IMapContext. Log and get_MapId are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.

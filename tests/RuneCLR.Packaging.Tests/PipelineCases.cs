@@ -39,6 +39,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package destroys an entity from OnStart", HostInterfaceOnStartDestroys);
         yield return ("Compiled host-contract package reads MapId from OnStart", HostInterfaceOnStartReadsMapId);
         yield return ("Compiled host-contract package rejects the MapId property name", HostInterfaceRejectsMapIdPropertyName);
+        yield return ("Compiled host-contract package reads MapId from a later callback", HostInterfaceLaterReadsMapId);
         yield return ("Imported host-contract IL rejects the MapId property name", HostInterfaceImportRejectsMapIdPropertyName);
         yield return ("Compiled host-contract package releases a stored entity", HostInterfaceReleasesStoredEntity);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
@@ -262,6 +263,30 @@ internal static class PipelineCases
         Check.Assert(error.Message.Contains("OnStart", StringComparison.Ordinal), error.Message);
         Check.Assert(!Directory.Exists(output), "A property-name allow list published a package.");
         Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private const string LaterMapIdScript = """
+        using RuneCLR;
+        public sealed class GameScript : IMapScript
+        {
+            private IMapContext? context;
+            public void OnStart(IMapContext value) { context = value; context.Log("ok"); }
+            public void OnTick(MapTick tick) { }
+            public void OnStop() { context!.Log(context.MapId); }
+        }
+        """;
+
+    private static void HostInterfaceLaterReadsMapId()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostLaterMap", "GameScript", [new("GameScript.cs", LaterMapIdScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log", "get_MapId"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        session.Invoke("OnStop");
+        session.Dispose();
+        Check.Assert(host.Logs.SequenceEqual(["ok", "fixture"]), string.Join(", ", host.Logs));
     }
 
     private const string LaterSessionScript = """
