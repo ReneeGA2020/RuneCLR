@@ -1816,6 +1816,8 @@ On 2026-10-17 packaging tests passed 271/271. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 272/272. The operator CLI validate command accepts a host-contract package, then rejects it after the entry path is changed to entry.txt and the content hash is recomputed. The error names canonical relative DLL. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 273/273. The operator CLI validate command accepts a host-contract package, then rejects it after the file list names other.dll instead of the entry and the content hash is recomputed. The error names exactly match the entry. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
