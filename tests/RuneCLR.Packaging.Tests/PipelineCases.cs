@@ -65,6 +65,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a deeply nested source", OperatorCliRejectsDeepSource);
         yield return ("Operator CLI rejects a linked source directory", OperatorCliRejectsSourceLink);
         yield return ("Operator CLI rejects an oversized source directory", OperatorCliRejectsSourceLimit);
+        yield return ("Operator CLI rejects an unknown option", OperatorCliRejectsUnknownOption);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -904,6 +905,20 @@ internal static class PipelineCases
             Check.Assert(stderr.Contains("compiler input limits", StringComparison.Ordinal), stderr);
             Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
             Check.Assert(!Directory.Exists(output), "An oversized source directory published a package.");
+        }
+    }
+
+    private static void OperatorCliRejectsUnknownOption()
+    {
+        Reject(RunPackageTool("compile", "--bogus", "value"));
+        Reject(RunPackageTool("compile", "--id"));
+        Reject(RunPackageTool("compile", "--id", "--entry-type"));
+
+        static void Reject((int ExitCode, string Stdout, string Stderr) result)
+        {
+            Check.Assert(result.ExitCode == 2, "Package tool exited " + result.ExitCode + ". " + result.Stdout + result.Stderr);
+            Check.Assert(result.Stderr.Contains("Unknown option or missing value", StringComparison.Ordinal), result.Stderr);
+            Check.Assert(result.Stderr.Contains("\"success\":false", StringComparison.Ordinal), result.Stderr);
         }
     }
 
