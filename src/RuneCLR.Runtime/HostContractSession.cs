@@ -93,7 +93,7 @@ public sealed class HostContractSession : IDisposable
 
     private static void RequireHostContractReference(PackageProducer producer, Type contract)
     {
-        var expected = contract.Assembly.GetName().Name;
+        var expected = contract.Assembly.GetName().FullName;
         if (string.IsNullOrWhiteSpace(expected))
             throw new InvalidDataException("Producer references must identify exactly one shared host contract.");
         var matches = 0;
@@ -101,7 +101,8 @@ public sealed class HostContractSession : IDisposable
         {
             if (input.AssemblyName is null)
                 continue;
-            if (string.Equals(new AssemblyName(input.AssemblyName).Name, expected, StringComparison.OrdinalIgnoreCase))
+            var parsed = new AssemblyName(input.AssemblyName);
+            if (string.Equals(parsed.FullName, expected, StringComparison.OrdinalIgnoreCase))
                 matches++;
         }
 

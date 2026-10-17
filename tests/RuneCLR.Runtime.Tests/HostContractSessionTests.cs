@@ -51,6 +51,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Open rejects a producer with no references", OpenRejectsEmptyProducerReferences);
         yield return ("Host contract Open rejects a blank package id", OpenRejectsBlankPackageId);
         yield return ("Host contract Open rejects a producer that does not name the contract assembly", OpenRejectsMissingContractReference);
+        yield return ("Host contract Open rejects a contract reference with the wrong version", OpenRejectsContractVersion);
         yield return ("Host contract Open rejects a blank producer tool", OpenRejectsBlankProducerTool);
         yield return ("Host contract Open rejects an entry path that escapes the package", OpenRejectsEscapingPath);
         yield return ("Host contract Open rejects a path segment that ends with a dot", OpenRejectsDottedPath);
@@ -985,6 +986,35 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("exactly one shared host contract", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The missing contract reference ran.");
     }
+
+    private static void OpenRejectsContractVersion()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "echo.dll");
+        WriteScript(path, "HostContract.OpenContractVersionScript", typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 5, cast: false);
+        var manifestPath = WriteManifest(directory.Path, "echo.dll", "HostContract.OpenContractVersionScript.Script", typeof(IHostEcho).FullName!, ["Echo"]);
+        var manifest = PackageManifestIO.Read(manifestPath);
+        var current = typeof(IHostEcho).Assembly.GetName();
+        var wrong = current.FullName!.Replace("Version=" + current.Version, "Version=9.0.0.0", StringComparison.Ordinal);
+        var name = current.Name!;
+        manifest = manifest with
+        {
+            Producer = manifest.Producer with
+            {
+                References = manifest.Producer.References.Select(input =>
+                    input.AssemblyName is not null && input.AssemblyName.Contains(name, StringComparison.Ordinal)
+                        ? input with { AssemblyName = wrong }
+                        : input).ToArray()
+            }
+        };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(manifestPath, manifest);
+        var error = CheckThrows<InvalidDataException>(() => HostContractSession.Open(manifestPath, typeof(IHostEcho), host));
+        Check(error.Message.Contains("exactly one shared host contract", StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The wrong contract version ran.");
+    }
+
 
     private static void OpenRejectsBlankProducerTool()
     {

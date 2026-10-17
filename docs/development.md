@@ -1529,6 +1529,9 @@ On 2026-10-17 desktop runtime tests passed 137/137. HostContractSession.Open rej
 On 2026-10-17 desktop runtime tests passed 138/138. HostContractSession.Open rejects an entry path whose segment ends with a dot, even after the content hash is recomputed. bad./echo.dll does not run the host method. The message contains canonical relative DLL. The same check rejects control characters, reserved path punctuation, and segments that end with a space. A path longer than 240 characters is missing or oversized. A normal echo.dll path still loads. This is not an iOS result.
 
 
+On 2026-10-17 desktop runtime tests passed 139/139. HostContractSession.Open rejects a producer reference that keeps the contract assembly name but changes its version, even after the content hash is recomputed. The host method does not run. The message contains exactly one shared host contract. A reference whose full identity matches the supplied contract still loads. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
