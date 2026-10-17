@@ -93,6 +93,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a missing entry type", OperatorCliRejectsMissingEntry);
         yield return ("Operator CLI reads MapId from OnStart", OperatorCliReadsMapId);
         yield return ("Operator CLI imports a MapId read", OperatorCliImportsMapId);
+        yield return ("Operator CLI rejects the MapId property name", OperatorCliRejectsMapIdName);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -1532,6 +1533,26 @@ internal static class PipelineCases
         var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
         session.Dispose();
         Check.Assert(host.Logs.SequenceEqual(["fixture"]), string.Join(", ", host.Logs));
+    }
+
+    private static void OperatorCliRejectsMapIdName()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), OnStartMapIdScript);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile", "--source", source, "--id", "HostCliMapName", "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+            "--output", output, "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log", "--allowed-method", "MapId");
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("get_MapId", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("OnStart", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(!Directory.Exists(output), "A property-name allow list published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
