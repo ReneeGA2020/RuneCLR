@@ -82,6 +82,14 @@ public static class PackageManifestIO
             writer.WriteString("entryAssembly", manifest.EntryAssembly);
             writer.WriteString("entryType", manifest.EntryType);
             writer.WriteString("entrySha256", manifest.EntrySha256);
+            if (manifest.HostInterface is not null || manifest.AllowedMethods is not null)
+            {
+                writer.WriteString("hostInterface", manifest.HostInterface);
+                writer.WriteStartArray("allowedMethods");
+                foreach (var method in (manifest.AllowedMethods ?? []).OrderBy(item => item, StringComparer.Ordinal))
+                    writer.WriteStringValue(method);
+                writer.WriteEndArray();
+            }
             writer.WriteStartArray("dependencies");
             foreach (var dependency in manifest.Dependencies.OrderBy(item => item.Path, StringComparer.Ordinal))
             {

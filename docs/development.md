@@ -1376,6 +1376,8 @@ On 2026-10-17 packaging tests passed 148/148 after rejecting an interface method
 
 On 2026-10-17 desktop runtime tests passed 60/60. HostContractSession now takes the allowed method names. An OnStart call to IHostEcho.Other is rejected before the host method runs when only Echo is allowed. Echo(41) still reaches the host. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 151/151. package.json may include hostInterface and allowedMethods. When either is present, PackageValidator.Validate requires both and runs ValidateHostContract on the entry before the gameplay profile. Omitting both leaves existing manifests and their content hashes unchanged. Allowed methods remain simple names, not signatures. This is not an iOS result.
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

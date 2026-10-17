@@ -37,6 +37,9 @@ internal static class ManifestCases
     public static IEnumerable<(string Name, Action Run)> Cases()
     {
         yield return ("Versioned manifest roundtrips and retains collectible lifecycle", Roundtrip);
+        yield return ("Manifest host interface fields run the host-contract check on load", HostInterfaceAllowList);
+        yield return ("Manifest host interface fields reject an unlisted OnStart call", HostInterfaceRejectsUnlisted);
+        yield return ("Manifest rejects a host interface without allowed methods", HostInterfacePairRequired);
         yield return ("Canonical content identity ignores array order and its own hash field", CanonicalIdentity);
         yield return ("Versioned reader rejects unknown and duplicate properties", StrictReader);
         yield return ("Versioned fields cannot downgrade to the trusted legacy reader", StrictDispatch);
@@ -54,6 +57,53 @@ internal static class ManifestCases
         yield return ("Versioned runtime revalidates a changed manifest before each session", SnapshotManifest);
     }
 
+
+    private static void HostInterfaceAllowList()
+    {
+        using var temp = new TempDirectory();
+        var manifest = Seal(HostMap(temp) with { HostInterface = "RuneCLR.IMapContext", AllowedMethods = ["SpawnEntity", "Log"] });
+        var path = ManifestPath(temp);
+        PackageManifestIO.Write(path, manifest);
+        var read = PackageManifestIO.Read(path);
+        PackageValidator.Validate(read, path);
+        Check.Assert(read.HostInterface == "RuneCLR.IMapContext", "Host interface was not retained.");
+        Check.Assert(read.AllowedMethods is not null && read.AllowedMethods.SequenceEqual(["Log", "SpawnEntity"]), "Allowed methods were not stored canonically.");
+    }
+
+    private static void HostInterfaceRejectsUnlisted()
+    {
+        using var temp = new TempDirectory();
+        Reject(Seal(HostMap(temp) with { HostInterface = "RuneCLR.IMapContext", AllowedMethods = ["Log"] }), temp);
+    }
+
+    private static void HostInterfacePairRequired()
+    {
+        using var temp = new TempDirectory();
+        Reject(Seal(HostMap(temp) with { HostInterface = "RuneCLR.IMapContext" }), temp);
+    }
+
+    private static PackageManifest HostMap(TempDirectory temp)
+    {
+        const string source = """
+            using RuneCLR;
+            public sealed class HostMap : IMapScript
+            {
+                public void OnStart(IMapContext context)
+                {
+                    context.Log("ok");
+                    context.SpawnEntity("fixture");
+                }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+            }
+            """;
+        var compiled = SourceCompiler.Compile("HostMapScript", [new("HostMap.cs", source)], CompilerFixture.ApprovedReferences());
+        Check.Assert(compiled.Succeeded && compiled.Assembly is not null, string.Join("; ", compiled.Diagnostics.Select(item => item.Message)));
+        File.WriteAllBytes(Path.Combine(temp.Path, "Script.dll"), compiled.Assembly!);
+        var hash = Fixtures.Hash(compiled.Assembly!);
+        return new(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion, PackageFormat.InputProfile,
+            "host-interface", "Script.dll", "HostMap", hash, [], [new("Script.dll", hash)], Fixtures.ValidProducer(), "");
+    }
     private static PackageManifest Create(TempDirectory temp)
     {
         var bytes = ScriptImage.Value;

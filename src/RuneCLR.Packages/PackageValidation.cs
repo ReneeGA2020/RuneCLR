@@ -87,6 +87,14 @@ public static class PackageValidator
             string.Equals(ParseIdentity(input.AssemblyName).Name, ContractName, StringComparison.OrdinalIgnoreCase)).ToArray();
         if (contract.Length != 1) throw new InvalidDataException("Producer references must identify exactly one shared host contract.");
         ManagedAssemblyInspector.ValidateEntry(entryBytes!, manifest.EntryType, contract[0].AssemblyName!);
+        if (manifest.HostInterface is not null || manifest.AllowedMethods is not null)
+        {
+            if (string.IsNullOrWhiteSpace(manifest.HostInterface) || manifest.AllowedMethods is null ||
+                manifest.AllowedMethods.Length == 0 || manifest.AllowedMethods.Any(string.IsNullOrWhiteSpace) ||
+                manifest.AllowedMethods.Distinct(StringComparer.Ordinal).Count() != manifest.AllowedMethods.Length)
+                throw new InvalidDataException("The host interface and allowed methods must both be present, nonempty and unique.");
+            GameplayCapabilityPolicy.ValidateHostContract(entryBytes!, manifest.EntryType, manifest.HostInterface, manifest.AllowedMethods);
+        }
         // Recompute the policy from actual IL at load time, not producer claims.
         var scriptIdentities = assemblies.Values.Select(info => info.AssemblyName).ToArray();
         foreach (var image in images)

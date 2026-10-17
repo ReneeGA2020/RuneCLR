@@ -17,4 +17,4 @@ public sealed record PackageProducer(string Tool, string ToolVersion, string Inp
 public sealed record PackageManifest(int FormatVersion, int ApiVersion, string InputProfile,
     string Id, string EntryAssembly, string EntryType, string EntrySha256,
     PackageDependency[] Dependencies, PackageFile[] Files, PackageProducer Producer,
-    string ContentSha256);
+    string ContentSha256, string? HostInterface = null, string[]? AllowedMethods = null);
