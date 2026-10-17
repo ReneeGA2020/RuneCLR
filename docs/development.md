@@ -1577,6 +1577,9 @@ On 2026-10-17 packaging tests passed 186/186. Imported host-contract IL can let 
 On 2026-10-17 packaging tests passed 187/187. The operator CLI compile command writes a host-contract package. The test runs RuneCLR.PackageTool with --host-interface RuneCLR.IMapContext and --allowed-method Log. OnStart logs ok. InvokeInt Measure(40) returns 41. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 188/188. The operator CLI compile command rejects a later callback that constructs System.InvalidOperationException. The process exits 2. The error names Report and InvalidOperationException..ctor. No package directory is published. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

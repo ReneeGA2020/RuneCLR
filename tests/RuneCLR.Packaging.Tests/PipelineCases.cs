@@ -49,6 +49,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL rejects a framework constructor", HostInterfaceImportRejectsFrameworkNew);
         yield return ("Imported host-contract IL lets a private assembly call the entry", HostInterfaceImportPrivateCallsEntry);
         yield return ("Operator CLI compiles a host-contract package", HostInterfaceOperatorCli);
+        yield return ("Operator CLI rejects a framework constructor", HostInterfaceOperatorCliRejectsFrameworkNew);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -475,6 +476,52 @@ internal static class PipelineCases
         Directory.CreateDirectory(source);
         File.WriteAllText(Path.Combine(source, "GameScript.cs"), IntSessionScript);
         var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile",
+            "--source", source,
+            "--id", "HostCli",
+            "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory,
+            "--contract", Fixtures.ContractAssembly,
+            "--output", output,
+            "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log");
+        Check.Assert(exit == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + exit + ". " + stdout + stderr);
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfaceOperatorCliRejectsFrameworkNew()
+    {
+        using var temp = new TempDirectory();
+        var source = Path.Combine(temp.Path, "source");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "GameScript.cs"), FrameworkNewScript);
+        var output = Path.Combine(temp.Path, "package");
+        var (exit, stdout, stderr) = RunPackageTool(
+            "compile",
+            "--source", source,
+            "--id", "HostCliFramework",
+            "--entry-type", "GameScript",
+            "--framework-refs", Fixtures.FrameworkReferenceDirectory,
+            "--contract", Fixtures.ContractAssembly,
+            "--output", output,
+            "--host-interface", "RuneCLR.IMapContext",
+            "--allowed-method", "Log");
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("Report", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("InvalidOperationException..ctor", StringComparison.Ordinal), stderr);
+        Check.Assert(!Directory.Exists(output), "A rejected framework constructor published a package.");
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+    }
+
+    private static (int ExitCode, string Stdout, string Stderr) RunPackageTool(params string[] arguments)
+    {
         var start = new ProcessStartInfo
         {
             FileName = "dotnet",
@@ -484,19 +531,9 @@ internal static class PipelineCases
             UseShellExecute = false,
         };
         start.Environment["DOTNET_NOLOGO"] = "1";
-        foreach (var argument in new[]
-        {
-            "run", "--project", "tools/RuneCLR.PackageTool", "-c", BuildConfiguration(), "--no-build", "--",
-            "compile",
-            "--source", source,
-            "--id", "HostCli",
-            "--entry-type", "GameScript",
-            "--framework-refs", Fixtures.FrameworkReferenceDirectory,
-            "--contract", Fixtures.ContractAssembly,
-            "--output", output,
-            "--host-interface", "RuneCLR.IMapContext",
-            "--allowed-method", "Log",
-        }) start.ArgumentList.Add(argument);
+        foreach (var argument in new[] { "run", "--project", "tools/RuneCLR.PackageTool", "-c", BuildConfiguration(), "--no-build", "--" })
+            start.ArgumentList.Add(argument);
+        foreach (var argument in arguments) start.ArgumentList.Add(argument);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("The package tool did not start.");
         var stdoutTask = process.StandardOutput.ReadToEndAsync();
         var stderrTask = process.StandardError.ReadToEndAsync();
@@ -507,16 +544,7 @@ internal static class PipelineCases
             throw new InvalidOperationException("The package tool did not exit.");
         }
         process.WaitForExit();
-        var stdout = stdoutTask.GetAwaiter().GetResult();
-        var stderr = stderrTask.GetAwaiter().GetResult();
-        Check.Assert(process.ExitCode == 0 && stdout.Contains("\"success\":true", StringComparison.Ordinal),
-            "Package tool exited " + process.ExitCode + ". " + stdout + stderr);
-        var host = new RecordingMapContext();
-        var session = HostContractSession.Open(Path.Combine(output, "package.json"), typeof(IMapContext), host);
-        var result = session.InvokeInt("Measure", 40);
-        session.Dispose();
-        Check.Assert(result == 41, "Measure returned " + result + ".");
-        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+        return (process.ExitCode, stdoutTask.GetAwaiter().GetResult(), stderrTask.GetAwaiter().GetResult());
     }
 
     private static string RepositoryRoot()
