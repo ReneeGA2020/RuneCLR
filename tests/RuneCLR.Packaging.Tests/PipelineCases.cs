@@ -64,6 +64,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a non-source file", OperatorCliRejectsNonSourceFile);
         yield return ("Operator CLI rejects a deeply nested source", OperatorCliRejectsDeepSource);
         yield return ("Operator CLI rejects a linked source directory", OperatorCliRejectsSourceLink);
+        yield return ("Operator CLI rejects an oversized source directory", OperatorCliRejectsSourceLimit);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -875,6 +876,34 @@ internal static class PipelineCases
             Check.Assert(stderr.Contains("filesystem links", StringComparison.Ordinal), stderr);
             Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
             Check.Assert(!Directory.Exists(output), "A linked source published a package.");
+        }
+    }
+
+    private static void OperatorCliRejectsSourceLimit()
+    {
+        using var temp = new TempDirectory();
+        var many = Path.Combine(temp.Path, "many");
+        Directory.CreateDirectory(many);
+        for (var index = 0; index < 65; index++)
+            File.WriteAllText(Path.Combine(many, "f" + index.ToString("00") + ".cs"), "class A { }\n");
+        var huge = Path.Combine(temp.Path, "huge");
+        Directory.CreateDirectory(huge);
+        File.WriteAllBytes(Path.Combine(huge, "GameScript.cs"), new byte[8_000_001]);
+        Reject(many);
+        Reject(huge);
+        Check.Assert(!Directory.EnumerateDirectories(temp.Path, ".runeclr-build-*").Any(), "Build left private staging behind.");
+
+        void Reject(string source)
+        {
+            var output = Path.Combine(temp.Path, "package-" + Path.GetFileName(source));
+            var (exit, stdout, stderr) = RunPackageTool(
+                "compile", "--source", source, "--id", "HostCliLimit", "--entry-type", "GameScript",
+                "--framework-refs", Fixtures.FrameworkReferenceDirectory, "--contract", Fixtures.ContractAssembly,
+                "--output", output, "--host-interface", "RuneCLR.IMapContext", "--allowed-method", "Log");
+            Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+            Check.Assert(stderr.Contains("compiler input limits", StringComparison.Ordinal), stderr);
+            Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+            Check.Assert(!Directory.Exists(output), "An oversized source directory published a package.");
         }
     }
 
