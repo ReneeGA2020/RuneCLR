@@ -136,6 +136,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects an entry that is not a DLL", OperatorCliRejectsNonDllEntry);
         yield return ("Operator CLI rejects a file list that omits the entry", OperatorCliRejectsUnlistedEntry);
         yield return ("Operator CLI rejects an entry hash that disagrees with the file list", OperatorCliRejectsMismatchedFileHash);
+        yield return ("Operator CLI rejects an escaping dependency path", OperatorCliRejectsEscapingDependency);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2834,6 +2835,31 @@ internal static class PipelineCases
         var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
         Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
         Check.Assert(stderr.Contains("exactly match the entry", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
+    }
+
+
+    private static void OperatorCliRejectsEscapingDependency()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "helper"), "SharedCliEscape", """
+            public static class Helper { public static int Value() => 1; }
+            """);
+        var build = PackageBuilder.Compile("HostCliDepPath", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        Check.Assert(manifest.Dependencies.Length == 1, "Expected one private dependency.");
+        manifest = manifest with { Dependencies = [manifest.Dependencies[0] with { Path = "../lib.dll" }] };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("canonical relative DLL", StringComparison.Ordinal), stderr);
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the manifest.");
     }
