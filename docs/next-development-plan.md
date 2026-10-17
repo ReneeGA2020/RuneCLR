@@ -391,3 +391,6 @@ On 2026-10-17 desktop runtime tests passed 62/62. HostContractSession.Invoke run
 
 On 2026-10-17 desktop runtime tests passed 63/63. HostContractSession.Invoke can pass the same host instance into a later public void method that takes the host interface. A parameterless callback still runs. The IL check still happens before the method runs. This is not an iOS result.
 
+
+On 2026-10-17 desktop runtime tests passed 64/64. HostContractSession rejects a reentrant Invoke while OnStart or a later callback is still running. The message is A session lifecycle callback is already running. The nested callback does not run. This is not an iOS result.
+

@@ -13,6 +13,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract Invoke runs a later callback on the same session", InvokeLaterCallback);
         yield return ("Host contract Invoke rejects an unlisted later call before it runs", InvokeRejectsUnlisted);
         yield return ("Host contract Invoke passes the host interface into a later callback", InvokePassesTheHostAgain);
+        yield return ("Host contract Invoke rejects a reentrant callback", InvokeRejectsReentry);
     }
 
     private static void EchoAndUnload()
@@ -143,6 +144,29 @@ internal static class HostContractSessionTests
         }
         finally
         {
+            session.Dispose();
+        }
+    }
+
+    private static void InvokeRejectsReentry()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "reentry.dll");
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        WriteStartAndHostParameter(path, "HostContract.ReentryScript", echo, 1, 2);
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.ReentryScript.Script", ["Echo"]);
+        host.Nested = session;
+        try
+        {
+            var error = CheckThrows<TargetInvocationException>(() => session.Invoke("OnTick"));
+            Check(error.InnerException is InvalidOperationException, error.InnerException?.Message ?? error.Message);
+            Check(error.InnerException!.Message.Contains("already running", StringComparison.Ordinal), error.InnerException.Message);
+            Check(host.Calls.SequenceEqual([1, 2]), "The nested callback ran.");
+        }
+        finally
+        {
+            host.Nested = null;
             session.Dispose();
         }
     }
@@ -325,10 +349,14 @@ sealed class RecordingEcho : IHostEcho
 
     public List<int> Calls { get; } = [];
 
+    public HostContractSession? Nested { get; set; }
+
     public int Echo(int value)
     {
         Seen = value;
         Calls.Add(value);
+        if (value == 2 && Nested is not null)
+            Nested.Invoke("OnTick");
         return value;
     }
 

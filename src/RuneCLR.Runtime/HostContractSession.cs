@@ -12,6 +12,7 @@ public sealed class HostContractSession : IDisposable
     private Type? _contract;
     private HashSet<string>? _allowedMethods;
     private bool _disposed;
+    private bool _invoking;
 
     public HostContractSession(Type contract, object instance, string assemblyPath, string entryTypeName, IReadOnlyCollection<string> allowedMethods)
     {
@@ -35,11 +36,19 @@ public sealed class HostContractSession : IDisposable
             var allowed = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
             RequireContractCalls(start, contract, allowed, "OnStart calls a method that is not a host contract member.");
             var script = Activator.CreateInstance(entry!)!;
-            start.Invoke(script, [instance]);
-            _script = script;
-            _host = instance;
-            _contract = contract;
-            _allowedMethods = allowed;
+            _invoking = true;
+            try
+            {
+                start.Invoke(script, [instance]);
+                _script = script;
+                _host = instance;
+                _contract = contract;
+                _allowedMethods = allowed;
+            }
+            finally
+            {
+                _invoking = false;
+            }
         }
         catch
         {
@@ -54,6 +63,8 @@ public sealed class HostContractSession : IDisposable
     {
         if (_disposed || _script is null || _host is null || _contract is null || _allowedMethods is null)
             throw new ObjectDisposedException(nameof(HostContractSession));
+        if (_invoking)
+            throw new InvalidOperationException("A session lifecycle callback is already running.");
         ArgumentException.ThrowIfNullOrWhiteSpace(methodName);
         if (methodName == "OnStart")
             throw new InvalidOperationException("OnStart has already run.");
@@ -67,7 +78,15 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidOperationException("The callback must be one public void method with no parameters or one host-contract parameter.");
         const string failure = "The callback calls a method that is not a host contract member.";
         RequireContractCalls(method, _contract, _allowedMethods, failure);
-        method.Invoke(_script, takesHost ? [_host] : null);
+        _invoking = true;
+        try
+        {
+            method.Invoke(_script, takesHost ? [_host] : null);
+        }
+        finally
+        {
+            _invoking = false;
+        }
     }
 
     public void Dispose()
