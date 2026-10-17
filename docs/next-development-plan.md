@@ -540,3 +540,5 @@ On 2026-10-17 packaging tests passed 174/174. A compiled host-contract package c
 On 2026-10-17 packaging tests passed 175/175. A compiled host-contract package can return an int from a later callback. OnStart logs ok. InvokeInt Measure(40) returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 176/176. A compiled host-contract package can take the host and an int in a later callback. OnStart logs ok. Invoke Report(41) calls Charge with 41. Log and Charge are allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 packaging tests passed 177/177. A compiled host-contract package can call a declared private assembly from a later callback. OnStart logs ok. InvokeInt Measure(40) calls SharedHelper.AddOne and returns 41. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.

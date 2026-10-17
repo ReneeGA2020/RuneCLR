@@ -37,6 +37,7 @@ internal static class PipelineCases
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
         yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
+        yield return ("Compiled host-contract package calls a private assembly from a later callback", HostInterfacePrivateCallback);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -148,6 +149,33 @@ internal static class PipelineCases
         session.Invoke("Report", 41);
         session.Dispose();
         Check.Assert(host.Charged == 41, "Charge received " + host.Charged + ".");
+        Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
+    }
+
+    private static void HostInterfacePrivateCallback()
+    {
+        using var temp = new TempDirectory();
+        var helper = EmitDependency(Path.Combine(temp.Path, "input"), "SharedLibrary", """
+            public static class SharedHelper { public static int AddOne(int value) => value + 1; }
+            """);
+        const string script = """
+            using RuneCLR;
+            public sealed class GameScript : IMapScript
+            {
+                public void OnStart(IMapContext context) { context.Log("ok"); }
+                public void OnTick(MapTick tick) { }
+                public void OnStop() { }
+                public int Measure(int value) => SharedHelper.AddOne(value);
+            }
+            """;
+        var build = PackageBuilder.Compile("HostPrivate", "GameScript", [new("GameScript.cs", script)], Profile(),
+            Path.Combine(temp.Path, "package"), [helper], hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new RecordingMapContext();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(IMapContext), host);
+        var result = session.InvokeInt("Measure", 40);
+        session.Dispose();
+        Check.Assert(result == 41, "Measure returned " + result + ".");
         Check.Assert(host.Logs.SequenceEqual(["ok"]), string.Join(", ", host.Logs));
     }
 
