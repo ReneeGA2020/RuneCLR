@@ -1792,6 +1792,8 @@ On 2026-10-17 packaging tests passed 259/259. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 260/260. The operator CLI validate command accepts a host-contract package, then rejects it after the entry assembly is replaced by a filesystem link to the moved DLL. The error names filesystem links. The link and its target stay in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 261/261. The operator CLI validate command accepts a host-contract package, then rejects it after 17 nested directories are added inside the package. The error names Package directories and the nesting limit. The nested directory stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 

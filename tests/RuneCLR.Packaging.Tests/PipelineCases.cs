@@ -122,6 +122,7 @@ internal static class PipelineCases
         yield return ("Operator CLI rejects a changed private dependency", OperatorCliRejectsChangedDependency);
         yield return ("Operator CLI rejects a private dependency identity", OperatorCliRejectsDependencyIdentity);
         yield return ("Operator CLI rejects a linked package file", OperatorCliRejectsPackageLink);
+        yield return ("Operator CLI rejects a deeply nested package", OperatorCliRejectsPackageNesting);
     }
     private const string HostFieldScript = """
         using RuneCLR;
@@ -2504,6 +2505,31 @@ internal static class PipelineCases
         Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
         Check.Assert(File.Exists(entryPath), "Validate removed the package link.");
         Check.Assert(File.Exists(target), "Validate removed the link target.");
+    }
+
+
+    private static void OperatorCliRejectsPackageNesting()
+    {
+        using var temp = new TempDirectory();
+        var build = PackageBuilder.Compile("HostCliPkgNest", "GameScript", [new("GameScript.cs", IntSessionScript)], Profile(),
+            Path.Combine(temp.Path, "package"), hostInterface: "RuneCLR.IMapContext", allowedMethods: ["Log"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var intact = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(intact.ExitCode == 0 && intact.Stdout.Contains("\"success\":true", StringComparison.Ordinal),
+            "Package tool exited " + intact.ExitCode + ". " + intact.Stdout + intact.Stderr);
+        var packageDirectory = Path.GetDirectoryName(build.ManifestPath!)!;
+        var nested = packageDirectory;
+        for (var level = 0; level < 17; level++)
+        {
+            nested = Path.Combine(nested, "n");
+            Directory.CreateDirectory(nested);
+        }
+        var (exit, stdout, stderr) = RunPackageTool("validate", "--manifest", build.ManifestPath!);
+        Check.Assert(exit == 2, "Package tool exited " + exit + ". " + stdout + stderr);
+        Check.Assert(stderr.Contains("nesting limit", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("Package directories", StringComparison.Ordinal), stderr);
+        Check.Assert(stderr.Contains("\"success\":false", StringComparison.Ordinal), stderr);
+        Check.Assert(Directory.Exists(nested), "Validate removed the nested directory.");
     }
 
 
