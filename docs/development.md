@@ -1520,6 +1520,9 @@ On 2026-10-17 desktop runtime tests passed 134/134. HostContractSession.Open rej
 On 2026-10-17 desktop runtime tests passed 135/135. HostContractSession.Open rejects a producer whose references do not name the supplied contract assembly exactly once, even after the content hash is recomputed. A reference to Other.Contract does not run the host method. The message contains exactly one shared host contract. The check uses the supplied contract assembly, not a fixed RuneCLR.Abstractions name. A producer that names that assembly once still loads. This is not an iOS result.
 
 
+On 2026-10-17 desktop runtime tests passed 136/136. HostContractSession rejects an entry assembly whose simple name matches the supplied contract assembly. The host method does not run. The message contains duplicates the host contract assembly and the assembly name. A framework spoof such as System.IO still reports the spoof message. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared

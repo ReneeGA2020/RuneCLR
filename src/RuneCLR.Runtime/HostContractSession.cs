@@ -308,6 +308,8 @@ public sealed class HostContractSession : IDisposable
             RequireCoreCatchTypes(bytes, entryTypeName, ".ctor");
             RequireCoreCatchTypes(bytes, entryTypeName, "OnStart");
             var info = ManagedAssemblyInspector.Inspect(bytes);
+            if (string.Equals(info.SimpleName, contractName, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Author assembly '" + info.SimpleName + "' duplicates the host contract assembly.");
             if (ReservedAssembly(info.SimpleName))
                 throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
             if (privateNames.Contains(info.SimpleName))

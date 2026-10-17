@@ -78,6 +78,7 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects a constructor call other than Object..ctor", RejectConstructorCall);
         yield return ("Host contract rejects an assembly that is not IL-only", RejectNativeImage);
         yield return ("Host contract rejects an assembly name that spoofs the framework", RejectSpoofedAssemblyName);
+        yield return ("Host contract rejects an entry named like the contract assembly", RejectEntryContractName);
         yield return ("Host contract rejects a reference outside the contract assembly", RejectUnapprovedReference);
         yield return ("Host contract rejects unsafe IL before the author runs", RejectUnsafeIl);
         yield return ("Host contract rejects a static field load before the author runs", RejectStaticFieldLoad);
@@ -1820,6 +1821,20 @@ internal static class HostContractSessionTests
         Check(error.Message.Contains("spoofs", StringComparison.Ordinal), error.Message);
         Check(error.Message.Contains("System.IO", StringComparison.Ordinal), error.Message);
         Check(host.Seen is null, "The spoofed assembly ran.");
+    }
+
+    private static void RejectEntryContractName()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var name = typeof(IHostEcho).Assembly.GetName().Name ?? throw new InvalidOperationException("The test contract assembly has no name.");
+        var path = Path.Combine(directory.Path, "entry.dll");
+        WriteScript(path, name, typeof(IHostEcho), typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!, 1, cast: false);
+        var error = CheckThrows<InvalidDataException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, name + ".Script", ["Echo"]));
+        Check(error.Message.Contains("duplicates the host contract assembly", StringComparison.Ordinal), error.Message);
+        Check(error.Message.Contains(name, StringComparison.Ordinal), error.Message);
+        Check(host.Seen is null, "The contract-named entry ran.");
     }
 
     private static void RejectUnapprovedReference()
