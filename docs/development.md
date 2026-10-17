@@ -1745,6 +1745,9 @@ On 2026-10-17 packaging tests passed 242/242. A compiled host-contract package c
 On 2026-10-17 packaging tests passed 243/243. Imported host-contract IL can let a declared private assembly call Log. The entry and SharedImportNote are submitted as IL, not compiled by PackageBuilder. OnStart logs ok and passes the host to SharedNote.Note, which logs from-private. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
 
 
+On 2026-10-17 packaging tests passed 244/244. A compiled host-contract package can pass the host from one private assembly into a second that calls Log. OnStart logs ok. First.Through reaches Second.Note, which logs from-second. Only Log is allowed. The session is disposed after that call. Gameplay validation is unchanged. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
