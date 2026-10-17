@@ -17,15 +17,16 @@ internal static class HostContractSessionTests
         yield return ("Host contract rejects an interface method that is not allowed", RejectUnlistedInterfaceMethod);
         yield return ("Host contract Invoke runs a later callback on the same session", InvokeLaterCallback);
         yield return ("Host contract Invoke passes an int to a later callback", InvokePassesAnInt);
-        yield return ("Host contract Invoke rejects a BCL call in an int callback", InvokeIntRejectsBcl);
+        yield return ("Host contract allows an unsupported public method", OpenAllowsUnsupportedMethod);
+        yield return ("Host contract rejects a bad int callback before OnStart", InvokeIntRejectsBcl);
         yield return ("Host contract Invoke without an int does not run an int callback", InvokeIntRequiresTheValue);
         yield return ("Host contract InvokeInt returns an int from a later callback", InvokeIntReturns);
-        yield return ("Host contract InvokeInt rejects a BCL call before returning", InvokeIntReturnRejectsBcl);
+        yield return ("Host contract rejects a bad int return before OnStart", InvokeIntReturnRejectsBcl);
         yield return ("Host contract InvokeInt rejects a void callback", InvokeIntRejectsVoid);
         yield return ("Host contract Invoke passes the host and an int", InvokePassesHostAndInt);
         yield return ("Host contract InvokeInt passes the host and returns an int", InvokeIntPassesHost);
-        yield return ("Host contract Invoke rejects a BCL call when the host and an int are passed", InvokeHostAndIntRejectsBcl);
-        yield return ("Host contract Invoke rejects an unlisted later call before it runs", InvokeRejectsUnlisted);
+        yield return ("Host contract rejects a bad host-and-int callback before OnStart", InvokeHostAndIntRejectsBcl);
+        yield return ("Host contract rejects an unlisted later call before OnStart", InvokeRejectsUnlisted);
         yield return ("Host contract Invoke passes the host interface into a later callback", InvokePassesTheHostAgain);
         yield return ("Host contract Invoke rejects a reentrant callback", InvokeRejectsReentry);
         yield return ("Host contract Invoke reports callback failure as text and continues", InvokeFailureIsText);
@@ -167,6 +168,47 @@ internal static class HostContractSessionTests
         Check(!reference.IsAlive, "The collectible context was still alive after Dispose.");
     }
 
+    private static void OpenAllowsUnsupportedMethod()
+    {
+        var host = new RecordingEcho();
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "unused.dll");
+        WriteUnusedStringMethod(path, "HostContract.UnusedScript");
+        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.UnusedScript.Script", ["Echo"]);
+        Check(host.Calls.SequenceEqual([1]), "OnStart did not run.");
+        session.Dispose();
+    }
+
+    private static void WriteUnusedStringMethod(string path, string assemblyName)
+    {
+        var echo = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Echo))!;
+        var builder = new PersistedAssemblyBuilder(
+            new AssemblyName(assemblyName) { Version = new Version(1, 0, 0, 0) },
+            typeof(object).Assembly);
+        var module = builder.DefineDynamicModule(assemblyName);
+        var type = module.DefineType(assemblyName + ".Script", TypeAttributes.Public | TypeAttributes.Class);
+        var constructor = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+        var constructorIl = constructor.GetILGenerator();
+        constructorIl.Emit(OpCodes.Ldarg_0);
+        constructorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+        constructorIl.Emit(OpCodes.Ret);
+        var start = type.DefineMethod("OnStart", MethodAttributes.Public, typeof(void), new[] { typeof(IHostEcho) });
+        var startIl = start.GetILGenerator();
+        startIl.Emit(OpCodes.Ldarg_1);
+        startIl.Emit(OpCodes.Ldc_I4, 1);
+        startIl.Emit(OpCodes.Callvirt, echo);
+        startIl.Emit(OpCodes.Pop);
+        startIl.Emit(OpCodes.Ret);
+        var unused = type.DefineMethod("Unused", MethodAttributes.Public, typeof(void), new[] { typeof(string) });
+        var unusedIl = unused.GetILGenerator();
+        unusedIl.Emit(OpCodes.Ldarg_1);
+        unusedIl.Emit(OpCodes.Callvirt, typeof(string).GetMethod(nameof(string.ToString), Type.EmptyTypes)!);
+        unusedIl.Emit(OpCodes.Pop);
+        unusedIl.Emit(OpCodes.Ret);
+        type.CreateType();
+        builder.Save(path);
+    }
+
     private static void InvokePassesAnInt()
     {
         var host = new RecordingEcho();
@@ -186,11 +228,10 @@ internal static class HostContractSessionTests
         using var directory = new TemporaryDirectory();
         var path = Path.Combine(directory.Path, "tick.dll");
         WriteStartAndInt(path, "HostContract.IntForeignScript", foreign: true);
-        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.IntForeignScript.Script", ["Echo"]);
-        var error = CheckThrows<InvalidOperationException>(() => session.Invoke("OnTick", 41));
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.IntForeignScript.Script", ["Echo"]));
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
-        Check(host.Calls.SequenceEqual([1]), "The int callback ran.");
-        session.Dispose();
+        Check(host.Calls.Count == 0, "OnStart ran despite the bad callback.");
     }
 
     private static void InvokeIntRequiresTheValue()
@@ -226,11 +267,10 @@ internal static class HostContractSessionTests
         using var directory = new TemporaryDirectory();
         var path = Path.Combine(directory.Path, "measure.dll");
         WriteStartAndMeasure(path, "HostContract.MeasureForeignScript", foreign: true);
-        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.MeasureForeignScript.Script", ["Echo"]);
-        var error = CheckThrows<InvalidOperationException>(() => session.InvokeInt("Measure", 40));
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.MeasureForeignScript.Script", ["Echo"]));
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
-        Check(host.Calls.SequenceEqual([1]), "The returning callback ran.");
-        session.Dispose();
+        Check(host.Calls.Count == 0, "OnStart ran despite the bad callback.");
     }
 
     private static void InvokeIntRejectsVoid()
@@ -278,11 +318,10 @@ internal static class HostContractSessionTests
         using var directory = new TemporaryDirectory();
         var path = Path.Combine(directory.Path, "both.dll");
         WriteHostAndInt(path, "HostContract.HostIntForeignScript", returning: false, foreign: true);
-        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.HostIntForeignScript.Script", ["Echo"]);
-        var error = CheckThrows<InvalidOperationException>(() => session.Invoke("OnTick", 41));
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.HostIntForeignScript.Script", ["Echo"]));
         Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
-        Check(host.Calls.SequenceEqual([1]), "The host-and-int callback ran.");
-        session.Dispose();
+        Check(host.Calls.Count == 0, "OnStart ran despite the bad callback.");
     }
 
     private static void WriteHostAndInt(string path, string assemblyName, bool returning, bool foreign)
@@ -419,17 +458,10 @@ internal static class HostContractSessionTests
         var path = Path.Combine(directory.Path, "later-other.dll");
         var other = typeof(IHostEcho).GetMethod(nameof(IHostEcho.Other))!;
         WriteStartAndLater(path, "HostContract.LaterOtherScript", other, 1, 5);
-        var session = new HostContractSession(typeof(IHostEcho), host, path, "HostContract.LaterOtherScript.Script", ["Echo"]);
-        try
-        {
-            var error = CheckThrows<InvalidOperationException>(() => session.Invoke("OnTick"));
-            Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
-            Check(host.Calls.SequenceEqual([1]) && host.OtherSeen is null, "The unlisted callback ran.");
-        }
-        finally
-        {
-            session.Dispose();
-        }
+        var error = CheckThrows<InvalidOperationException>(() =>
+            new HostContractSession(typeof(IHostEcho), host, path, "HostContract.LaterOtherScript.Script", ["Echo"]));
+        Check(error.Message.Contains("host contract member", StringComparison.Ordinal), error.Message);
+        Check(host.Calls.Count == 0 && host.OtherSeen is null, "OnStart ran despite the unlisted callback.");
     }
 
     private static void InvokePassesTheHostAgain()

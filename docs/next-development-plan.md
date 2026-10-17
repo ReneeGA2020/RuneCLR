@@ -488,3 +488,5 @@ On 2026-10-17 desktop runtime tests passed 118/118. A later callback may take th
 On 2026-10-17 packaging tests passed 169/169. ValidateHostContract checks a later public callback on the entry when it takes the host and one int. A callback that echoes the int is accepted. string.IsNullOrEmpty in that callback is rejected. A public method with an unsupported signature is not checked. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 171/171. A later host-and-int callback may call a declared private assembly, and that private method is checked. A private AddOne used by the callback is accepted. string.IsNullOrEmpty inside that private method is rejected. OnStart itself does not call the private method. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 desktop runtime tests passed 119/119. HostContractSession rejects a supported later callback with a disallowed call before OnStart. An int callback, an int return, a host-and-int callback, and an unlisted host call all fail before Echo. A public method with an unsupported signature does not block OnStart. This is not an iOS result.

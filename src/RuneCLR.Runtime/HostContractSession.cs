@@ -175,6 +175,7 @@ public sealed class HostContractSession : IDisposable
             var start = RequireOnStart(entry, contract);
             var allowed = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
             RequireContractCalls(start, contract, allowed, "OnStart calls a method that is not a host contract member.", images);
+            RequireLaterCallbacks(entry!, contract, allowed, "The callback calls a method that is not a host contract member.", images);
             var script = Activator.CreateInstance(entry!)!;
             _invoking = true;
             try
@@ -459,6 +460,32 @@ public sealed class HostContractSession : IDisposable
         }
 
         if (!sawBase) throw new InvalidOperationException(failure);
+    }
+
+    private static void RequireLaterCallbacks(Type entry, Type contract, HashSet<string> allowed, string failure, IReadOnlyDictionary<string, byte[]> images)
+    {
+        foreach (var method in entry.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+        {
+            if (method.Name == "OnStart" || !IsSupportedCallback(method, contract)) continue;
+            RequireContractCalls(method, contract, allowed, failure, images);
+        }
+    }
+
+    private static bool IsSupportedCallback(MethodInfo method, Type contract)
+    {
+        if (method.IsGenericMethod) return false;
+        var parameters = method.GetParameters();
+        var returnsVoid = method.ReturnType == typeof(void);
+        var returnsInt = method.ReturnType == typeof(int);
+        if (!returnsVoid && !returnsInt) return false;
+        if (parameters.Length == 0) return returnsVoid;
+        if (parameters.Length == 1)
+        {
+            if (parameters[0].ParameterType == typeof(int)) return true;
+            return returnsVoid && parameters[0].ParameterType == contract;
+        }
+
+        return parameters.Length == 2 && parameters[0].ParameterType == contract && parameters[1].ParameterType == typeof(int);
     }
 
     private static void RequireContractCalls(MethodInfo method, Type contract, HashSet<string> allowedMethods, string failure, IReadOnlyDictionary<string, byte[]> images)
