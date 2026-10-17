@@ -226,8 +226,11 @@ public sealed class HostContractSession : IDisposable
 
     private static void RequireRelativeDll(string relative)
     {
-        if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.IndexOf((char)92) >= 0 || relative.IndexOf((char)58) >= 0 ||
-            relative.Split('/').Any(part => part is "" or "." or "..") ||
+        if (string.IsNullOrWhiteSpace(relative) || relative.Length > 240)
+            throw new InvalidDataException("Missing or oversized path.");
+        if (Path.IsPathRooted(relative) || relative.IndexOf((char)92) >= 0 || relative.IndexOf((char)58) >= 0 ||
+            relative.Any(character => character < 32 || "<>\"|?*".Contains(character)) ||
+            relative.Split('/').Any(part => part is "" or "." or ".." || part.EndsWith(' ') || part.EndsWith('.')) ||
             !relative.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
     }

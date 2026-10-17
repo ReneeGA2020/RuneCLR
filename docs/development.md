@@ -1526,6 +1526,9 @@ On 2026-10-17 desktop runtime tests passed 136/136. HostContractSession rejects 
 On 2026-10-17 desktop runtime tests passed 137/137. HostContractSession.Open rejects a blank producer tool, even after the content hash is recomputed. The message contains Missing or oversized producer.tool. The host method does not run. The same check bounds the producer tool version. A normal tool name still loads. This is not an iOS result.
 
 
+On 2026-10-17 desktop runtime tests passed 138/138. HostContractSession.Open rejects an entry path whose segment ends with a dot, even after the content hash is recomputed. bad./echo.dll does not run the host method. The message contains canonical relative DLL. The same check rejects control characters, reserved path punctuation, and segments that end with a space. A path longer than 240 characters is missing or oversized. A normal echo.dll path still loads. This is not an iOS result.
+
+
 ## Preserve experiment evidence
 
 On 2026-10-12, a separate Release interpreter performance experiment compared
