@@ -9,7 +9,7 @@ namespace RuneCLR.Packages;
 
 /// <summary>Rejects metadata outside the initial synchronous gameplay API profile without loading author code.
 /// This is a static compatibility gate, not semantic IL verification, execution metering or a security sandbox.</summary>
-public static class GameplayCapabilityPolicy
+public static partial class GameplayCapabilityPolicy
 {
     public const string Profile = "managed-il-gameplay-v1";
 

@@ -1,5 +1,5 @@
 var cases = CompilerCases.Cases().Concat(IntakeCases.Cases()).Concat(ManifestCases.Cases())
-    .Concat(PipelineCases.Cases()).Concat(CapabilityCases.Cases()).ToArray();
+    .Concat(PipelineCases.Cases()).Concat(CapabilityCases.Cases()).Concat(HostContractCapabilityCases.Cases()).ToArray();
 var failed = 0;
 foreach (var (name, run) in cases)
 {
