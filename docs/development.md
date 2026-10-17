@@ -1834,6 +1834,8 @@ On 2026-10-17 packaging tests passed 280/280. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 281/281. The operator CLI validate command accepts a host-contract package with one private assembly, then rejects it after that dependency file is deleted. The manifest is left unchanged. The error names missing or extra files. The manifest stays in place and the dependency file stays absent. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+On 2026-10-17 packaging tests passed 282/282. The operator CLI validate command accepts a host-contract package, then rejects it after the producer tool version is a single space and the content hash is recomputed. The error names Missing or oversized producer.toolVersion. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
 
 ## Preserve experiment evidence
 
