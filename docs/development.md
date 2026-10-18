@@ -1,5 +1,12 @@
 # Development handoff
 
+## Published Performance Results (2026-10-19)
+
+The [durable performance report](performance-results-20261018.md) records scoped
+accepted four-platform measurements and the same-iOS R2R/IL comparison. Next is
+callback-scoped time-limit work after this documentation is committed and pushed;
+no callback deadline or formal execution-mode baseline is established here.
+
 ## Product decisions
 
 RuneCLR first makes C# usable for iOS hot-update scripting, then adds UGC

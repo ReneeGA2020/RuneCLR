@@ -1,5 +1,12 @@
 # Roadmap
 
+## Current Performance Milestone (2026-10-19)
+
+See the [published performance results](performance-results-20261018.md) for
+accepted descriptive coverage and the bounded iOS native-entry comparison. Next:
+callback-scoped time limits, then a matched OFF/ON validation; this publication
+does not implement enforcement or close physical-device/execution-mode gaps.
+
 RuneCLR first makes **C# usable for iOS hot updates**, then adds **UGC
 management** on the same runtime foundation. The [product direction](product-direction.md)
 records this priority; [Roadmap #11](https://github.com/ReneeGA2020/RuneCLR/issues/11)
