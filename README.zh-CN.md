@@ -53,21 +53,39 @@ CoreCLR 上游的方向也是 R2R 与部分解释执行组合（[维护者说明
 
 ## 已经验证到哪里
 
-结果以链接中的具体配置为准，桌面结果包含最新的编译器回归验证。
+每项计数以链接中的对应套件和配置为准。
 
 | 能力 | 已有证据 |
 | --- | --- |
+| 实验性签名强类型会话 | 普通 Windows 与匹配的私有运行时通过 [17 项交付和 10 项会话检查](docs/trusted-embedding-next.md)：重复强类型调用、宿主所有权、关闭、receipt 不变和进程版本选择 |
+| 已签 R2R 首次激活 | [Windows x64 原生执行](docs/trusted-composition-delivery-native.md)：15 个绑定到方法的原生 PC，禁用 R2R 时匹配为零，另有 10 次 helper 解释执行证明 |
 | 桌面加载、错误恢复和回收 | [37 项生命周期、85 项打包、15 项同步执行、22 项逐帧执行验收](docs/package-execution-tests.md)，以及 [解释器执行证明](docs/interpreter-experiment.md) |
 | iOS ARM64 模拟器新增 IL | [安装后生成 IL 的九组方法、三种解释入口采样](docs/ios-open-delegate-entry-acceptance.md)；[更新宿主的逐帧预算应用通过 16 个场景、74 个上下文回收](docs/ios-pumped-budget-acceptance.md) |
 | Android x64 模拟器 | [Release 解释选择、拒绝恢复及正常原生对照](docs/android-session-policy-release-production.md)；[100/1000 批量计量与计时](docs/mobile-batch-measurement.md) |
 | 执行预算原型 | [Windows 受控包与逐帧原生预算组合通过 33/33 组](docs/controlled-package-native-budget.md)，iOS 模拟器另有诊断 IL 验收 |
 | 官方运行时缺陷跟踪 | [独立缺陷档案](docs/upstream-bugs/README.md)，包含 R2R/可回收上下文缓存缺陷与私有修复验证 |
+| 离线记录的模块/Host 文本关联 | [r9 有界离线验收](docs/validation/trusted-update-milestone-20261022.md#r9-recorded-text-correlation)：138 项合成、79 项记录和 7 项清单测试；仅验证启停记录的文本关联，不代表运行时执行 |
+
+本候选的 Windows 普通 SDK 门禁已实测通过：./eng/verify.ps1 退出码 0，耗时
+385.901 秒，SDK 11.0.100-rc.2.26504.105（UTC 2026-10-21T17:07:54 至
+17:14:20；本地 2026-10-22）。Runtime 146/146、Packaging 307/307、可信更新
+272/272、包执行 15/15 加逐帧 22/22、staging 17/17、recovery 37/37 通过，
+另有 6 项新增 callback-deadline 测试通过；源码前后稳定于
+dbd6574a1222e492300c15016554f7d00c3725cb58e44cabcde55cc32618148b。
+Windows、Linux 和 macOS 的最新 CI 结果见 [PR #17](https://github.com/ReneeGA2020/RuneCLR/pull/17)，
+合并前要求最新 PR 提交的三平台检查全部通过。Stock 拒绝/选项测试不证明
+私有 callback 时序、解释器、iOS 或原生执行。归档/本地收据：
+E:/RuneCLR-publish-evidence-20261022/verify-run-20261022/（verify-portable-summary.json；
+verify-portable-final.log SHA-256
+8ae4f252fc595add24999c36e2de987ca41f4650322a8cd934a8ecf14cce233d）；不提交完整日志。
+
+可信会话检查使用实验性桌面 Host。关闭逻辑会话会释放实例所有权，已选原生模块仍驻留到进程退出。同会话重复调用的原生执行单独验收。
 
 仍待完成：iOS 真机运行、正式同源 IL/R2R 构建验收、完整对象互操作与语言兼容矩阵、可分发运行包，以及真实游戏接入。**尚未实现恶意代码安全沙箱或硬内存隔离。**
 
 ## 快速体验
 
-安装与 `global.json` 兼容的 .NET 11 SDK，在仓库根目录运行：
+安装 .NET 11 SDK，在仓库根目录运行。仓库没有通过 `global.json` 固定 SDK；使用 `dotnet --version` 记录实际选中的版本。
 
 ```sh
 dotnet build RuneCLR.slnx -c Release
@@ -85,7 +103,7 @@ dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --colle
 - [入门与脚本示例](docs/getting-started.md) / [受控源码与 IL 打包](docs/controlled-packaging.md)
 - [产品方向](docs/product-direction.md) / [路线图](docs/roadmap.md) / [GitHub 总任务](https://github.com/ReneeGA2020/RuneCLR/issues/11)
 - [架构与对象生命周期](docs/architecture.md) / [CoreCLR 集成](docs/coreclr.md) / [安全与信任模型](SECURITY.md)
-- [开发交接](docs/development.md) / [贡献约定](AGENTS.md)
+- [可信更新集成里程碑](docs/validation/trusted-update-milestone-20261022.md) / [开发交接](docs/development.md) / [贡献约定](AGENTS.md)
 
 当前 API 仍使用 `Map` 命名，脚本用途不限于地图。UGC 受限配置、可信热更新配置与 CLR 本身的能力会分别记录；完整 .NET/NuGet 兼容性仍需逐项验证。
 

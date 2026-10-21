@@ -53,21 +53,44 @@ Hot update initially means obtaining and executing new logic after application p
 
 ## What Has Been Demonstrated
 
-Results apply to the linked configurations. Desktop counts include the latest source-compiler regression.
+Each count belongs to the linked suite and configuration.
 
 | Capability | Recorded evidence |
 | --- | --- |
+| Experimental signed typed sessions | [17 delivery and 10 session checks](docs/trusted-embedding-next.md) on stock Windows and the pinned private runtime: repeated typed calls, host ownership, close, unchanged receipt and process selection |
+| Signed R2R initial activation | [Windows x64 native execution](docs/trusted-composition-delivery-native.md): 15 bound native PC matches, none with R2R disabled, and ten interpreted-helper proofs |
 | Desktop loading, recovery and retirement | [37 lifecycle, 85 packaging, 15 synchronous-player and 22 pumped-player cases](docs/package-execution-tests.md), plus [interpreter execution evidence](docs/interpreter-experiment.md) |
 | New IL on the iOS ARM64 simulator | [Nine fresh-IL method groups across three interpreter entry paths](docs/ios-open-delegate-entry-acceptance.md); [updated pumped-budget host: 16 scenarios / 74 collected contexts](docs/ios-pumped-budget-acceptance.md) |
 | Android x64 emulator | [Release selection, refusal/recovery and native controls](docs/android-session-policy-release-production.md); [100/1000 batch accounting and timing](docs/mobile-batch-measurement.md) |
 | Execution-budget prototype | [Windows controlled packages with pumped native budgets: 33/33 groups](docs/controlled-package-native-budget.md), with separate diagnostic-IL acceptance on the iOS simulator |
 | Upstream runtime defect tracking | [Independent defect register](docs/upstream-bugs/README.md), including R2R/collectible-cache defects and private fix validation |
+| Offline recorded module/Host text correlation | [r9 bounded offline acceptance](docs/validation/trusted-update-milestone-20261022.md#r9-recorded-text-correlation): 138 synthetic, 79 recorded and 7 manifest tests; enabled/off text records only, not runtime execution |
+
+The measured Windows stock gate is ./eng/verify.ps1 exit 0 in 385.901 s on
+SDK 11.0.100-rc.2.26504.105 (UTC 2026-10-21T17:07:54 to 17:14:20; local
+2026-10-22). Runtime 146/146, Packaging 307/307, trusted update 272/272, package
+execution 15/15 plus pumped 22/22, staging 17/17 and recovery 37/37 passed;
+six new callback-deadline tests also passed. Source was stable before/after at
+dbd6574a1222e492300c15016554f7d00c3725cb58e44cabcde55cc32618148b. Current
+Windows, Linux and macOS CI results are linked from [PR #17](https://github.com/ReneeGA2020/RuneCLR/pull/17);
+merging requires all three checks to pass on the latest PR commit. Stock
+rejection/option tests do not establish private callback timing, interpreter,
+iOS or native execution. Archival/local receipt:
+E:/RuneCLR-publish-evidence-20261022/verify-run-20261022/ (verify-portable-summary.json;
+verify-portable-final.log SHA-256
+8ae4f252fc595add24999c36e2de987ca41f4650322a8cd934a8ecf14cce233d); the full
+log is not committed.
+
+The trusted-session checks use an experimental desktop Host. Closing a logical
+session releases instance ownership; its selected native modules remain resident
+until process exit. Repeated-call native execution has separate acceptance.
 
 Still ahead: physical iOS execution, formal same-source IL/R2R builds, a full object-interop and language compatibility matrix, distributable runtime packages and a real game integration. **This is not a hostile-code sandbox or a hard memory-isolation boundary.**
 
 ## Quick Start
 
-Install a .NET 11 SDK compatible with `global.json`, then run from the repository root:
+Install a .NET 11 SDK, then run from the repository root. The repository does not
+pin an SDK with `global.json`; use `dotnet --version` to record the selected SDK.
 
 ```sh
 dotnet build RuneCLR.slnx -c Release
@@ -85,7 +108,7 @@ This quick start uses ordinary SDK runtime selection. Required interpretation an
 - [Getting started and script example](docs/getting-started.md) / [Controlled source and IL packages](docs/controlled-packaging.md)
 - [Product direction](docs/product-direction.md) / [Roadmap](docs/roadmap.md) / [GitHub tracker](https://github.com/ReneeGA2020/RuneCLR/issues/11)
 - [Architecture and object lifetimes](docs/architecture.md) / [CoreCLR integration](docs/coreclr.md) / [Security and trust](SECURITY.md)
-- [Development handoff](docs/development.md) / [Contributor instructions](AGENTS.md)
+- [Trusted update integration milestone](docs/validation/trusted-update-milestone-20261022.md) / [Development handoff](docs/development.md) / [Contributor instructions](AGENTS.md)
 
 Current APIs retain prototype `Map` names; scripts need not be maps. Restricted UGC policy, trusted hot-update requirements and CLR capabilities are documented separately. Full .NET/NuGet compatibility requires explicit validation.
 

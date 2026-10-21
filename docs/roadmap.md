@@ -18,9 +18,16 @@ is the live tracker. Milestones express capabilities, not release dates.
 | --- | --- | --- |
 | [#1](https://github.com/ReneeGA2020/RuneCLR/issues/1) | Reproducible CoreCLR interpreter execution and lifecycle | Closed; desktop acceptance completed and merged into main |
 | [#2](https://github.com/ReneeGA2020/RuneCLR/issues/2) | Post-publication IL and repeated retirement on physical iOS | Open; ARM64 simulator evidence exists, device execution remains pending |
-| [#3](https://github.com/ReneeGA2020/RuneCLR/issues/3) | Startup, callbacks, host interaction and memory measurements | Desktop and mobile simulator/emulator experiments recorded; representative game/device envelope remains open |
+| [#3](https://github.com/ReneeGA2020/RuneCLR/issues/3) | Startup, callbacks, host interaction and memory measurements | Four-platform descriptive coverage complete: Windows336 + Mac336 + Android168 + iOS168 warm samples;105 child first-use intervals,6 separate Windows parent windows and480 functional rows. Original report (archival/local evidence: `../artifacts/four-platform-descriptive-performance-20261018/REPORT.md`) retained separately. New25group access/collections/override-dispatch extension has scoped Lead acceptance (archival/local evidence: `../artifacts/lead-access-collections-acceptance-20261018/ACCEPTANCE.md`):22 products,3150 formal samples,1350 warmups,100 untimed checks and704 original-gate rows in six separate request lanes; extension report (archival/local evidence: `../artifacts/access-collections-performance-bocx5e-20261018/REPORT.md`) and exact statistics (archival/local evidence: `../artifacts/access-collections-performance-bocx5e-20261018/reporting-r3/statistics.json`). Formal [execution-mode baseline and declared limits](four-platform-baseline.md) stay open; no numerical mode/causal inference; normal output append permitted, historical iOS broad-gate failure retained; devices skipped |
 | [#4](https://github.com/ReneeGA2020/RuneCLR/issues/4) | Controlled UGC source/IL packages and version compatibility | Local compiler/intake/player implemented; authenticated approval/distribution remains open |
 | [#8](https://github.com/ReneeGA2020/RuneCLR/issues/8) | Host-driven callbacks, events, timers and resource ownership | Pumped Start/Tick/Stop implemented; a callback-scoped map signal closes on return. A primitive tick schedule is taken on a later host tick and dropped on stop. Entity, log, and Charge calls require an open callback, and stop still releases those entities. The host can copy live entity ids and names between callbacks and can complete or fail primitive work between callbacks without retaining an exception. Wall-clock timers remain outside the session |
+
+The subsequent same25-workload iOS simulator R2R comparison (archival/local evidence: `../artifacts/lead-ios-r2r-comparison-acceptance-20261018/ACCEPTANCE.md`)
+accepts four native method-entry observations and a same-machine R2R/IL
+package pair:9 apps,1050 formal observations and450 warmups. Descriptive median
+ratios span7.82-204.81; composite optimization/layout/loading differ. This
+increment does not close independent downloaded R2R, devices or all-method
+execution qualification. Original four-platform results remain separate.
 
 The current versioned loader uses restricted `managed-il-gameplay-v1`; #4 does
 not yet provide a general trusted-update profile. Shared loading, diagnostics,
@@ -41,6 +48,51 @@ These are planned acceptance milestones. Start a minimal #12 integration while
 a real device is available; device preparation must not block independent work.
 Then validate the trusted-update stage of [game pilot #9](https://github.com/ReneeGA2020/RuneCLR/issues/9).
 The [work sequence](work-sequence.md) gives the contribution order.
+The [desktop signed-delivery example](trusted-update-delivery-sample.md) now
+verifies and stages a complete signed payload before entry activation. Its
+Windows startup/staging checks and macOS signature, staging and host checks are recorded in the
+[handoff](development.md). A local-file-stream prototype now stages, starts
+and automatically recovers a signed release across process restarts in the
+lead's Windows checks and the accepted macOS arm64 snapshot. External network transport,
+rollback policy and physical iOS delivery acceptance remain open under #12.
+The Windows x64 [signed composition driver](trusted-composition-delivery-native.md)
+now executes independently built R2R updates and private dependencies through
+signed staging and next-process recovery. The lead reran both native-positive
+and ReadyToRun-disabled controls and audited actual method PCs, final payload
+hashes, helper interpreter entries and shared-object behavior. This desktop
+acceptance does not establish the iOS delivery path.
+
+The [typed session experiments](trusted-embedding-next.md) separately accept
+canonical repeated native calls and score-specific native game rounds on
+Windows x64, plus same-version successive rounds on stock desktop IL. Rounds
+retain selected code/statics while creating new instances. Post-seal
+changed-update validation now has scoped offline acceptance; no new native run
+is credited to that checker repair. The two-game contract integration has
+passed its stock-IL gate. Its distinct desktop native experiment has delivered
+eight honest exit-0 processes, but independent review rejects native bindings:
+18 armed attempts produce no targeted frames. Final Host parity now returns
+unsupported FieldRVA signature; both modules match. The delivered checker still
+rejects full per-call scope coverage, and a lead synthetic probe finds missing
+PC/base/RVA consistency checking. Orca Workers continue review and mapping
+diagnosis. The loopback HTTP download/staging implementation now has joined
+scoped acceptance for nine independently reproduced deadline-enabled lanes and
+the same final Host's stock 17/10 baseline. Separately, a lead
+stock-.NET diagnostic measures that ResponseHeadersRead body reads outlive
+HttpClient.Timeout and terminate with an explicit body-spanning deadline;
+that framework diagnostic is separate from HTTP-adapter acceptance. Current evidence is linked from the
+[compatibility matrix](compatibility-matrix.md). These results do not establish
+same-process version switching or close #12 or #13.
+
+Different business versions now have a separate
+desktop loopback acceptance (archival/local evidence: `../artifacts/lead-distinct-http-acceptance-20261018ez/receipt.json`)
+on Host e5c00853. Independently compiled signed A/B modules produce Host state
+0/3/6 and 0/5/10. Original and independent five-process runs cover selection,
+server-free recovery, tampered-B fallback to A and fresh-process B selection;
+same-process B is rejected by the existing gate. This advances trusted delivery
+at process boundaries without establishing same-process replacement or native
+execution. Prelaunch/full-Host-seal evidence is a separate repair task. The
+artifact remains outside the SDK; external networking/TLS and physical iOS
+packaging, loading and execution remain open.
 
 Trusted integration does not depend on completing public-UGC isolation or hard
 CPU/memory limits. A first-party update module is trusted and can use its own
@@ -73,7 +125,7 @@ or IL; controlled builds create runnable packages. Trusted host/framework R2R
 remains allowed. Later native UGC needs equivalent restrictions and is separate
 from trusted same-source builds.
 
-The current IMapContext entity surface is a prototype host. A game does not need entities to use the UGC mechanism. The mechanism is script loading, capability limits, execution, and unload. A host-defined API is not implemented here. On 2026-10-17 its decided shape is a game-owned shared CLR interface called directly by the script. IMapContext is not renamed. See the product direction.
+The current IMapContext entity surface is a prototype host. A game does not need entities to use the UGC mechanism. The mechanism is script loading, capability limits, execution, and unload. The desktop score-game sample runs a shared host contract. See score-game.md. On 2026-10-17 its decided shape is a game-owned shared CLR interface called directly by the script. IMapContext is not renamed. See the product direction.
 
 Current UGC evidence includes [controlled packaging](controlled-packaging.md),
 [capability policy](capability-policy.md), [required interpretation](session-execution-policy.md),

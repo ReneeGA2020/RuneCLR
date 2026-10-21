@@ -58,6 +58,7 @@ public sealed record MapPackage(string Id, string AssemblyPath, string EntryType
     private static MapPackage FromVersionedManifest(string path)
     {
         var manifest = PackageManifestIO.Read(path);
+        RejectHostDefinedContract(manifest);
         PackageValidator.Validate(manifest, path);
         var directory = Path.GetDirectoryName(path)!;
         var package = new MapPackage(manifest.Id, PackageValidator.ResolvePath(directory, manifest.EntryAssembly), manifest.EntryType)
@@ -75,6 +76,7 @@ public sealed record MapPackage(string Id, string AssemblyPath, string EntryType
     {
         if (VersionedSnapshot is null) return;
         var original = VersionedSnapshot;
+        RejectHostDefinedContract(original);
         // Provenance records describe compiler inputs, but do not define the
         // actual host contract. Reject incompatible versioned inputs before
         // creating an ALC; reference image hashes need not equal host R2R bytes.
@@ -99,6 +101,15 @@ public sealed record MapPackage(string Id, string AssemblyPath, string EntryType
             throw new InvalidDataException("The versioned manifest changed after package creation.");
     }
 
+    private static void RejectHostDefinedContract(PackageManifest manifest)
+    {
+        if (!string.IsNullOrWhiteSpace(manifest.HostInterface) &&
+            !string.Equals(manifest.HostInterface, "RuneCLR.IMapContext", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "This package uses a host-defined contract. Open it with HostContractSession.");
+        }
+    }
     internal static string ResolvePackagePath(string directory, string path)
     {
         if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path) ||

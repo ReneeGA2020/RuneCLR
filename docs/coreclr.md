@@ -46,13 +46,25 @@ fallback, and document the target's packaging/signing/loading route. Loading an
 R2R-marked file while interpreting all its methods is insufficient evidence of
 R2R native execution. Physical iOS results remain required for device claims.
 
+On 2026-10-18 the Windows x64 signed local-file composition path passed both
+the Orca Worker's run and the lead's fresh frozen-source rerun. Five processes
+per lane cover staging, recovery and author failure. Actual Host/Update/Private
+method return PCs match final-image SHA, executable sections, RuntimeFunctions
+and exact method maps with ReadyToRun enabled; those matches disappear with
+the same payload bytes and ReadyToRun disabled. The IL-only helper supplies
+precode 6 and successful Compute IR in all ten processes. See the
+[handoff](development.md) and [driver](trusted-composition-delivery-native.md).
+This accepts a desktop delivery increment, with iOS still requiring its own
+platform packaging/signing/loading and physical execution evidence.
+
 ## Baseline
 
 The prototype targets `net11.0`. Initial local verification used the
 installed .NET 11 Preview 6 SDK; later official RC1 validation is recorded in
-the handoff. `global.json` sets the compatible minimum SDK and permits later
-.NET 11 feature-band/prerelease SDKs through `latestFeature`, including RC1.
-It does not pin the separate runtime checkout's product version. CI selects the latest .NET 11 prerelease SDK
+the handoff. `global.json` was removed in `b63c6d8`; record the SDK actually
+selected rather than restoring a project SDK pin. The selected compiler and
+reference pack do not identify the separate execution runtime's product version.
+CI selects the latest .NET 11 prerelease SDK
 available to `setup-dotnet`. No .NET installation is modified, no upstream
 runtime binaries are replaced, and no CoreCLR source is vendored in this commit.
 

@@ -126,7 +126,9 @@ public delegate TrustedUpdateActivation TrustedUpdateActivator(
 
 /// <summary>
 /// One host-loaded start. Value comes from the activator and is meaningful
-/// only when Failure is None. Activation failure does not fall back.
+/// only when Failure is None. Calling the activator occupies the process.
+/// If it fails or throws, the process stays occupied, the last known good
+/// record is not replaced, and this process does not fall back.
 /// </summary>
 public readonly record struct TrustedUpdateHostStart(
     TrustedUpdateFailure Failure,

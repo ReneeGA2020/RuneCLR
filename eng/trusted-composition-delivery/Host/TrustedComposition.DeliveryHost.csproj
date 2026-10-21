@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>TrustedComposition.Delivery</RootNamespace>
+    <AssemblyName>TrustedComposition.DeliveryHost</AssemblyName>
+    <DefaultItemExcludes>$(DefaultItemExcludes);UnlistedDep/**;UnlistedCaller/**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../trusted-composition/Contract/TrustedComposition.Contract.csproj" />
+    <ProjectReference Include="../../../src/RuneCLR.TrustedUpdate/RuneCLR.TrustedUpdate.csproj" />
+    <ProjectReference Include="UnlistedDep/DeliveryAppDep.csproj" />
+    <ProjectReference Include="UnlistedCaller/UnlistedCaller.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
+    <ProjectReference Include="../../trusted-composition/Update.A/TrustedComposition.Update.A.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
+    <ProjectReference Include="../../trusted-composition/Update.B/TrustedComposition.Update.B.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../windows-entry-observation/WindowsEntryObservation.cs" Link="WindowsEntryObservation.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../game-contracts/OrbitGame.Contracts/OrbitGame.Contracts.csproj" />
+  </ItemGroup>
+</Project>

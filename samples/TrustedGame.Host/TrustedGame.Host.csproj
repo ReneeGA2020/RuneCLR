@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../TrustedGame.Contracts/TrustedGame.Contracts.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.TrustedUpdate/RuneCLR.TrustedUpdate.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>TrustedGame.Update</AssemblyName>
+    <RootNamespace>TrustedGame.Update</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../TrustedGame.Contracts/TrustedGame.Contracts.csproj" Private="false" />
+  </ItemGroup>
+</Project>

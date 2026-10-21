@@ -11,6 +11,8 @@ public sealed record MapRunOptions
     public MapExecutionPolicy ExecutionPolicy { get; init; } = MapExecutionPolicy.Default;
     // Experimental native IR-dispatch budget, not a complete execution-time sandbox.
     public long? PrototypeInstructionBudget { get; init; }
+    public TimeSpan? PrototypeCallbackDeadline { get; init; }
+    public int PrototypeDeadlinePollInterval { get; init; } = 100;
     public long PrototypeCleanupInstructionBudget { get; init; } = 4_096;
     // Only MapRunner.Run uses TickCount; pumped sessions advance when the host calls Tick.
     public int TickCount { get; init; } = 3;
@@ -30,6 +32,14 @@ public sealed record MapRunOptions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(PrototypeCleanupInstructionBudget);
         if (PrototypeInstructionBudget is not null && ExecutionPolicy != MapExecutionPolicy.RequireInterpreter)
             throw new ArgumentException("Prototype instruction budgets require RequireInterpreter.", nameof(ExecutionPolicy));
+        if (PrototypeCallbackDeadline is { } deadline)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(deadline, TimeSpan.Zero);
+            if (ExecutionPolicy != MapExecutionPolicy.RequireInterpreter || PrototypeInstructionBudget is not null)
+                throw new ArgumentException("Callback deadlines require RequireInterpreter and a separate instruction-budget lane.");
+            if (PrototypeDeadlinePollInterval is not (1 or 100 or 1000))
+                throw new ArgumentOutOfRangeException(nameof(PrototypeDeadlinePollInterval));
+        }
         ArgumentOutOfRangeException.ThrowIfNegative(TickCount);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(TickDuration, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(OperationBudgetPerCallback);
@@ -60,7 +70,11 @@ public sealed record MapRunReport(
     public MapExecutionPolicy ExecutionPolicy { get; init; }
     public int ExecutionPolicyVersion { get; init; }
     public PrototypeBudgetSnapshot? PrototypeBudget { get; init; }
+    public CallbackDeadlineSnapshot? PrototypeDeadline { get; init; }
 }
+
+public sealed record CallbackDeadlineSnapshot(long ClockFrequency, long ClockChecks, long AdmittedOperations,
+    bool Active, int PollInterval, long LastToken, int Reason);
 
 // Scalars copied before Unload; no session context, author metadata or exception is retained.
 public sealed record PrototypeBudgetSnapshot(

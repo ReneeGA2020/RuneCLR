@@ -5,6 +5,430 @@ Prepared on 2026-10-15 for implementation in a new session. Follow the
 Updated after the Windows independent-composition experiment. Completion is
 limited to the explicitly recorded configuration; remaining acceptance is planned.
 
+## Current Follow-Up - 2026-10-21
+
+The complete maintained Windows desktop regression passes. The maintained
+offline observation verifier now derives expected calls internally, rejects
+invalid executable protection combinations, handles complete roots with spaces
+and is integrated into local verification and the three-OS CI configuration.
+Lead tests and the Orca Worker terminal delivery agree on target18/runtime18;
+the failed original policy and parent status remain historical. The offline
+repair is complete within this scope; no interpreter identity follows. See the
+current validation (archival/local evidence: `../artifacts/lead-offline-integration-20261021/VALIDATION.md`).
+
+Generic interaction and R2R size observations now have separate scoped
+[interop](direct-interop.md#measured-on-desktop) and
+size (archival/local evidence: `../artifacts/lead-generic-size-review-20261021/VALIDATION.md`) evidence.
+The historical F3 retained replay passed 443 checks per campaign, and the
+earlier portable/explicit run passed 19/86; those counts remain historical and
+were not produced by the current strict validator. The current generic-runner
+strict context validation passes 64 default/136 explicit checks, rejects 66/66
+mutations, and rejects missing unloadRequested/collectionClaimed fields; see the
+Lead context checks (archival/local evidence: `../artifacts/lead-resident-stock-review-20261021/context-checks.json`).
+The original unauthorized 6-build/4-Host deviation and both campaign identities
+remain.
+
+The generic Host's resident mode is now observed on stock .NET 11 RC2 Windows
+x64: exactly two separately released fresh Host processes A then B (PIDs
+872/27340, exit 0), six fixture-derived shape outcomes plus callback failure,
+resident with
+contextIsCollectible=false/unloadRequested=false/collectionClaimed=false, and
+138 Lead checks. The campaign used a new Host/Contracts/TrustedUpdate trio plus
+retained w02 A/B modules (mixed build provenance), with zero builds/crossgen.
+The earlier compile-only resident build and
+22 artifact checks (archival/local evidence: `../artifacts/lead-generics-portability-20261021/resident-checks.json`)
+remain historical. This is stock managed compatibility only: no R2R/native,
+interpreter/fallback, collection/unload, iOS/device or restricted-UGC claim
+follows; devices remain skipped. See the
+Lead resident validation (archival/local evidence: `../artifacts/lead-resident-stock-review-20261021/VALIDATION.md`).
+
+The retained generic R2R build root
+D:/RuneCLR-artifacts/trusted-game-generics-r2r-build-20261021-x3yd3fe4 has
+exactly three managed builds, five independent non-composite crossgens and zero
+Hosts. New A/B module images were built after the Host; Host outputs stayed
+frozen, source inputs were unchanged, and IL/R2R MVIDs match. The
+Lead audit (archival/local evidence: `../artifacts/lead-generic-r2r-build-review-20261021/VALIDATION.md`)
+and artifact checks (archival/local evidence: `../artifacts/lead-generic-r2r-build-review-20261021/checks.json`)
+pass 414 artifact checks. The parent report's 8-byte-stride section tables are
+retained as a defect; corrected 12-byte type/RVA/size tables are accepted only
+in the fresh derivative
+D:/RuneCLR-artifacts/trusted-game-generics-r2r-report-repair-20261021-x3yd3fe4,
+with seven parser tests and 377 Lead repair checks (archival/local evidence: `../artifacts/lead-generic-r2r-build-review-20261021/repair-checks.json`) while all 226 parent files
+stay preserved and no product is rerun. The
+map supplement (archival/local evidence: `../artifacts/lead-generic-map-supplement-review-20261021/VALIDATION.md`)
+shows canonical Echo and LateRoundTrip rows, Measure copied IL without a
+selected native row, and no exact Host candidate. An empty exactHostCandidates
+set does not prevent a later canonical Echo witness joined to actual T, PC, PID
+and call id. No root is released. These are build/report facts without generic
+native/interpreter execution or same-source behavioral acceptance.
+
+The constructed generic IR reader now has an accepted portable contract: 28
+synthetic tests pass, and four former malformed-input acceptances reject. It is
+text-only, retains exact generic arguments/signatures, and derives no
+assembly/token/MVID or real-dump/execution-mode evidence. See the
+Lead hardening review (archival/local evidence: `../artifacts/lead-generic-ir-hardening-review-20261021/VALIDATION.md`).
+The reader/test wiring is now Lead-accepted in maintained local verification
+and CI configuration. eng/verify.ps1 and .github/workflows/ci.yml each gained
+exactly two lines invoking the 28-test suite once immediately after
+generic-interaction portability, with a PowerShell exit guard and unchanged
+three-OS matrix. Exact before/after bytes were verified; 60 Lead checks and
+PowerShell AST (PS_PARSE_OK), YAML parsing and scoped git diff --check pass. One
+measured local Windows invocation exited 0 with 28 tests, zero failures/errors
+and zero products. Remote CI was not triggered; the three-OS matrix is
+configured, not executed. Reader/test source hashes are unchanged. See the
+integration validation (archival/local evidence: `../artifacts/lead-generic-ir-integration-review-20261021/VALIDATION.md`) and
+checks (archival/local evidence: `../artifacts/lead-generic-ir-integration-review-20261021/checks.json`).
+
+The independent prep-r6 review returned GO
+(SHA-256 8e923f3f480ead0f2911ae61f866666f43696e4be251eda7c37fd0aea817016b).
+The Lead released exactly one execute invocation of the sealed r5 runner
+against the existing r6 plan: two stock-SDK Publishers followed by three private
+Checked forced-control Hosts, stageA multiplier 1, stageB multiplier 2, recoverB
+multiplier 2. Zero builds, crossgens, retries or devices; stop at first failure.
+The released execution has now terminated FAILED-CLOSED. Exactly two stock-SDK
+Publishers and the stageA forced-control Host ran and exited 0; stageB and
+recoverB were not launched, and no retry or rerun occurred. The runner exited 1
+with EntryProbeError (entry-unknown-prefix 1892). The entire raw stageA.stdout
+has SHA-256 bb112fbdc5c01aca655d601484a35420dab62a2fb454faaf1e4f6e542b28b5ca;
+its failing line 1892 carries the unrecognized native diagnostic fragment
+"Slot 2 (local var #4 offset 64) li" immediately before an otherwise valid
+ENTRYOBSERVATION, so acceptance is false. Six stageA ENTRYOBSERVATION records
+cover Host/Tick ordinals 1/2/3 with results 1/3/6, KindByte 6, DecodedKind
+Interpreter and ObservedInterpreted true; those are entry/kind observations
+only. An independent raw audit now returns GO for a narrowly bounded stageA
+observation (gameplay 1/3/6, six intact kind-6 entry records, CALLERDLL hash).
+Offline repair v1's actual reading passed but v1 is NO-GO for reuse; successor r2
+passes 89 guarded tests, 70 negatives and 57 pins and fixed the Lead's seven
+replay cases, yet a stored AssemblyRef public-key-token byte-order bug
+(System.Runtime b03f5f7f11d50a3a decoded as 3a0ad5117f5f3fb0) keeps reusable
+acceptance NO-GO, with r3 unaccepted at that point. Independent public-signature
+verification passes 36 checks but does not prove a B Host. StageB/recoverB
+behavior and the expected B 2,6,12 results were not observed. The retained control report
+is
+D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-execution-control-dw517j-20261021/REPORT.md.
+A runner pass alone is not raw attribution acceptance. The later raw audit and
+public-signature check cover only their bounded scopes; the old results-filename
+refusal and weak IR prefix/signature matching remain explicit residuals. See the pre-run
+Lead release (archival/local evidence: `../artifacts/lead-entry-r6-release-20261021/RELEASE.md`).
+
+The old r4/plan-r5 review remains historical NO-GO evidence. The r5/r6 package
+retains its 40 files, 82 checks, 97 retained checks and 16 aligned mutations
+offline review. Forced-control evidence will not establish natural mixed
+fallback, generic body, whole-method, performance, unload, iOS or overall
+acceptance. Physical devices remain skipped.
+
+### Generic body diagnostic and module witness evidence (2026-10-21)
+
+An artifact-only r2 function-pointer body-witness candidate now has one isolated
+stock-SDK Host compile (exit 0, zero warnings/errors, no module execution; Lead
+r2 compile review 268 checks). Separately, metadata-only inspect-il assertions
+verify three direct call sites in three NoInlining bodies and four kernel32
+infrastructure imports. A bounded two-process stock
+smoke then ran default-off PID 33988 and enabled PID 29052, both exit 0, with
+equal source-derived A goldens, counters, ledger and CallbackFailed-to-Closed
+closure. It is resident, mixed provenance (new r2 Host trio plus retained Module
+A IL and leaf), and records six ordered enabled success records with nonzero raw
+PCs/TypeHandles and no capture errors; disabled report omission is not a no-I/O
+claim. This earlier fnptr diagnostic campaign is its own bounded observation:
+the Lead review passes 137 checks and the independent audit passes 333 checks.
+It has no module-side records; its enabled Host-side diagnostics carry
+closedMethodKeys with implementation MethodDefs
+0x060000A1/0x060000A2/0x060000A6. The launch harness
+crashed after both lanes on
+a tuple-key serialization TypeError; reports and after-pins were produced by an
+offline repair without a rerun, so after-pins are POST-HOC rather than
+continuous immutability, and five temporary harness files were later removed
+while three logs were added. Consumed lane/Host/module/leaf/pin hashes stayed
+stable. Raw PCs remain unclassified; no native/R2R/interpreter/fallback,
+PC/image/RuntimeFunction attribution, module join, whole-method, unload or
+device claim follows.
+
+The later module-invocation witness stock smoke is distinct: default-off PID
+40020 then enabled PID 28180, both exit 0 with timeout false, no third run or
+retry. The enabled lane has six ordered Host records plus one witness header and
+twelve module phase records for Echo 2, Measure 3 and LateRoundTrip 1; its
+22,053-byte witness file has SHA-256
+6e2e0252c418ad182fd7ae39ad0f605fae3e6eef7c9d721bcfed58014514c6ad, while the
+disabled lane omits diagnostics. Independent audit passes 370 checks over 80
+pins with zero drift and no new products. Static PE metadata links MethodSpecs
+0x2B000002/000007/00000C/000011/00001B to callvirt at GameModule.Run IL
+offsets 64/198/392/505/618/1161, which is static callsite metadata rather than a
+runtime module PC. Host implementation MethodDefs 0x060000A1, 0x060000A2 and
+0x060000A6 differ from Contracts interface MethodDefs 0x06000008, 0x06000009
+and 0x0600000D. Provenance is mixed (r2 Host nine-file layout, corrected Module
+A build, retained leaf; module MVID
+8a8309a7-f2c2-40ed-93b2-0ac9a523007f, Contracts MVID
+f601ceab-2245-471d-bd7c-bf86905853db). Runtime ResolveMethod, reflective
+CurrentScenario, runtime dispatch, module PC/IR/native/interpreter/R2R/fallback,
+unload, iOS/device and overall acceptance remain false. See the
+stock acceptance (archival/local evidence: `../artifacts/lead-module-invocation-witness-review-20261021/stock-independent-acceptance.json`)
+and
+D:/RuneCLR-artifacts/trusted-game-generic-module-witness-stock-audit-l12z-20261021/REVIEW.md.
+
+The r6 entry campaign remains FAILED-CLOSED (two Publishers plus stageA, all
+exit 0; no retry; stageB/recoverB unlaunched). The independent raw audit's GO is
+bounded to stageA. Offline repair v1's actual reading passed but v1 is NO-GO for
+reuse (no independent signature lineage, broad scalar/framing acceptance, IR
+row-order/duplicate defects, negative-test masking). Successor r2 passed 89
+guarded tests, 70 negatives and 57 pins and fixed the Lead's seven replay cases,
+but the Lead found a stored AssemblyRef public-key-token byte-order bug
+(System.Runtime b03f5f7f11d50a3a decoded as 3a0ad5117f5f3fb0), so reusable
+acceptance remained NO-GO at that point; r3 remained unaccepted. The maintained 28-test
+text IR reader is separate from the artifact 46-PASS suite, which is not reusable
+validation. Independent public-signature
+verification passes 36 checks for A/B envelopes and bound receipt/staged bytes
+without proving a B Host. The r3 correction terminal was not accepted and was not
+inspected.
+
+The original r7 entry campaign is terminal FAILED: two stock Publishers plus
+stageA and stageB forced-control Hosts all exited 0; stageA validation passed
+before stageB launch, stageB was rejected with EntryProbeError
+entry-unknown-prefix 1890, and recoverB was never launched. No retry was
+released. Offline reconstruction does not change the campaign status. See the
+r7 execution audit (archival/local evidence: `../artifacts/lead-entry-r6-offline-repair-r3-review-20261021/r7-independent-execution-audit-acceptance.json`).
+
+The original module-invocation witness compile is terminal FAILED: exactly one
+Module.A stock build (PID 45948, exit 1, timeout false) produced two CS0118
+errors at ModuleInvocationWitness.cs 227:36 and 254:49 (Module namespace versus
+System.Reflection.Module); Module.B was not attempted and no module DLL was
+produced, while Contracts compiled. No Host run or live edit occurred. The
+corrected two-line System.Reflection.Module derivative has three cumulative
+stock build commands: the failed original plus successful Module.A and Module.B,
+A before B, with no Host execution. This is compile-only acceptance; this
+corrected compile campaign itself has zero Hosts and no runtime module records,
+and runtime MethodSpec resolution and serialization remain unestablished for it.
+The separate later stock smoke has actual module phase records and static
+callsite metadata, but no independently proven runtime dispatch. The join reader
+r5 is accepted only as synthetic trusted-descriptor/profile text validation, not
+an actual runtime join. Static exporter r3 and demux r4 are separate
+bounded offline acceptances; none establishes PC/image or RuntimeFunction
+binding. The first-party independent-R2R-plus-interpreter goal is unchanged;
+physical devices remain skipped.
+
+## Offline Evidence Consolidation (2026-10-21)
+
+The accepted offline artifacts are separate from campaign execution and from one
+another. Join reader r5 passes 138 tests with an independent GO within a trusted
+caller-supplied descriptor and limited CoreLib profile; TypeDef kind/bounds are
+syntactic, descriptor provenance is not PE-derived, and it is not an actual
+runtime join. Static exporter r3 passes 61 checks and 48 negatives under a scoped
+retained implicit-signature/no-MethodImpl static PE/IL profile; it is not general
+ECMA completeness and not runtime dispatch. Demux r4 passes 34/22 original,
+9/2 fixes and 93/73 regression cases including 89 canonical splits and three
+actual reference reconstructions; exact/canonical are retained-reference GO only
+under an externally pinned caller-trusted manifest, while structure mode leaves
+caller-selected intops unanchored and all reference flags false.
+
+The r9 recorded module/Host text correlation is accepted only as an offline
+artifact result under a caller-trusted 50-input manifest: 138 synthetic, 79
+recorded (71 intended negatives) and 7 manifest tests pass; 49 hashes, 48
+outputs and 50 pins verify. Enabled PID 28180 has six Host records and twelve
+module phases; off PID 40020 validates identity, business closure and resident
+context without fabricated records. The r8 bad pin is preserved and r7 remains
+frozen unchanged; the original r7 campaign remains FAILED at
+entry-unknown-prefix 1890 with recoverB absent. The general manifest_tool API is
+not accepted: beforeUnchanged is unconditional, write_entries trusts a supplied
+pathKey, and verify_relative_manifest lacks general containment. Fix those API
+residuals before reuse; do not promote this offline text correlation to
+runtime/native/interpreter/R2R/PC/whole-method/unload/iOS/overall acceptance.
+See the
+[milestone evidence summary](validation/trusted-update-milestone-20261022.md#r9-recorded-text-correlation).
+
+## Current engineering sequence - 2026-10-20
+
+The owner approved moving from isolated execution observations toward a stable,
+engine-independent trusted-update example. The sequence below now has scoped
+Windows baselines; the linked handoff records their exact evidence and limits:
+
+1. Extract the experimental typed synchronous module owner into
+   `RuneCLR.TrustedUpdate`, preserving direct game-owned CLR interfaces, close
+   during a borrowed call, failure closure and reference release. Integrate its
+   lifecycle regressions with the normal solution and verification entry points.
+2. Build a minimal game-owned contract, a host without an update-project
+   reference, and a separately built update using that owner. Check the host
+   remains unchanged while the update builds, then run the stock-SDK sample.
+3. Extend that maintained example to same-source IL/R2R builds and a declared
+   compatibility surface, reusing existing execution evidence where applicable.
+4. Compose the existing signature, staging and recovery components into the
+   example, then exercise its chosen version boundary and ordinary failures.
+
+The typed-owner harness passes 15 checks, the full packaging harness passes
+307/307, and the stock sample and signed A/recovery/failure baseline have Lead
+execution evidence. The signed Host also has independent read-only review with
+35 matching input pins and no blocking defect. See the
+signed baseline (archival/local evidence: `../artifacts/lead-trusted-game-signed-20261020/VALIDATION.md`).
+The existing same-source result proves independent IL/R2R artifacts and
+functional layouts; it does not establish method execution mode.
+
+The maintained successful A/B business-version sequence now has a separate
+Lead execution record (archival/local evidence: `../artifacts/lead-trusted-game-ab-20261020/VALIDATION.md`):
+same assembly identity with different bytes/MVID, actual A 1/3/6 and B 2/6/12
+for the same inputs, and successful signed B activation and next-process
+recovery. The previous wrong-entry case remains a separate failure control.
+The Host expected-result option changes assertions only; a wrong expectation
+fails on B's real result and preserves the B receipt. Targeted source review
+found no concrete defect, with 13 matching input pins. The same-source driver
+now reuses this signed A/B flow in independent IL/R2R layouts, with
+completed Windows execution and Lead checks (archival/local evidence: `../artifacts/lead-signed-ab-driver-acceptance-20261020/VALIDATION.md`):
+five image pairs, actual A/B gameplay and receipt replacement/recovery, 25
+unchanged source pins and 221 raw-evidence checks. The diagnostic-parser guard
+fix is promoted, with the maintained six-check self-test and actual-row offline
+replay passing while contradictory rows reject. The historical run is preserved.
+Next is measuring method execution separately from build-layout proof. Linux/macOS CI and mobile
+native delivery remain outside this executed acceptance.
+The first isolated method-PC observation has
+Lead raw review (archival/local evidence: `../artifacts/lead-method-proof-run2-review-20261020/REVIEW-STATUS.md`):
+18 enabled observations bind to Host/A/B target methods; disabled observations
+bind to coreclr.dll, so the original non-image gate remains failed. Independent
+review now supports that bounded native callsite observation. Next finish the
+offline post-processing repair and prepare method-specific fallback evidence; preserve the failed
+campaign and do not infer interpreter fallback from the runtime address.
+
+The 2026-10-20 raw mixed observation (archival/local evidence: `../artifacts/lead-trusted-mixed-fallback-acceptance-20261020/ACCEPTANCE.md`)
+remains narrowly accepted while its original campaign stays failed-closed.
+Repair frozen-descriptor consistency and instruction counting as reusable tool
+work; do not rerun that old campaign for a green status. Physical devices stay
+skipped; iOS packaging, signing/loading and real-device acceptance remain open.
+The dated sequence below preserves the earlier experiments and their limits.
+
+## Historical execution plan - 2026-10-18
+
+The historical steps below retain their original platform evidence. Use the
+[handoff](development.md) and [typed embedding brief](trusted-embedding-next.md)
+for the current experimental Host and ownership contract. Physical devices
+remain deferred. The approved current sequence includes Windows, macOS, iOS
+simulator and Android emulator measurements before the UGC callback deadline;
+see the [four-platform baseline status](four-platform-baseline.md). The older
+platform deferrals below describe their original increments.
+
+The reviewed signed typed session is now in the experimental delivery Host.
+Its canonical source combination passes 17 delivery and ten integration checks
+on stock Windows and the pinned private runtime. Initial activation also passes
+the signed native enabled/disabled lanes: 15 bound native method PCs in the
+enabled lane, none in the disabled lane, and ten interpreted helper proofs.
+Closing a logical session clears its instance ownership; the selected version,
+resident assemblies, process gate and signed recovery receipt remain in place.
+
+The post-promotion full verification is accepted from one uninterrupted local
+Windows run: actual returncode 0, 469 inputs unchanged, delivery 17/17 and
+integration 10/10 alongside the existing suites and samples. Evidence is
+`artifacts/lead-promoted-full-verify-acceptance-20261018s/receipt.json`. The
+earlier missing-exit run is preserved separately; configured CI jobs are not
+counted as executed.
+
+The following frozen-v2 steps record the repeated-call checker history. The
+current canonical measurement and reusable map-closure repair are now
+scoped-accepted at
+`artifacts/lead-current-delivery-disposition-20261018bh/canonical-measurement-acceptance.json`
+and `artifacts/lead-map-closure-acceptance-20261018bj/receipt.json`. They remain
+experimental driver results outside SDK/CI promotion.
+
+1. Measure the second and third real calls in one signed session with native
+   execution enabled and disabled. Each call needs fresh method and helper
+   observations, with interpreter compilation evidence scoped to the process.
+   Check close during an active call, later failure, unchanged receipt, locked
+   same-process recovery and recovery in a fresh process. Initial-activation
+   witnesses do not establish these later calls. The reused v2 measurement has
+   14 call segments and 21 enabled PC matches. Revision r3 passes replay with
+   independently bound helper metadata and strict call-result checks; those
+   repairs also passed scoped independent review. Independent
+   review then found that copying call 1's witness rows into call 2 still passes;
+   the lead reproduced this on r3. That generation retains its acceptance gap.
+2. The new call-scoped batch now has lead and independent raw-evidence review:
+   eight actual exit-0 processes, 14 segments and 21 enabled method bindings;
+   the disabled control has zero witnesses. Old-ID witness copies reject and
+   identical PCs remain valid. Evidence is
+   `artifacts/lead-call-scope-raw-audit-20261018aj/receipt.json`.
+3. Revision r4 fixes the two later validator gaps: scenario-defined exceptional
+   exit and recovery FACTS semantics. The lead replay exits 0, rejects 26
+   targeted mutations across both lanes, and preserves every protected raw
+   file. No-outcome Value=123 remains ignored. Evidence is
+   `artifacts/lead-call-scope-r4-review-20261018an/receipt.json`. Independent
+   Orca Worker review accepts the revision; the lead additionally enforces zero
+   raw disabled witnesses to cover r4's unbound-witness limitation. Final scoped
+   acceptance is
+   `artifacts/lead-call-scope-r4-acceptance-20261018aq/receipt.json`. This replay
+   is not a new native measurement or canonical Host rebuild. Native-enabled
+   execution and the disabled control remain separate.
+4. The r5 minimal guard now rejects any parsed disabled witness, with lead
+   replay of 26 protocol and eight disabled-witness mutations. Eight shared
+   enabled PC tuples still pass. Evidence is
+   `artifacts/lead-call-scope-r5-review-20261018at/receipt.json`. The delivered
+   self-contained canonical repeated-call driver subsequently passed scoped
+   lead and independent measurement/map-closure review as recorded above;
+   eng/CI promotion remains separate.
+
+The exact canonical 31-source Host now also passes macOS arm64 desktop IL
+acceptance: persisted Release build exit 0 and four direct-apphost exits 0,
+with 17/17 self-tests and 10/10 integration checks under both `/tmp` and
+`/private/tmp`. The lead checked archived source/log bytes and the remote
+source and managed-Host hashes. Evidence is
+`artifacts/lead-canonical-macos-acceptance-20261018v/receipt.json`.
+This does not establish native R2R, interpreter or iOS execution.
+
+The measurement and independent review were executed by Orca Workers.
+With full verification complete, revision q of the isolated trusted game pilot
+passes the lead's exact-source build, six processes, per-tick checks, actual
+module failure and fresh-process recovery. The 0/0/3*Step mutation is rejected,
+and independent Orca Worker review accepts the isolated desktop IL scope.
+Evidence is `artifacts/lead-score-pilot-q-acceptance-20261018ae/receipt.json`. It uses
+a game-owned shared interface and the existing signed activation path. Keep
+gameplay calls typed and keep signature
+verification, manifest resolution and version selection in their existing
+owners. Use that pilot to test the embedding experience before committing to a
+public SDK. Platform signing/loading and physical iOS execution remain separate
+acceptance work.
+
+Same-version successive rounds are separately accepted as an isolated stock
+Windows desktop IL experiment after Orca Worker implementation, lead rebuild
+and independent review. The five-child run and cached-module negative control
+are recorded at
+`artifacts/lead-successive-sessions-acceptance-20261018ak/receipt.json`.
+New instances start at zero while statics and the selected version remain
+resident. This does not establish same-process version switching.
+
+The first post-seal orchestration lost its timeline and original process exits;
+separate exitcheck runs do not repair that history. Its changed IL/R2R product
+parity is retained separately from the newer durable run described below. See
+`artifacts/lead-post-seal-delivery-triage-20261018al/receipt.json`.
+
+The newer durable2 run now supplies real exits and ordered seal/pin/source/build
+events. Its current product parity is separately checked at
+`artifacts/lead-durable2-product-parity-20261018av/receipt.json`. Its containment
+checker derivative now has lead and independent Orca Worker scoped acceptance
+at `artifacts/lead-post-seal-acceptance-20261018cj/receipt.json`. This accepts
+offline validation of the existing run without another native execution; the
+historical 211 files and pin remain unchanged. The separate game-owned native
+score-round experiment also has scoped acceptance after its r2 checker repair:
+`artifacts/lead-score-acceptance-map-check-20261018bi/score-acceptance.json`.
+Earlier rejected checkers and their raw findings remain historical evidence.
+
+The two unrelated game contracts now pass their joined stock desktop IL gate
+at `artifacts/lead-generic-native-start-20261018ck/receipt.json`. Six fresh lead
+processes have the expected exits 0/1/0/0/1/0, including same-predicate signed
+return-only rejection and recovery for both games. A separate Orca Worker has
+delivered the private Windows x64 native experiment. Its pilot-native-4 records
+eight honest process exits 0 and 18 armed attempts, but no targeted native frames.
+Lead signature/inventory checks pass. Final Host parity now returns unsupported
+FieldRVA signature while both module pairs match. The 35-case validator
+supplement is delivered; independent review and a measured PC/base/RVA
+consistency gap remain open. Independent Orca Worker review rejects native bindings and
+records incomplete failure/closed scopes; the business and armed disabled
+control remain reusable in their stated scope. Native acceptance is not claimed.
+Its two lanes require the same armed sampler and
+capture-attempt counts; see
+`artifacts/lead-generic-native-supervision-20261018cl/ACCEPTANCE.md`.
+
+A second Orca Worker delivered a loopback HTTP stream adapter over the
+existing signed staging/recovery path. Task and negative controls are at
+`artifacts/lead-http-transport-task-20261018cm/WORK-TASK.md`. This is independent
+of native work. Nine loopback lanes, failure cleanup and offline LKG recovery
+now have independent scoped acceptance, joined with the final a908231b Host's
+own stock 17/10 baseline. The decision is
+artifacts/lead-http-joined-acceptance-20261018dc/receipt.json.
+Production transport, TLS and server authentication remain
+separate. Neither workstream includes devices or simulators.
+
 ## Outcome and starting point
 
 The next milestone is a small, engine-independent first-party C# update example:
@@ -215,10 +639,67 @@ This follow-up may measure resident noncollectible versions; it does not reopen 
 
 ## 3. Turn the fixture into a trusted update path - #12
 
+Status on 2026-10-17: the desktop
+[signed delivery sample](trusted-update-delivery-sample.md) now joins bounded
+metadata reads, host-pinned P-256 verification, complete payload staging and
+actual entry activation. The lead's integrated Release build passed with zero
+warnings/errors; selector tests passed 272/272 and staging tests passed 17/17.
+Signed and staged host self-tests passed, including activation failure without
+changing the previous last-known-good record. The signed-release suite also
+passed on macOS arm64, with both directory-symlink checks executed. A separate
+macOS arm64 snapshot then passed staging 17/17 and all three host self-tests,
+including the authenticated dotted filename, with no skips. The lead matched
+its 12 source hashes and archive to the accepted snapshot and checked all six
+command exit codes. See the delivery receipt in the handoff. These are desktop
+JIT/IL receipts, not physical iOS or native R2R delivery acceptance.
+
+On 2026-10-18 automatic signed recovery passed the lead's Windows checks:
+37/37 helper tests, 15/15 recovery-startup checks and 9/9 staged-recovery checks.
+The host-owned receipt retains the original signed document and relative
+release location. Each restore rechecks the pinned-key signature, full payload
+and target, without using unsigned legacy last-known-good metadata. Only
+pre-activation rejection permits fallback. Activation failure keeps the
+process locked; a failed receipt write after successful activation is reported
+separately. The local-file-stream example now stages, starts and recovers in a
+later process without republishing the saved release.
+
+macOS recovery acceptance for this desktop snapshot now passes. After the
+diagnostic precedence correction, the Orca Worker ran 37/37 helper tests and
+all five host self-tests under each of the `/var`, `/tmp` and `/private/tmp`
+temp prefixes, without skips. The lead checked the archive, 15 source bindings,
+18 test outputs and exit-code receipts; see the final macOS recovery receipt
+in the handoff. Linux remains untested here. Keep physical iOS acceptance separate.
+Network transport and rollback policy remain host-owned and are not implemented
+by the local file-stream example.
+
+Signed staging and recovery now execute real private dependencies and shared
+host-object calls in the Windows desktop composition adapter. Its two-lane
+native experiment also passed a lead rerun and raw-output audit: five processes
+per lane, actual Host/Update/Private method PCs with ReadyToRun enabled, no
+such matches with it disabled, and helper interpreter evidence in all ten
+processes. The original standalone sample's additional files still prove
+integrity only. See the [handoff](development.md) for source-bound receipts.
+The adapter's path-alias self-test now passes 17/17 on Windows and macOS
+under both `/tmp` and `/private/tmp`. Solution, verification script and
+three-OS CI wiring are in place; the lead ran the exact wired Windows command.
+Integrated Windows verification also has complete coverage across its initial
+run and a successful suffix retry after fixture staging access was denied.
+The original failure remains recorded; see the [handoff](development.md).
+The opt-in driver's portable probe now passes with only its source file in a
+fresh tree; its vectors are synthetic and existing-log replay is explicit.
+Keep the iOS delivery acceptance separate.
+
 Extract a small reusable loader/session interface and a console embedding sample.
 Use a distinct trusted-update contract rather than weakening the existing
 `managed-il-gameplay-v1` UGC policy. Preserve shared validation and resolution
-where appropriate.
+where appropriate. Start with the [typed-session ownership brief](trusted-embedding-next.md),
+keeping its proposed interface separate from measured delivery capabilities.
+The first ownership spike passes six checks in the lead's frozen-source rerun.
+Independent implementation review found no defects, and the lead passed its
+five interface/retention probes against the frozen implementation. Connect it
+to the verified activator in the isolated integration experiment next. Preserve
+process-version occupancy and the existing signed resolver; closing a session
+must not reset either.
 
 Acceptance:
 
@@ -367,6 +848,16 @@ On 2026-10-16 one Windows run at artifacts/trusted-composition-timing-20261016 e
 
 On 2026-10-16 the owner deferred a four-platform performance pass. Windows, macOS, iOS, and Android still need performance measurements, but that pass is not current work. The Windows composition timing above is one process aggregate and does not cover macOS, iOS, or Android. Do not start a runtime build, simulator, or emulator only to open that pass. Simulator and physical-device results stay separate. Physical iOS remains paused because the only phone is an iPhone XR locked to iOS 18.7. Issue 3 stays open.
 
+On 2026-10-18 the owner approved a new sequence that supersedes the performance
+deferral in the preceding historical note: finish native Host/module shared
+object-graph composition; freeze a minimal example and measure Windows, macOS,
+iOS simulator and Android emulator without deadline; implement coarse
+per-callback deadline for untrusted interpreted UGC; repeat the same baseline
+with deadline overhead, cutoff and recovery checks. Physical devices remain
+paused. Preparation may run alongside composition, while measured performance
+follows composition review and example freeze. See the
+[current implementation and preparation contracts](trusted-embedding-next.md#approved-sequence-2026-10-18).
+
 On 2026-10-17 desktop runtime tests passed 58/58 after adding HostContractSession. The script OnStart receives the game-supplied interface instance and calls Echo(41). The assembly is loaded from memory, and Dispose drops the collectible context. An OnStart parameter that is not that interface fails before the author method runs. The managed-il-gameplay-v1 allowlist is unchanged. IMapContext is not renamed. This is not an iOS result.
 
 On 2026-10-17 desktop runtime tests passed 59/59 after rejecting a foreign OnStart call. OnStart may call only methods declared by the game-supplied interface. Object.ToString is rejected before the author method runs, and the host echo is not called. This is not a full packaging allowlist. IMapContext is not renamed. This is not an iOS result.
@@ -381,7 +872,7 @@ On 2026-10-17 desktop runtime tests passed 60/60. HostContractSession now takes 
 
 On 2026-10-17 packaging tests passed 151/151. package.json may include hostInterface and allowedMethods. When either is present, PackageValidator.Validate requires both and runs ValidateHostContract on the entry before the gameplay profile. Omitting both leaves existing manifests and their content hashes unchanged. Allowed methods remain simple names, not signatures. This is not an iOS result.
 
-On 2026-10-17 the project owner set the host API shape. The game supplies a shared assembly and an ordinary CLR interface. The script receives an instance and calls its methods directly. RuneCLR still owns loading, capability limits, execution, and unload, and it does not define gameplay methods. SpawnEntity is not required, and calls are not dispatched by name. IMapContext remains the prototype sample and the current managed-il-gameplay-v1 allowlist. It is not renamed. A later restricted UGC allowlist names members of the host-supplied interface. Trusted hot updates are not limited to that allowlist. This decision does not implement the extension point.
+On 2026-10-17 the project owner set the host API shape. The game supplies a shared assembly and an ordinary CLR interface. The script receives an instance and calls its methods directly. RuneCLR still owns loading, capability limits, execution, and unload, and it does not define gameplay methods. SpawnEntity is not required, and calls are not dispatched by name. IMapContext remains the prototype sample and the current managed-il-gameplay-v1 allowlist. It is not renamed. A later restricted UGC allowlist names members of the host-supplied interface. Trusted hot updates are not limited to that allowlist. The desktop score-game sample now runs that session. See score-game.md.
 
 On 2026-10-17 packaging tests passed 154/154. PackageBuilder and RuneCLR.PackageTool write hostInterface and allowedMethods when both are supplied. Loading then checks OnStart against that interface and those method names. A build that supplies only one of them is rejected. Omitting both leaves ordinary gameplay manifests unchanged, because the OnStart check still rejects calls that are not on the named interface. Allowed methods remain simple names. This is not an iOS result.
 
@@ -800,3 +1291,5 @@ On 2026-10-17 packaging tests passed 304/304. The operator CLI validate command 
 On 2026-10-17 packaging tests passed 305/305. The operator CLI validate command accepts a host-contract package, then rejects it after the file list keeps the entry path but its digest is changed to invalid, while the entry hash field stays the original digest and the content hash is recomputed. The error names SHA-256 hexadecimal digest. This is the file list digest, not the entry hash field. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
 On 2026-10-17 packaging tests passed 306/306. The operator CLI validate command accepts a host-contract package, then rejects it after the package id is 129 letters and the content hash is recomputed. The error names Missing or oversized id. The id is not blank. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
+
+On 2026-10-17 the desktop score-game sample runs two managed-IL script versions and a failing script through HostContractSession. The contract is ScoreGame.IScoreRules in samples/ScoreGame.Contracts, not RuneCLR.Abstractions or IMapContext. See score-game.md. This is not an iOS result.

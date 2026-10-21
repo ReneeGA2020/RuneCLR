@@ -36,7 +36,7 @@ internal static class Program
         }
         catch (Exception error) when (error is ArgumentException or IOException or InvalidDataException or UnauthorizedAccessException or BadImageFormatException)
         {
-            Console.Error.WriteLine($"Fixture generation failed: {error.Message}");
+            Console.Error.WriteLine($"Fixture generation failed: {error.GetType().FullName} HResult=0x{error.HResult:X8} {error.Message}");
             return 2;
         }
     }
@@ -49,6 +49,7 @@ internal static class Program
         Directory.CreateDirectory(parent);
         var staging = Path.Combine(parent, ".runeclr-fixtures-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
+        Exception? primary = null;
         try
         {
             var profile = new ReferenceProfile(referencesDirectory, contractPath);
@@ -131,16 +132,48 @@ internal static class Program
                 }).ToArray()
             };
             File.WriteAllText(Path.Combine(staging, "fixtures.json"), JsonSerializer.Serialize(receipt, new JsonSerializerOptions { WriteIndented = true }));
-            Directory.Move(staging, destination);
+            MoveFixtureStaging(staging, destination);
             Console.WriteLine($"Generated {names.Count} controlled package fixtures at {destination}");
             Console.WriteLine("Includes intentionally invalid admission fixtures: tampered, forbidden, private-forbidden.");
         }
+        catch (Exception error)
+        {
+            primary = error;
+            throw;
+        }
         finally
         {
-            if (Path.GetDirectoryName(Path.GetFullPath(staging)) != parent ||
-                !Path.GetFileName(staging).StartsWith(".runeclr-fixtures-", StringComparison.Ordinal))
-                throw new InvalidOperationException("Invalid fixture staging cleanup target.");
-            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+            try
+            {
+                if (Path.GetDirectoryName(Path.GetFullPath(staging)) != parent ||
+                    !Path.GetFileName(staging).StartsWith(".runeclr-fixtures-", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Invalid fixture staging cleanup target.");
+                if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+            }
+            catch (Exception cleanup)
+            {
+                var detail = "Fixture staging cleanup failed: " + cleanup.GetType().FullName + " HResult=0x" + cleanup.HResult.ToString("X8") + " " + cleanup.Message;
+                if (primary is null) throw;
+                Console.Error.WriteLine(detail);
+            }
+        }
+    }
+
+    private static void MoveFixtureStaging(string source, string destination)
+    {
+        // First try plus at most five retries, 50ms apart, matching PackageBuilder.MovePublishedPackage.
+        // A failed attempt never deletes or replaces the destination.
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Directory.Move(source, destination);
+                return;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                Thread.Sleep(50);
+            }
         }
     }
 

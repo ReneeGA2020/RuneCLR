@@ -535,6 +535,8 @@ if (args is ["--child-signal-throw", var signalThrowPath, var signalThrowHash, v
     return ChildSignalThrow(signalThrowPath, signalThrowHash, signalThrowStore);
 if (args is ["--child-host-loaded", var hostLoadedMode, var hostLoadedStore, var hostLoadedRoot, var hostLoadedDll, var hostLoadedHash])
     return ChildHostLoaded(hostLoadedMode, hostLoadedStore, hostLoadedRoot, hostLoadedDll, hostLoadedHash);
+if (args is ["--child-startup-lock", var startupMode, var startupStore, var startupRoot, var startupGood, var startupGoodHash, var startupThrowing, var startupThrowingHash])
+    return ChildStartupLock(startupMode, startupStore, startupRoot, startupGood, startupGoodHash, startupThrowing, startupThrowingHash);
 if (args is ["--plan", var planPath, var planVersion, var planHash, var candidateRuntime, var candidateArch, var hostRuntime, var hostArch, var approvalSpec, var contentRoot, var additionalSpec])
     return PlanProbe(planPath, planVersion, planHash, candidateRuntime, candidateArch, hostRuntime, hostArch, approvalSpec, contentRoot, additionalSpec);
 
@@ -547,7 +549,8 @@ var tests = new (string Name, Action Run)[]
     ("Approval for a different hash is rejected before load", ApprovalForDifferentHash),
     ("Rejected candidate leaves the last known good version for the next process", NextProcessRestoresLastKnownGood),
     ("Activation failure returns a host error and keeps no exception", ActivationFailure),
-    ("Activation failure does not lock the process", ActivationFailureDoesNotLock),
+    ("Activation failure locks the process and keeps the previous record", ActivationFailureLocksTheProcess),
+    ("A failed startup cannot select another version in-process", StartupActivationBoundary),
     ("A planned candidate is not loaded", PlanDoesNotLoad),
     ("A candidate outside the content root is rejected before load", OutsideContentRootRejected),
     ("Last known good outside the content root is rejected before load", LastKnownGoodOutsideContentRoot),
@@ -934,15 +937,49 @@ void ActivationFailure()
     Check(!IsLoaded("TrustedUpdate.Throwing"), "parent loaded the throwing update");
 }
 
-void ActivationFailureDoesNotLock()
+void ActivationFailureLocksTheProcess()
 {
     using var directory = new TestDirectory();
+    File.WriteAllText(directory.Store, "previous-good");
     var output = RunChild(null, "--child-fail-then-good", throwingPath, Hash(throwingPath), goodPath, Hash(goodPath), directory.Store);
     Check(output.Contains("REJECTED ActivationFailed", StringComparison.Ordinal), output);
-    Check(output.Contains("SELECTED good", StringComparison.Ordinal), output);
+    Check(output.Contains("REJECTED ProcessSelectionLocked", StringComparison.Ordinal), output);
+    Check(output.Contains("STORE-SAME", StringComparison.Ordinal), output);
+    Check(output.Contains("GOOD-NOT-LOADED", StringComparison.Ordinal), output);
+    Check(!output.Contains("SELECTED", StringComparison.Ordinal), output);
     Check(!output.Contains(PrivateFailure, StringComparison.Ordinal), output);
-    Check(File.ReadAllText(directory.Store).Contains("good", StringComparison.Ordinal), "recovery did not record the good version");
+    Check(File.ReadAllText(directory.Store) == "previous-good", "activation failure replaced the previous record");
     Check(!IsLoaded("TrustedUpdate.Throwing") && !IsLoaded("TrustedUpdate.Good"), "parent loaded a recovery assembly");
+}
+
+void StartupActivationBoundary()
+{
+    using var directory = new TestDirectory();
+    var inside = Path.Combine(directory.Path, "inside");
+    Directory.CreateDirectory(inside);
+    var good = Path.Combine(inside, "TrustedUpdate.Good.dll");
+    var throwing = Path.Combine(inside, "TrustedUpdate.Throwing.dll");
+    File.Copy(goodPath, good);
+    File.Copy(throwingPath, throwing);
+    var goodHash = Hash(good);
+    var throwingHash = Hash(throwing);
+    foreach (var mode in new[]
+    {
+        "builtin-throw",
+        "builtin-reenter",
+        "builtin-reenter-throw",
+        "host-fail",
+        "host-throw",
+        "host-reenter-ok",
+        "host-reenter-fail",
+        "host-race",
+        "host-preload",
+    })
+    {
+        var store = Path.Combine(directory.Path, mode + ".json");
+        var output = RunChild(null, "--child-startup-lock", mode, store, inside, good, goodHash, throwing, throwingHash);
+        Check(output.Contains("OK " + mode, StringComparison.Ordinal), output);
+    }
 }
 
 
@@ -24900,6 +24937,7 @@ static int ChildActivate(string version, string assemblyPath, string hash, strin
 
 static int ChildFailThenGood(string badPath, string badHash, string goodPath, string goodHash, string store)
 {
+    File.WriteAllText(store, "previous-good");
     var failed = new TrustedUpdateProcess().TrySelectCandidate(
         new TrustedUpdateCandidate("throwing", badHash, badPath, "TrustedUpdate.Throwing.Entry", "Activate", new TrustedUpdateTarget("net11.0", "x64")),
         new TrustedUpdateTarget("net11.0", "x64"), store, Approve("throwing", badHash));
@@ -24908,7 +24946,12 @@ static int ChildFailThenGood(string badPath, string badHash, string goodPath, st
         new TrustedUpdateCandidate("good", goodHash, goodPath, "TrustedUpdate.Good.Entry", "Activate", new TrustedUpdateTarget("net11.0", "x64")),
         new TrustedUpdateTarget("net11.0", "x64"), store, Approve("good", goodHash));
     Console.WriteLine(recovered.Succeeded ? "SELECTED " + recovered.SelectedVersionName : "REJECTED " + recovered.Failure);
-    return recovered.Succeeded ? 0 : 1;
+    Console.WriteLine(File.ReadAllText(store) == "previous-good" ? "STORE-SAME" : "STORE-CHANGED");
+    Console.WriteLine(IsLoaded("TrustedUpdate.Good") ? "GOOD-LOADED" : "GOOD-NOT-LOADED");
+    return failed.Failure == TrustedUpdateFailure.ActivationFailed
+        && recovered.Failure == TrustedUpdateFailure.ProcessSelectionLocked
+        && File.ReadAllText(store) == "previous-good"
+        && !IsLoaded("TrustedUpdate.Good") ? 0 : 1;
 }
 
 static int ChildRestore(string store, string version, string hash, string approvalId)
@@ -24960,23 +25003,7 @@ void HostLoadedStartDoesNotLoad()
         });
     Check(rejected.Failure == TrustedUpdateFailure.NotApproved && calls == 0, rejected.ToString());
     Check(!File.Exists(directory.Store), "unapproved host start wrote a store");
-    var failed = new TrustedUpdateProcess().TryStartHostLoaded(
-        Candidate("good", hash, dll, "TrustedUpdate.Good.Entry"),
-        host,
-        directory.Store + ".activation",
-        Approve("good", hash),
-        inside,
-        null,
-        null,
-        "good",
-        (_, _, _) =>
-        {
-            calls++;
-            return new TrustedUpdateActivation(TrustedUpdateFailure.ActivationFailed, 0);
-        });
-    Check(failed.Failure == TrustedUpdateFailure.ActivationFailed && calls == 1, failed.ToString());
-    Check(!File.Exists(directory.Store + ".activation"), "activation failure wrote a store");
-    Check(UpdateContextCount() == before && !IsLoaded("TrustedUpdate.Good"), "host-loaded start loaded inside the selector");
+    Check(UpdateContextCount() == before && !IsLoaded("TrustedUpdate.Good"), "unapproved host start loaded inside the selector");
     var stored = new TrustedUpdateProcess().TryStorePlannedCandidate(
         Candidate("good", hash, dll, "TrustedUpdate.Good.Entry"), host, Approve("good", hash), directory.Store, inside);
     Check(stored.Succeeded, stored.ToString());
@@ -25121,6 +25148,384 @@ static void Check(bool condition, string message)
 {
     if (!condition)
         throw new InvalidOperationException(message);
+}
+
+static int ChildStartupLock(string mode, string store, string root, string goodDll, string goodHash, string throwingDll, string throwingHash)
+{
+    var hostTarget = new TrustedUpdateTarget("net11.0", "x64");
+    var good = new TrustedUpdateCandidate("good", goodHash, goodDll, "TrustedUpdate.Good.Entry", "Activate", hostTarget);
+    var goodApproval = new TrustedUpdateApproval("good", goodHash, "desktop-test");
+    return mode switch
+    {
+        "builtin-throw" => StartupBuiltinThrow(store, root, good, goodApproval, throwingDll, throwingHash, hostTarget),
+        "builtin-reenter" => StartupBuiltinReenter(store, root, good, goodApproval, hostTarget, throwAfter: false),
+        "builtin-reenter-throw" => StartupBuiltinReenter(store, root, good, goodApproval, hostTarget, throwAfter: true),
+        "host-fail" => StartupHostFail(store, root, good, goodApproval, hostTarget),
+        "host-throw" => StartupHostThrow(store, root, good, goodApproval, hostTarget),
+        "host-reenter-ok" => StartupHostReenter(store, root, good, goodApproval, hostTarget, fail: false),
+        "host-reenter-fail" => StartupHostReenter(store, root, good, goodApproval, hostTarget, fail: true),
+        "host-race" => StartupHostRace(store, root, good, goodApproval, hostTarget),
+        "host-preload" => StartupHostPreload(store, root, good, goodApproval, hostTarget),
+        _ => UnknownStartupMode(mode),
+    };
+}
+
+static int UnknownStartupMode(string mode)
+{
+    Console.WriteLine("UNKNOWN " + mode);
+    return 1;
+}
+
+static int StartupBuiltinThrow(
+    string store,
+    string root,
+    TrustedUpdateCandidate good,
+    TrustedUpdateApproval goodApproval,
+    string throwingDll,
+    string throwingHash,
+    TrustedUpdateTarget hostTarget)
+{
+    File.WriteAllText(store, "previous-good");
+    var failed = new TrustedUpdateProcess().TrySelectCandidate(
+        new TrustedUpdateCandidate("throwing", throwingHash, throwingDll, "TrustedUpdate.Throwing.Entry", "Activate", hostTarget),
+        hostTarget, store, new TrustedUpdateApproval("throwing", throwingHash, "desktop-test"));
+    var again = new TrustedUpdateProcess().TrySelectCandidate(good, hostTarget, store, goodApproval);
+    var started = new TrustedUpdateProcess().TryStart(good, hostTarget, store, goodApproval, root, goodApproval, root);
+    Console.WriteLine("FIRST " + failed.Failure);
+    Console.WriteLine("SECOND " + again.Failure);
+    Console.WriteLine("START " + started.Failure + " " + started.Source + " " + (started.SelectedVersionName ?? "-"));
+    Console.WriteLine(File.ReadAllText(store) == "previous-good" ? "STORE-SAME" : "STORE-CHANGED");
+    Console.WriteLine(IsLoaded("TrustedUpdate.Good") ? "GOOD-LOADED" : "GOOD-NOT-LOADED");
+    Console.WriteLine(IsLoaded("TrustedUpdate.Throwing") ? "THROWING-LOADED" : "THROWING-NOT-LOADED");
+    var ok = failed.Failure == TrustedUpdateFailure.ActivationFailed
+        && again.Failure == TrustedUpdateFailure.ProcessSelectionLocked
+        && started.Failure == TrustedUpdateFailure.ProcessSelectionLocked
+        && started.Source == TrustedUpdateStartSource.None
+        && started.SelectedVersionName is null
+        && File.ReadAllText(store) == "previous-good"
+        && !IsLoaded("TrustedUpdate.Good")
+        && IsLoaded("TrustedUpdate.Throwing");
+    Console.WriteLine(ok ? "OK builtin-throw" : "BAD builtin-throw");
+    return ok ? 0 : 1;
+}
+
+static int StartupBuiltinReenter(
+    string store,
+    string root,
+    TrustedUpdateCandidate good,
+    TrustedUpdateApproval goodApproval,
+    TrustedUpdateTarget hostTarget,
+    bool throwAfter)
+{
+    var probePath = Path.Combine(root, throwAfter ? "TrustedUpdate.ReenterThrow.dll" : "TrustedUpdate.Reenter.dll");
+    WriteReenterProbe(probePath);
+    var probeHash = Hash(probePath);
+    File.WriteAllText(store, "previous-good");
+    var process = new TrustedUpdateProcess();
+    ProcessGateProbe.Process = process;
+    ProcessGateProbe.GoodPath = good.AssemblyPath;
+    ProcessGateProbe.GoodHash = good.ContentSha256;
+    ProcessGateProbe.Store = store;
+    ProcessGateProbe.ThrowAfter = throwAfter;
+    ProcessGateProbe.Calls = 0;
+    ProcessGateProbe.Result = "";
+    var probe = new TrustedUpdateCandidate("reenter", probeHash, probePath, "TrustedUpdate.Reenter.Entry", "Activate", hostTarget);
+    var selected = process.TrySelectCandidate(probe, hostTarget, store, new TrustedUpdateApproval("reenter", probeHash, "desktop-test"));
+    var again = new TrustedUpdateProcess().TrySelectCandidate(good, hostTarget, store, goodApproval);
+    var marker = throwAfter ? "builtin-reenter-throw" : "builtin-reenter";
+    Console.WriteLine("REENTRY " + ProcessGateProbe.Result);
+    Console.WriteLine("CALLS " + ProcessGateProbe.Calls);
+    Console.WriteLine(selected.Succeeded ? "SELECTED " + selected.SelectedVersionName : "REJECTED " + selected.Failure);
+    Console.WriteLine("SECOND " + again.Failure);
+    Console.WriteLine(File.ReadAllText(store) == "previous-good" ? "STORE-SAME" : "STORE-CHANGED");
+    Console.WriteLine(IsLoaded("TrustedUpdate.Good") ? "GOOD-LOADED" : "GOOD-NOT-LOADED");
+    var ok = ProcessGateProbe.Calls == 1
+        && ProcessGateProbe.Result == "ProcessSelectionLocked"
+        && again.Failure == TrustedUpdateFailure.ProcessSelectionLocked
+        && !IsLoaded("TrustedUpdate.Good")
+        && (throwAfter
+            ? selected.Failure == TrustedUpdateFailure.ActivationFailed && File.ReadAllText(store) == "previous-good"
+            : selected.Succeeded && selected.SelectedVersionName == "reenter" && File.ReadAllText(store) != "previous-good");
+    Console.WriteLine(ok ? "OK " + marker : "BAD " + marker);
+    return ok ? 0 : 1;
+}
+
+static int StartupHostFail(string store, string root, TrustedUpdateCandidate good, TrustedUpdateApproval goodApproval, TrustedUpdateTarget hostTarget)
+{
+    var process = new TrustedUpdateProcess();
+    var stored = process.TryStorePlannedCandidate(good, hostTarget, goodApproval, store, root);
+    if (!stored.Succeeded)
+    {
+        Console.WriteLine("STORE " + stored.Failure);
+        return 1;
+    }
+    var before = File.ReadAllBytes(store);
+    var calls = 0;
+    var failed = process.TryStartHostLoaded(good, hostTarget, store, goodApproval, root, goodApproval, root, "good", (_, _, _) =>
+    {
+        calls++;
+        return new TrustedUpdateActivation(TrustedUpdateFailure.ActivationFailed, 0);
+    });
+    var bad = new TrustedUpdateCandidate("bad", new string('b', 64), good.AssemblyPath, good.EntryTypeName, "Activate", hostTarget);
+    var again = process.TryStartHostLoaded(
+        bad, hostTarget, store, new TrustedUpdateApproval("bad", new string('b', 64), "desktop-test"), root, goodApproval, root, null,
+        (_, _, _) =>
+        {
+            calls++;
+            return new TrustedUpdateActivation(TrustedUpdateFailure.None, 7);
+        });
+    Console.WriteLine("FAIL " + failed.Failure + " " + failed.Source);
+    Console.WriteLine("AGAIN " + again.Failure + " " + again.Source + " " + (again.SelectedVersionName ?? "-"));
+    Console.WriteLine("CALLS " + calls);
+    Console.WriteLine(File.ReadAllBytes(store).AsSpan().SequenceEqual(before) ? "STORE-SAME" : "STORE-CHANGED");
+    Console.WriteLine(IsLoaded("TrustedUpdate.Good") ? "GOOD-LOADED" : "GOOD-NOT-LOADED");
+    var ok = failed.Failure == TrustedUpdateFailure.ActivationFailed
+        && failed.Source == TrustedUpdateStartSource.None
+        && again.Failure == TrustedUpdateFailure.ProcessSelectionLocked
+        && again.SelectedVersionName is null
+        && calls == 1
+        && File.ReadAllBytes(store).AsSpan().SequenceEqual(before)
+        && !IsLoaded("TrustedUpdate.Good");
+    Console.WriteLine(ok ? "OK host-fail" : "BAD host-fail");
+    return ok ? 0 : 1;
+}
+
+static int StartupHostThrow(string store, string root, TrustedUpdateCandidate good, TrustedUpdateApproval goodApproval, TrustedUpdateTarget hostTarget)
+{
+    var process = new TrustedUpdateProcess();
+    var stored = process.TryStorePlannedCandidate(good, hostTarget, goodApproval, store, root);
+    if (!stored.Succeeded)
+    {
+        Console.WriteLine("STORE " + stored.Failure);
+        return 1;
+    }
+    var before = File.ReadAllBytes(store);
+    var calls = 0;
+    TrustedUpdateHostStart failed;
+    try
+    {
+        failed = process.TryStartHostLoaded(good, hostTarget, store, goodApproval, root, goodApproval, root, "good", (_, _, _) =>
+        {
+            calls++;
+            throw new InvalidOperationException("activator-threw");
+        });
+        Console.WriteLine("FAIL " + failed.Failure + " " + failed.Source);
+    }
+    catch (Exception exception)
+    {
+        Console.WriteLine("THREW " + exception.GetType().Name);
+        failed = default;
+    }
+    var again = process.TryStartHostLoaded(good, hostTarget, store, goodApproval, root, goodApproval, root, "good", (_, _, _) =>
+    {
+        calls++;
+        return new TrustedUpdateActivation(TrustedUpdateFailure.None, 7);
+    });
+    Console.WriteLine("AGAIN " + again.Failure + " " + again.Source + " " + (again.SelectedVersionName ?? "-"));
+    Console.WriteLine("CALLS " + calls);
+    Console.WriteLine(File.ReadAllBytes(store).AsSpan().SequenceEqual(before) ? "STORE-SAME" : "STORE-CHANGED");
+    var ok = failed.Failure == TrustedUpdateFailure.ActivationFailed
+        && again.Failure == TrustedUpdateFailure.ProcessSelectionLocked
+        && calls == 1
+        && File.ReadAllBytes(store).AsSpan().SequenceEqual(before);
+    Console.WriteLine(ok ? "OK host-throw" : "BAD host-throw");
+    return ok ? 0 : 1;
+}
+
+static int StartupHostReenter(
+    string store,
+    string root,
+    TrustedUpdateCandidate good,
+    TrustedUpdateApproval goodApproval,
+    TrustedUpdateTarget hostTarget,
+    bool fail)
+{
+    File.WriteAllText(store, "previous-good");
+    var before = File.ReadAllBytes(store);
+    var process = new TrustedUpdateProcess();
+    var calls = 0;
+    var reentryStart = "";
+    var reentrySelect = "";
+    var started = process.TryStartHostLoaded(good, hostTarget, store, goodApproval, root, null, null, "good", (_, _, _) =>
+    {
+        calls++;
+        var selected = process.TrySelectCandidate(good, hostTarget, store, goodApproval);
+        reentrySelect = selected.Failure.ToString();
+        var nestedCalls = 0;
+        var nested = process.TryStartHostLoaded(good, hostTarget, store, goodApproval, root, null, null, "good", (_, _, _) =>
+        {
+            nestedCalls++;
+            calls++;
+            return new TrustedUpdateActivation(TrustedUpdateFailure.None, 9);
+        });
+        reentryStart = nested.Failure.ToString();
+        Console.WriteLine("NESTED-CALLS " + nestedCalls);
+        return fail
+            ? new TrustedUpdateActivation(TrustedUpdateFailure.ActivationFailed, 0)
+            : new TrustedUpdateActivation(TrustedUpdateFailure.None, 5);
+    });
+    Console.WriteLine("REENTRY-SELECT " + reentrySelect);
+    Console.WriteLine("REENTRY-START " + reentryStart);
+    Console.WriteLine("START " + started.Failure + " " + started.Source + " " + started.Value);
+    Console.WriteLine("CALLS " + calls);
+    Console.WriteLine(IsLoaded("TrustedUpdate.Good") ? "GOOD-LOADED" : "GOOD-NOT-LOADED");
+    var storeSame = File.ReadAllBytes(store).AsSpan().SequenceEqual(before);
+    Console.WriteLine(storeSame ? "STORE-SAME" : "STORE-CHANGED");
+    var marker = fail ? "host-reenter-fail" : "host-reenter-ok";
+    var ok = reentrySelect == "ProcessSelectionLocked"
+        && reentryStart == "ProcessSelectionLocked"
+        && calls == 1
+        && !IsLoaded("TrustedUpdate.Good")
+        && (fail
+            ? started.Failure == TrustedUpdateFailure.ActivationFailed && storeSame
+            : started.Succeeded && started.Source == TrustedUpdateStartSource.Candidate && started.Value == 5 && !storeSame);
+    Console.WriteLine(ok ? "OK " + marker : "BAD " + marker);
+    return ok ? 0 : 1;
+}
+
+static int StartupHostRace(string store, string root, TrustedUpdateCandidate good, TrustedUpdateApproval goodApproval, TrustedUpdateTarget hostTarget)
+{
+    var process = new TrustedUpdateProcess();
+    var entered = new ManualResetEventSlim(false);
+    var release = new ManualResetEventSlim(false);
+    var calls = 0;
+    Exception? error = null;
+    TrustedUpdateHostStart first = default;
+    var worker = new Thread(() =>
+    {
+        try
+        {
+            first = process.TryStartHostLoaded(good, hostTarget, store, goodApproval, root, null, null, "good", (_, _, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                entered.Set();
+                if (!release.Wait(TimeSpan.FromSeconds(10)))
+                    throw new TimeoutException("race release");
+                return new TrustedUpdateActivation(TrustedUpdateFailure.None, 5);
+            });
+        }
+        catch (Exception exception)
+        {
+            error = exception;
+        }
+    });
+    worker.IsBackground = true;
+    worker.Start();
+    if (!entered.Wait(TimeSpan.FromSeconds(10)))
+    {
+        Console.WriteLine("RACE-TIMEOUT");
+        return 1;
+    }
+    var second = process.TryStartHostLoaded(good, hostTarget, store, goodApproval, root, null, null, "good", (_, _, _) =>
+    {
+        Interlocked.Increment(ref calls);
+        return new TrustedUpdateActivation(TrustedUpdateFailure.None, 9);
+    });
+    release.Set();
+    worker.Join();
+    Console.WriteLine("SECOND " + second.Failure);
+    Console.WriteLine("CALLS " + Volatile.Read(ref calls));
+    Console.WriteLine("FIRST " + first.Failure + " " + first.Source + " " + first.Value);
+    if (error is not null)
+        Console.WriteLine("ERROR " + error.GetType().Name + " " + error.Message);
+    var ok = error is null
+        && second.Failure == TrustedUpdateFailure.ProcessSelectionLocked
+        && Volatile.Read(ref calls) == 1
+        && first.Succeeded
+        && first.Source == TrustedUpdateStartSource.Candidate
+        && first.Value == 5;
+    Console.WriteLine(ok ? "OK host-race" : "BAD host-race");
+    return ok ? 0 : 1;
+}
+
+static int StartupHostPreload(string store, string root, TrustedUpdateCandidate good, TrustedUpdateApproval goodApproval, TrustedUpdateTarget hostTarget)
+{
+    var process = new TrustedUpdateProcess();
+    var calls = 0;
+    var rejected = process.TryStartHostLoaded(
+        good, hostTarget, store, new TrustedUpdateApproval("good", new string('0', 64), "desktop-test"), root, null, null, "good",
+        (_, _, _) =>
+        {
+            calls++;
+            return new TrustedUpdateActivation(TrustedUpdateFailure.None, 1);
+        });
+    var started = process.TryStartHostLoaded(good, hostTarget, store, goodApproval, root, null, null, "good", (_, _, _) =>
+    {
+        calls++;
+        return new TrustedUpdateActivation(TrustedUpdateFailure.None, 4);
+    });
+    var blocked = new TrustedUpdateProcess().TrySelectCandidate(good, hostTarget, store, goodApproval);
+    Console.WriteLine("REJECTED " + rejected.Failure);
+    Console.WriteLine("START " + started.Failure + " " + started.Source + " " + started.Value);
+    Console.WriteLine("SECOND " + blocked.Failure);
+    Console.WriteLine("CALLS " + calls);
+    var ok = rejected.Failure == TrustedUpdateFailure.NotApproved
+        && started.Succeeded
+        && started.Value == 4
+        && calls == 1
+        && blocked.Failure == TrustedUpdateFailure.ProcessSelectionLocked;
+    Console.WriteLine(ok ? "OK host-preload" : "BAD host-preload");
+    return ok ? 0 : 1;
+}
+
+static void WriteReenterProbe(string path)
+{
+    var builder = new PersistedAssemblyBuilder(
+        new AssemblyName("TrustedUpdate.Reenter") { Version = new Version(1, 0, 0, 0) },
+        typeof(object).Assembly);
+    var module = builder.DefineDynamicModule("TrustedUpdate.Reenter");
+    var type = module.DefineType("TrustedUpdate.Reenter.Entry", TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed);
+    var activate = type.DefineMethod("Activate", MethodAttributes.Public | MethodAttributes.Static, typeof(void), Type.EmptyTypes);
+    var il = activate.GetILGenerator();
+    il.DeclareLocal(typeof(Assembly[]));
+    il.DeclareLocal(typeof(int));
+    il.DeclareLocal(typeof(Assembly));
+    var loop = il.DefineLabel();
+    var found = il.DefineLabel();
+    var missing = il.DefineLabel();
+    il.Emit(OpCodes.Call, typeof(AppDomain).GetProperty("CurrentDomain")!.GetGetMethod()!);
+    il.Emit(OpCodes.Callvirt, typeof(AppDomain).GetMethod("GetAssemblies")!);
+    il.Emit(OpCodes.Stloc_0);
+    il.Emit(OpCodes.Ldc_I4_0);
+    il.Emit(OpCodes.Stloc_1);
+    il.MarkLabel(loop);
+    il.Emit(OpCodes.Ldloc_1);
+    il.Emit(OpCodes.Ldloc_0);
+    il.Emit(OpCodes.Ldlen);
+    il.Emit(OpCodes.Conv_I4);
+    il.Emit(OpCodes.Bge, missing);
+    il.Emit(OpCodes.Ldloc_0);
+    il.Emit(OpCodes.Ldloc_1);
+    il.Emit(OpCodes.Ldelem_Ref);
+    il.Emit(OpCodes.Stloc_2);
+    il.Emit(OpCodes.Ldloc_2);
+    il.Emit(OpCodes.Callvirt, typeof(Assembly).GetMethod("GetName", Type.EmptyTypes)!);
+    il.Emit(OpCodes.Callvirt, typeof(AssemblyName).GetProperty("Name")!.GetGetMethod()!);
+    il.Emit(OpCodes.Ldstr, "RuneCLR.TrustedUpdate.Tests");
+    il.Emit(OpCodes.Call, typeof(string).GetMethod("op_Equality", new[] { typeof(string), typeof(string) })!);
+    il.Emit(OpCodes.Brtrue, found);
+    il.Emit(OpCodes.Ldloc_1);
+    il.Emit(OpCodes.Ldc_I4_1);
+    il.Emit(OpCodes.Add);
+    il.Emit(OpCodes.Stloc_1);
+    il.Emit(OpCodes.Br, loop);
+    il.MarkLabel(found);
+    il.Emit(OpCodes.Ldloc_2);
+    il.Emit(OpCodes.Ldstr, "ProcessGateProbe");
+    il.Emit(OpCodes.Callvirt, typeof(Assembly).GetMethod("GetType", new[] { typeof(string) })!);
+    il.Emit(OpCodes.Ldstr, "Reenter");
+    il.Emit(OpCodes.Callvirt, typeof(Type).GetMethod("GetMethod", new[] { typeof(string) })!);
+    il.Emit(OpCodes.Ldnull);
+    il.Emit(OpCodes.Ldnull);
+    il.Emit(OpCodes.Callvirt, typeof(MethodBase).GetMethod("Invoke", new[] { typeof(object), typeof(object[]) })!);
+    il.Emit(OpCodes.Pop);
+    il.Emit(OpCodes.Ret);
+    il.MarkLabel(missing);
+    il.Emit(OpCodes.Ldstr, "probe-missing");
+    il.Emit(OpCodes.Newobj, typeof(InvalidOperationException).GetConstructor(new[] { typeof(string) })!);
+    il.Emit(OpCodes.Throw);
+    type.CreateType();
+    builder.Save(path);
 }
 
 sealed class EmptyObservableSubscription : IDisposable
@@ -25323,6 +25728,31 @@ sealed class CountingHost : ITrustedUpdateHost
     public CountingHost(Func<int, int> echo) => this.echo = echo;
 
     public int Echo(int value) => echo(value);
+}
+
+public static class ProcessGateProbe
+{
+    public static TrustedUpdateProcess? Process;
+    public static string? GoodPath;
+    public static string? GoodHash;
+    public static string? Store;
+    public static bool ThrowAfter;
+    public static int Calls;
+    public static string Result = "";
+
+    public static void Reenter()
+    {
+        Calls++;
+        var hostTarget = new TrustedUpdateTarget("net11.0", "x64");
+        var result = Process!.TrySelectCandidate(
+            new TrustedUpdateCandidate("good", GoodHash!, GoodPath!, "TrustedUpdate.Good.Entry", "Activate", hostTarget),
+            hostTarget,
+            Store!,
+            new TrustedUpdateApproval("good", GoodHash!, "desktop-test"));
+        Result = result.Failure.ToString();
+        if (ThrowAfter)
+            throw new InvalidOperationException("activate-after-reentry");
+    }
 }
 
 sealed class TestDirectory : IDisposable

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>TrustedGameGenerics.Host</AssemblyName>
+    <RootNamespace>TrustedGameGenerics.Host</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Contracts/TrustedGameGenerics.Contracts.csproj" />
+    <ProjectReference Include="../../../src/RuneCLR.TrustedUpdate/RuneCLR.TrustedUpdate.csproj" />
+  </ItemGroup>
+</Project>

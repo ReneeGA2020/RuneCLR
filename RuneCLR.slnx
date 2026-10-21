@@ -3,6 +3,11 @@
     <Project Path="samples/Maps.Arena/Maps.Arena.csproj" />
     <Project Path="samples/Maps.Hello/Maps.Hello.csproj" />
     <Project Path="samples/RuneCLR.SampleHost/RuneCLR.SampleHost.csproj" />
+    <Project Path="samples/ScoreGame.Contracts/ScoreGame.Contracts.csproj" />
+    <Project Path="samples/ScoreGame.Host/ScoreGame.Host.csproj" />
+    <Project Path="samples/TrustedGame.Contracts/TrustedGame.Contracts.csproj" />
+    <Project Path="samples/TrustedGame.Host/TrustedGame.Host.csproj" />
+    <Project Path="samples/TrustedGame.Publisher/TrustedGame.Publisher.csproj" />
     <Project Path="samples/RuneCLR.TrustedUpdateHost/RuneCLR.TrustedUpdateHost.csproj" />
   </Folder>
   <Folder Name="/src/">
@@ -19,6 +24,10 @@
     <Project Path="tests/PrivateDependency.B/PrivateDependency.B.csproj" />
     <Project Path="tests/RuneCLR.Runtime.Tests/RuneCLR.Runtime.Tests.csproj" />
     <Project Path="tests/RuneCLR.TrustedUpdate.Tests/RuneCLR.TrustedUpdate.Tests.csproj" />
+    <Project Path="tests/RuneCLR.TrustedModuleSession.Tests/RuneCLR.TrustedModuleSession.Tests.csproj" />
+    <Project Path="tests/RuneCLR.TrustedRelease.Tests/RuneCLR.TrustedRelease.Tests.csproj" />
+    <Project Path="tests/RuneCLR.TrustedReleaseStaging.Tests/RuneCLR.TrustedReleaseStaging.Tests.csproj" />
+    <Project Path="tests/RuneCLR.TrustedReleaseRecovery.Tests/RuneCLR.TrustedReleaseRecovery.Tests.csproj" />
     <Project Path="tests/RuneCLR.Packaging.Tests/RuneCLR.Packaging.Tests.csproj" />
     <Project Path="tests/RuneCLR.PackageExecution.Tests/RuneCLR.PackageExecution.Tests.csproj" />
     <Project Path="tests/RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" />
@@ -28,5 +37,16 @@
   <Folder Name="/tools/">
     <Project Path="tools/RuneCLR.PackageTool/RuneCLR.PackageTool.csproj" />
     <Project Path="tools/RuneCLR.PackageFixtures/RuneCLR.PackageFixtures.csproj" />
+  </Folder>
+  <Folder Name="/eng/">
+    <Project Path="eng/trusted-composition/Contract/TrustedComposition.Contract.csproj" />
+    <Project Path="eng/trusted-composition/IlOnlyHelper/TrustedComposition.IlOnlyHelper.csproj" />
+    <Project Path="eng/trusted-composition/Private.A/TrustedComposition.Private.A.csproj" />
+    <Project Path="eng/trusted-composition/Private.B/TrustedComposition.Private.B.csproj" />
+    <Project Path="eng/trusted-composition/Update.A/TrustedComposition.Update.A.csproj" />
+    <Project Path="eng/trusted-composition/Update.B/TrustedComposition.Update.B.csproj" />
+    <Project Path="eng/trusted-composition-delivery/Host/UnlistedDep/DeliveryAppDep.csproj" />
+    <Project Path="eng/trusted-composition-delivery/Host/UnlistedCaller/UnlistedCaller.csproj" />
+    <Project Path="eng/trusted-composition-delivery/Host/TrustedComposition.DeliveryHost.csproj" />
   </Folder>
 </Solution>

@@ -35,7 +35,7 @@ try
         Console.WriteLine(JsonSerializer.Serialize(new { success = true, id = manifest.Id, contentSha256 = manifest.ContentSha256 }));
         return 0;
     }
-    var profile = new ReferenceProfile(Required("--framework-refs"), Required("--contract"));
+    var profile = new ReferenceProfile(Required("--framework-refs"), Required("--contract"), requireAbstractions: !options.ContainsKey("--host-interface"));
     PackageBuildResult result;
     if (command == "compile")
     {

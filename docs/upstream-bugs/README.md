@@ -53,6 +53,18 @@ retire the private candidates. RCLR-UP-003 was not filed. The 2026-10-15
 preparation section above still describes the state before these issue
 numbers existed.
 
+## Issue status check - 2026-10-18
+
+A read-only GitHub check finds both #135848 and #135849 still open. Their
+currently reported comments total three, all from policy bots; none of those
+comments links a fix. The observation is recorded at
+`artifacts/lead-upstream-status-20261018cq/receipt.json`.
+This check covers issue metadata and current comments, not current-main source
+or a full PR graph search. It does not establish that no upstream fix exists.
+No official fix is adopted, private candidate retired, runtime branch changed,
+or simulator/device run added by this status check. The regression and
+official-fix adoption requirements below still apply.
+
 ## Do not classify as an official defect without more evidence
 
 | Observation | Current classification / resolution |

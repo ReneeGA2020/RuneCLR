@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>TrustedComposition.NativeHarness</AssemblyName>
+    <RootNamespace>TrustedComposition.Delivery</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/RuneCLR.TrustedUpdate/RuneCLR.TrustedUpdate.csproj" />
+  </ItemGroup>
+</Project>

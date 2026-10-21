@@ -79,6 +79,9 @@ host. It does not force a script to return, and can prevent further API use in
 
 ## Ownership and unloading
 
+This section describes collectible map and host-contract sessions. Trusted
+resident modules use the separate logical-close boundary described below.
+
 The prototype's entity store uses primitive handles and bounded log strings.
 Ordinary error reporting copies the exception type name/message to a
 string; the native-budget path copies a bounded type name or fixed host message
@@ -252,6 +255,79 @@ ios-trusted-update-20261016-host-start-current-sim/summary.json.
 
 Closing a session releases only that session. The selected module stays until
 the process exits. Same-process version switching is not supported.
+## Typed trusted logical sessions
+
+The maintained public owner is
+[`TrustedModuleSession<TContract>`](trusted-module-session.md) in
+`RuneCLR.TrustedUpdate`. The game defines the shared CLR interface; a loaded
+module implements it. The host supplies the instance and schedules serial
+synchronous `Invoke` calls, receiving an integer and a fixed failure enum.
+Close clears the owner's module reference, including after callback failure;
+it does not retire the resident assembly or release version selection.
+An already-entered call can finish after Close. Null callback validation comes
+first; otherwise closed state takes precedence over reentry. The Windows
+stock-SDK executable harness passes 15 checks, including owner-retained
+module/delegate/exception release and successful-call delegate release.
+The [minimal trusted game](trusted-game.md) uses this owner after
+`TryStartHostLoaded` selects its independently built module. It shares the
+host's exact Contracts identity and mutates a game-owned object through
+ordinary CLR calls. These are desktop managed integration results.
+
+The following paragraphs record the earlier experimental owner and delivery
+integration; their platform evidence belongs to those recorded versions.
+
+The [typed-session experiment](trusted-embedding-next.md) separates ownership
+of a module instance from signed version selection and resident code. Its
+isolated desktop prototype passes six checks in a lead frozen-source rerun.
+It owns an already-created module, borrows one synchronous typed callback per
+call, and returns only primitive values and fixed failure codes. The game owns
+its module and host interfaces; RuneCLR adds no gameplay methods.
+
+Close clears the module field, rejects later calls and does not unload code,
+reset statics, release the process gate or select a replacement version. An
+active call retains its borrowed module until that frame returns. Reentry is
+rejected, and any managed exception from the borrowed callback closes the
+logical session without exposing the exception. The fixed author-failed token
+does not attribute its cause to author code. There are no cleanup callbacks or
+thread-safety guarantees.
+Diagnostic GC after stack return confirms that a retained closed session does
+not retain its module or an instance-owned host when no static roots exist.
+
+That original experimental type was outside the maintained libraries. Independent implementation
+review found no defects; the lead passed its five retention/interface probes
+against the frozen real implementation. The experimental signed delivery Host
+now wraps its verified IUpdateModule instance in this session after the existing
+activator constructs it. Its owner separately keeps the host reference and
+clears that root on close or callback failure. The session itself owns only
+the module. A retained closed session is a diagnostic handle, not permission
+to invoke it or select another version.
+
+Signed multi-call tests pass on stock Windows and on the pinned private runtime
+with mode 1 and R2R disabled. The latter emits InvokeLogical interpreter IR.
+The canonical macOS source closure also passes under both temporary-directory
+aliases. A separate frozen-v2 call-scoped measurement accepts later native
+calls: 14 segments, 21 enabled method bindings and zero disabled raw witnesses
+across eight processes. Its r4 validator replay and independent review are
+accepted; the lead additionally enforces zero disabled witnesses. This is not
+a canonical Host native rebuild. See the
+[typed acceptance brief](trusted-embedding-next.md) for exact source closures
+and receipts. These results do not establish iOS delivery. Do not reuse the
+collectible session's Unload path for trusted logical close.
+
+An isolated private resident-version owner also passes stock Windows desktop
+IL acceptance. After signed selection it keeps a verified entry Type and
+ListedContext as a construction recipe, then opens fresh module/host instances
+for the same A version. It never releases the process gate or selects B. Each
+new round starts at zero while module statics remain resident. This does not
+implement same-process version switching. A bound recipe
+stays pending until Activated; activator failure discards it, whereas a failed
+receipt write after activation leaves the selected owner usable and reports
+persistence separately. LastKnownGood records selection before construction
+or gameplay. Object collection is measured only for the first closed pair.
+This remains a private synchronous experiment, not a factory API or evidence
+of native game-interface execution. Acceptance is recorded in the
+[typed embedding brief](trusted-embedding-next.md).
+
 ## Game integration
 
 The initial host-pumped session API lets the embedding host control

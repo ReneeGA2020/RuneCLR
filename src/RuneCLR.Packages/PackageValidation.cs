@@ -85,10 +85,8 @@ public static class PackageValidator
                 throw new InvalidDataException($"Dependency metadata identity mismatch: {dependency.Path}.");
         if (privateNames.Contains(assemblies[manifest.EntryAssembly].SimpleName))
             throw new InvalidDataException("A private dependency duplicates the entry assembly identity.");
-        var contract = manifest.Producer.References.Where(input => input.AssemblyName is not null &&
-            string.Equals(ParseIdentity(input.AssemblyName).Name, ContractName, StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (contract.Length != 1) throw new InvalidDataException("Producer references must identify exactly one shared host contract.");
-        ManagedAssemblyInspector.ValidateEntry(entryBytes!, manifest.EntryType, contract[0].AssemblyName!);
+        var contract = SelectContract(manifest);
+        ManagedAssemblyInspector.ValidateEntry(entryBytes!, manifest.EntryType, contract[0].AssemblyName!, manifest.HostInterface);
         if (manifest.HostInterface is not null || manifest.AllowedMethods is not null)
         {
             if (string.IsNullOrWhiteSpace(manifest.HostInterface) || manifest.AllowedMethods is null ||
@@ -101,9 +99,41 @@ public static class PackageValidator
         // Recompute the policy from actual IL at load time, not producer claims.
         var scriptIdentities = assemblies.Values.Select(info => info.AssemblyName).ToArray();
         foreach (var image in images)
-            GameplayCapabilityPolicy.Validate(image, scriptIdentities, contract[0].AssemblyName!);
+        {
+            if (manifest.HostInterface is null)
+                GameplayCapabilityPolicy.Validate(image, scriptIdentities, contract[0].AssemblyName!);
+            else
+                GameplayCapabilityPolicy.Validate(image, scriptIdentities, contract[0].AssemblyName!, manifest.HostInterface, manifest.AllowedMethods!);
+        }
     }
 
+    private static InputIdentity[] SelectContract(PackageManifest manifest)
+    {
+        if (manifest.HostInterface is null ||
+            string.Equals(manifest.HostInterface, "RuneCLR.IMapContext", StringComparison.Ordinal))
+        {
+            var abstractions = manifest.Producer.References.Where(input => input.AssemblyName is not null &&
+                string.Equals(ParseIdentity(input.AssemblyName).Name, ContractName, StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (abstractions.Length != 1)
+                throw new InvalidDataException("Producer references must identify exactly one shared host contract.");
+            return abstractions;
+        }
+
+        var framework = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "System.Runtime", "System.Collections", "System.Linq", "System.ObjectModel", "System.Runtime.Extensions", "System.Private.CoreLib"
+        };
+        var privateNames = manifest.Dependencies.Select(dependency => ParseIdentity(dependency.AssemblyName).Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var selected = manifest.Producer.References.Where(input =>
+        {
+            if (input.AssemblyName is null) return false;
+            var name = ParseIdentity(input.AssemblyName).Name;
+            return name is not null && !framework.Contains(name) && !privateNames.Contains(name);
+        }).ToArray();
+        if (selected.Length != 1)
+            throw new InvalidDataException("Producer references must identify exactly one shared host contract.");
+        return selected;
+    }
     public static string ResolvePath(string directory, string relativePath)
     {
         ValidatePath(relativePath);

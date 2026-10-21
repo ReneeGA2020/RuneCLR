@@ -11,8 +11,38 @@ var timingStartup = System.Diagnostics.Stopwatch.StartNew();
 const string HostRuntime = "net11.0";
 var hostTarget = new TrustedUpdateTarget(HostRuntime, HostArchitecture());
 
+if (args.Length > 0 && args[0] == "--stage-recoverable-start")
+{
+    if (args.Length == 7)
+        return StagedRecoveryStartupSample.Start(args[1], args[2], args[3], args[4], args[5], args[6], hostTarget);
+    return StagedRecoveryStartupSample.Usage();
+}
+if (args is ["--staged-recovery-self-test"])
+    return StagedRecoveryStartupSample.SelfTest(hostTarget);
+
+if (args.Length > 0 && args[0] == "--recoverable-start")
+{
+    if (args.Length == 4)
+        return RecoveryStartupSample.Start(args[1], args[2], args[3], hostTarget, null, null);
+    if (args.Length == 6)
+        return RecoveryStartupSample.Start(args[1], args[2], args[3], hostTarget, args[4], args[5]);
+    return RecoveryStartupSample.Usage();
+}
+if (args is ["--recovery-self-test"])
+    return RecoveryStartupSample.SelfTest(hostTarget);
+if (args is ["--recovery-child", "throw-then-locked", var recoveryReleases, var recoveryReceipt, var recoverySpki, var recoveryOffer, var recoverySigned])
+    return RecoveryStartupSample.ThrowThenLocked(recoveryReleases, recoveryReceipt, recoverySpki, hostTarget, recoveryOffer, recoverySigned);
+
 if (args is ["--self-test"])
     return SelfTest();
+if (args is ["--signed-self-test"])
+    return SignedStartupSample.SelfTest(hostTarget);
+if (args is ["--signed-start", var signedRoot, var signedRelease, var signedSpki, var signedStore])
+    return SignedStartupSample.Start(signedRoot, signedRelease, signedSpki, signedStore, hostTarget);
+if (args is ["--staged-self-test"])
+    return StagedStartupSample.SelfTest(hostTarget);
+if (args is ["--stage-signed-start", var stageSource, var stageRelease, var stageSpki, var stageFinal, var stageStore])
+    return StagedStartupSample.Start(stageSource, stageRelease, stageSpki, stageFinal, stageStore, hostTarget);
 if (args is ["--timings"])
     return TimeOneTick(hostTarget, timingStartup);
 if (args is ["--host-loaded", var hostMode, var hostDirectory, var hostStore])

@@ -34,10 +34,10 @@ public static class ManagedAssemblyInspector
         return Inspect(image);
     }
 
-    public static void ValidateEntry(ReadOnlyMemory<byte> image, string entryType, string contractAssemblyIdentity) =>
+    public static void ValidateEntry(ReadOnlyMemory<byte> image, string entryType, string contractAssemblyIdentity, string? hostInterface = null) =>
         ReadImage(image, (_, metadata) =>
         {
-            ValidateEntryType(metadata, entryType, contractAssemblyIdentity);
+            ValidateEntryType(metadata, entryType, contractAssemblyIdentity, hostInterface);
             return true;
         });
 
@@ -265,7 +265,7 @@ public static class ManagedAssemblyInspector
         if (reserved) throw Invalid($"Assembly simple name '{name}' is a reserved Windows device basename.");
     }
 
-    private static void ValidateEntryType(MetadataReader metadata, string entryType, string approvedContract)
+    private static void ValidateEntryType(MetadataReader metadata, string entryType, string approvedContract, string? hostInterface = null)
     {
         if (string.IsNullOrWhiteSpace(entryType) || string.IsNullOrWhiteSpace(approvedContract))
             throw Invalid("Provide an entry type and the full approved contract assembly identity.");
@@ -295,10 +295,6 @@ public static class ManagedAssemblyInspector
         if (metadata.GetString(baseType.Namespace) != "System" || metadata.GetString(baseType.Name) != "Object" ||
             baseType.ResolutionScope.Kind != HandleKind.AssemblyReference)
             throw Invalid($"Entry '{entryType}' must directly extend System.Object; inherited entry implementations are unsupported.");
-        var matchingInterfaces = type.GetInterfaceImplementations().Count(handle =>
-            IsContractType(metadata, metadata.GetInterfaceImplementation(handle).Interface, "IMapScript", approvedContract));
-        if (matchingInterfaces != 1)
-            throw Invalid($"Entry '{entryType}' must directly implement RuneCLR.IMapScript from '{approvedContract}'.");
         var constructors = type.GetMethods().Where(handle =>
         {
             var method = metadata.GetMethodDefinition(handle);
@@ -315,9 +311,16 @@ public static class ManagedAssemblyInspector
             (MethodAttributes.SpecialName | MethodAttributes.RTSpecialName))
             throw Invalid("Entry constructor is missing required constructor metadata flags.");
         ValidateSignature(metadata, constructor, approvedContract, null, false);
-        ValidateCallback(metadata, type, "OnStart", approvedContract, "IMapContext", false);
-        ValidateCallback(metadata, type, "OnTick", approvedContract, "MapTick", true);
-        ValidateCallback(metadata, type, "OnStop", approvedContract, null, false);
+        if (hostInterface is null || hostInterface == "RuneCLR.IMapContext")
+        {
+            var matchingInterfaces = type.GetInterfaceImplementations().Count(handle =>
+                IsContractType(metadata, metadata.GetInterfaceImplementation(handle).Interface, "IMapScript", approvedContract));
+            if (matchingInterfaces != 1)
+                throw Invalid($"Entry '{entryType}' must directly implement RuneCLR.IMapScript from '{approvedContract}'.");
+            ValidateCallback(metadata, type, "OnStart", approvedContract, "IMapContext", false);
+            ValidateCallback(metadata, type, "OnTick", approvedContract, "MapTick", true);
+            ValidateCallback(metadata, type, "OnStop", approvedContract, null, false);
+        }
     }
 
     private static bool PublicInstance(MethodDefinition method) =>

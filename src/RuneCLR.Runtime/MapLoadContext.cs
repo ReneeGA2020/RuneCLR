@@ -14,9 +14,16 @@ internal sealed class MapLoadContext : AssemblyLoadContext
     }
 
     public static AssemblyLoadContext Create(MapPackage package, MapDependencyResolver resolver,
-        RequiredInterpreterBridge? required, TerminalPrototypeBridge? terminal, MapRunOptions options)
+        RequiredInterpreterBridge? required, TerminalPrototypeBridge? terminal, MapRunOptions options,
+        CallbackDeadlineBridge? deadline = null)
     {
         var name = $"map:{package.Id}:{Guid.NewGuid():N}";
+        if (deadline is not null)
+        {
+            var created = deadline.Create(name, (context, assemblyName) => Resolve(context, resolver, assemblyName), options);
+            try { required!.Acknowledge(created); return created; }
+            catch { created.Unload(); throw; }
+        }
         if (terminal is not null)
             return terminal.Create(name, (context, assemblyName) => Resolve(context, resolver, assemblyName),
                 options.PrototypeInstructionBudget!.Value, options.PrototypeCleanupInstructionBudget);

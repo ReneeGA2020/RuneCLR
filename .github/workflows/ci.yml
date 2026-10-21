@@ -24,12 +24,49 @@ jobs:
           dotnet-quality: preview
       - name: Build
         run: dotnet build RuneCLR.slnx -c Release
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Trusted game build runner diagnostics
+        run: python -B eng/test-trusted-game-builds.py
+      - name: Trusted game observation selftest
+        run: python -B eng/test-trusted-game-observations.py
+      - name: Trusted game generic-size offline replay selftest
+        run: python -B eng/trusted-game-generic-size/test-offline-replay.py
+      - name: Trusted game generic-interaction portability selftest
+        run: python -B eng/test-trusted-game-generics.py --self-test-portability
+      - name: Trusted game generic IR reader selftest
+        run: python -B eng/test-trusted-game-generic-ir.py
       - name: Compile a map after the host
         run: dotnet build tests/RuneCLR.LateMap -c Release -t:Rebuild -p:BuildProjectReferences=false
       - name: Integration tests
         run: dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build -- --late-map tests/RuneCLR.LateMap/bin/Release/net11.0/map.json
       - name: Controlled packaging tests
         run: dotnet run --project tests/RuneCLR.Packaging.Tests -c Release --no-build
+      - name: Trusted update startup and lifecycle tests
+        run: dotnet run --project tests/RuneCLR.TrustedUpdate.Tests -c Release --no-build
+      - name: Game-owned trusted module session tests
+        run: dotnet run --project tests/RuneCLR.TrustedModuleSession.Tests -c Release --no-build
+      - name: Trusted release signature tests
+        run: dotnet run --project tests/RuneCLR.TrustedRelease.Tests -c Release --no-build
+      - name: Trusted release staging tests
+        run: dotnet run --project tests/RuneCLR.TrustedReleaseStaging.Tests -c Release --no-build
+      - name: Trusted release recovery tests
+        run: dotnet run --project tests/RuneCLR.TrustedReleaseRecovery.Tests -c Release --no-build
+      - name: Trusted update host self-test
+        run: dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --self-test
+      - name: Signed trusted update startup self-test
+        run: dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --signed-self-test
+      - name: Staged trusted update startup self-test
+        run: dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --staged-self-test
+      - name: Recoverable trusted update startup self-test
+        run: dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --recovery-self-test
+      - name: Staged recoverable startup self-test
+        run: dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --staged-recovery-self-test
+      - name: Signed delivery host self-test
+        run: dotnet run --project eng/trusted-composition-delivery/Host/TrustedComposition.DeliveryHost.csproj -c Release --no-build -- --self-test
+      - name: Signed delivery host integration
+        run: dotnet run --project eng/trusted-composition-delivery/Host/TrustedComposition.DeliveryHost.csproj -c Release --no-build -- --integration
       - name: Generate controlled package acceptance fixtures
         run: dotnet run --project tools/RuneCLR.PackageFixtures -c Release --no-build -- --framework-refs tools/RuneCLR.PackageFixtures/bin/Release/net11.0/refs --contract src/RuneCLR.Abstractions/bin/Release/net11.0/RuneCLR.Abstractions.dll --output artifacts/ci-controlled-packages --include-pumped
       - name: Player package execution tests
@@ -40,3 +77,12 @@ jobs:
         run: dotnet run --project tests/RuneCLR.PackageExecution.Tests -c Release --no-build -- --packages artifacts/ci-controlled-packages --pump
       - name: Host-pumped map demo
         run: dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --pump --collect
+      - name: Game-owned host contract demo
+        shell: pwsh
+        run: ./eng/score-game.ps1
+      - name: Trusted game module built after host
+        shell: pwsh
+        run: ./eng/trusted-game.ps1
+      - name: Trusted game signed staging and recovery
+        shell: pwsh
+        run: ./eng/trusted-game-signed.ps1

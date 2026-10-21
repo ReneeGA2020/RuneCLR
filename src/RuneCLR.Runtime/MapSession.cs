@@ -9,6 +9,7 @@ namespace RuneCLR.Runtime;
 public sealed class MapSession : IDisposable
 {
     private const string TerminationError = "The native prototype instruction budget terminated author execution.";
+    private const string DeadlineTerminationError = "The native prototype callback deadline terminated author execution.";
     private readonly object _gate = new();
     private readonly string _mapId;
     private readonly MapRunOptions _options;
@@ -16,6 +17,9 @@ public sealed class MapSession : IDisposable
     private readonly UnloadTicket _unload;
     private AssemblyLoadContext? _loadContext;
     private TerminalPrototypeBridge? _terminal;
+    private CallbackDeadlineBridge? _deadline;
+    private long _deadlineToken;
+    private string? _deadlineFailure;
     private MapContext? _context;
     private IMapScript? _script;
     private MapRunResult? _result;
@@ -23,17 +27,18 @@ public sealed class MapSession : IDisposable
     private int _completedTicks;
     private bool _invoking;
 
-    private MapSession(MapPackage package, MapRunOptions options)
+    private MapSession(MapPackage package, MapRunOptions options, CallbackDeadlineBridge? deadlineBridge = null)
     {
         _mapId = package.Id;
         _options = options;
         // Capability failure is a host configuration error, before opening author files.
         var required = options.ExecutionPolicy == MapExecutionPolicy.RequireInterpreter
             ? RequiredInterpreterBridge.Bind() : null;
-        _terminal = options.PrototypeInstructionBudget is not null ? TerminalPrototypeBridge.Bind(required!) : null;
+        _deadline = options.PrototypeCallbackDeadline is not null ? deadlineBridge ?? CallbackDeadlineBridge.Bind() : null;
+        _terminal = options.PrototypeInstructionBudget is not null || _deadline is not null ? TerminalPrototypeBridge.Bind(required!) : null;
         _policyVersion = required is null ? 0 : 1;
         var resolver = new MapDependencyResolver(package);
-        _loadContext = MapLoadContext.Create(package, resolver, required, _terminal, options);
+        _loadContext = MapLoadContext.Create(package, resolver, required, _terminal, options, _deadline);
         try
         {
             _unload = new UnloadTicket(new WeakReference(_loadContext, trackResurrection: true));
@@ -141,7 +146,9 @@ public sealed class MapSession : IDisposable
             {
                 CheckPrototypeState();
                 _context!.BeginTick(_completedTicks);
+                BeginDeadline();
                 _script!.OnTick(new MapTick(_completedTicks, delta));
+                EndDeadline();
                 CheckPrototypeState();
                 _context.CheckViolation();
                 _completedTicks++;
@@ -157,6 +164,7 @@ public sealed class MapSession : IDisposable
             {
                 try
                 {
+                    EndDeadline();
                     _context?.EndCallback();
                     if (!completed) StopCore();
                 }
@@ -188,6 +196,7 @@ public sealed class MapSession : IDisposable
         var started = false;
         try
         {
+            BeginDeadline();
             var assembly = _loadContext!.LoadFromAssemblyPath(entryPath);
             var entryType = assembly.GetType(entryTypeName, throwOnError: true)!;
             if (!typeof(IMapScript).IsAssignableFrom(entryType) || entryType.IsAbstract)
@@ -195,9 +204,12 @@ public sealed class MapSession : IDisposable
 
             CheckPrototypeState();
             _script = (IMapScript)Activator.CreateInstance(entryType)!;
+            EndDeadline();
             CheckPrototypeState();
             _context!.BeginCallback();
+            BeginDeadline();
             _script.OnStart(_context);
+            EndDeadline();
             CheckPrototypeState();
             _context.CheckViolation();
             started = true;
@@ -210,6 +222,7 @@ public sealed class MapSession : IDisposable
         {
             try
             {
+                EndDeadline();
                 _context?.EndCallback();
                 if (!started) StopCore();
             }
@@ -224,6 +237,7 @@ public sealed class MapSession : IDisposable
         var context = _context!;
         var terminal = _terminal;
         PrototypeBudgetSnapshot? prototypeBudget = null;
+        CallbackDeadlineSnapshot? deadlineSnapshot = null;
         try
         {
             context.CancelScheduled();
@@ -232,7 +246,7 @@ public sealed class MapSession : IDisposable
             context.CancelPosted();
             try
             {
-                if (_script is not null)
+                if (_script is not null && _deadlineFailure is null)
                 {
                     // A failed native query also prevents this extra author callback.
                     var beforeStop = terminal?.Snapshot(loadContext);
@@ -242,7 +256,9 @@ public sealed class MapSession : IDisposable
                         var stopReturned = false;
                         try
                         {
+                            BeginDeadline();
                             _script.OnStop();
+                            EndDeadline();
                             CheckPrototypeState();
                             stopReturned = true;
                         }
@@ -250,6 +266,7 @@ public sealed class MapSession : IDisposable
                         {
                             _error = Append(_error, $"OnStop: {DescribeFailure(exception)}");
                         }
+                        finally { EndDeadline(); }
 
                         // A latched limit is already the callback failure. Do not call a successful OnStop a stop failure.
                         if (stopReturned)
@@ -289,14 +306,16 @@ public sealed class MapSession : IDisposable
                     if (terminal is not null)
                     {
                         prototypeBudget = terminal.Snapshot(loadContext);
-                        if (prototypeBudget.IsTerminated) _error = Append(_error, TerminationError);
+                        if (prototypeBudget.IsTerminated) _error = Append(_error,
+                            _deadline is null ? TerminationError : DeadlineTerminationError);
                     }
+                    deadlineSnapshot = _deadline?.Snapshot(loadContext);
                 }
                 catch (Exception)
                 {
-                    _error = Append(_error, "The prototype instruction-budget snapshot could not be read.");
+                    _error = Append(_error, "The native prototype state snapshot could not be read.");
                 }
-                finally { loadContext.Unload(); }
+                finally { _deadline = null; loadContext.Unload(); }
             }
         }
 
@@ -307,7 +326,8 @@ public sealed class MapSession : IDisposable
         {
             ExecutionPolicy = _options.ExecutionPolicy,
             ExecutionPolicyVersion = _policyVersion,
-            PrototypeBudget = prototypeBudget
+            PrototypeBudget = prototypeBudget,
+            PrototypeDeadline = deadlineSnapshot
         };
         return _result = new MapRunResult(report, _unload);
     }
@@ -319,20 +339,68 @@ public sealed class MapSession : IDisposable
 
     private void CheckPrototypeState()
     {
-        if (_terminal?.IsTerminated(_loadContext!) == true)
-            throw new InvalidOperationException(TerminationError);
+        if (_deadlineFailure is not null) throw new InvalidOperationException(_deadlineFailure);
+        bool terminated;
+        try { terminated = _terminal?.IsTerminated(_loadContext!) == true; }
+        catch (Exception)
+        {
+            if (_deadline is not null) FailDeadlineBridge("The native callback deadline state could not be queried.");
+            throw;
+        }
+        if (terminated)
+            throw new InvalidOperationException(_deadline is null ? TerminationError : DeadlineTerminationError);
+    }
+
+    private void BeginDeadline()
+    {
+        if (_deadlineFailure is not null) throw new InvalidOperationException(_deadlineFailure);
+        if (_deadline is null) return;
+        try
+        {
+            _deadlineToken = _deadline.Begin(_loadContext!);
+            if (_deadlineToken <= 0) throw new InvalidOperationException("Invalid native callback deadline token.");
+        }
+        catch (Exception)
+        {
+            FailDeadlineBridge("The native callback deadline activation could not be opened.");
+            throw;
+        }
+    }
+
+    private void EndDeadline()
+    {
+        if (_deadlineToken == 0) return;
+        var token = _deadlineToken;
+        _deadlineToken = 0;
+        try
+        {
+            if (!_deadline!.End(_loadContext!, token))
+                FailDeadlineBridge("The native callback deadline activation did not close successfully.");
+        }
+        catch (Exception)
+        {
+            FailDeadlineBridge("The native callback deadline activation could not be closed.");
+        }
+    }
+
+    private void FailDeadlineBridge(string message)
+    {
+        _deadlineFailure ??= message;
+        _error = Append(_error, _deadlineFailure);
     }
 
     private string DescribeFailure(Exception exception)
     {
+        if (_deadlineFailure is not null) return _deadlineFailure;
         if (_terminal is not null)
         {
             try
             {
-                if (_terminal.IsTerminated(_loadContext!)) return TerminationError;
+                if (_terminal.IsTerminated(_loadContext!)) return _deadline is null ? TerminationError : DeadlineTerminationError;
             }
             catch (Exception)
             {
+                if (_deadline is not null) FailDeadlineBridge("The native callback deadline state could not be queried.");
                 return "The native prototype instruction-budget state could not be queried.";
             }
         }
