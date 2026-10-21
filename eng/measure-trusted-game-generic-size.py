@@ -1381,21 +1381,90 @@ def _write_replay_csv(output: Path, variant_results):
             )
 
 
+def _windows_final_path(path: Path):
+    """Return the canonical final path for an existing Windows object, if available."""
+    if os.name != "nt":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.windll.kernel32
+        create_file = kernel32.CreateFileW
+        create_file.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                                wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD,
+                                wintypes.HANDLE]
+        create_file.restype = wintypes.HANDLE
+        get_final = kernel32.GetFinalPathNameByHandleW
+        get_final.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD,
+                              wintypes.DWORD]
+        get_final.restype = wintypes.DWORD
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = [wintypes.HANDLE]
+        close_handle.restype = wintypes.BOOL
+        handle = create_file(str(path), 0x80, 0x7, None, 3, 0x02000000, None)
+        if handle == ctypes.c_void_p(-1).value:
+            return None
+        try:
+            needed = get_final(handle, None, 0, 0)
+            if not needed:
+                return None
+            buffer = ctypes.create_unicode_buffer(needed + 1)
+            written = get_final(handle, buffer, len(buffer), 0)
+            if not written:
+                return None
+            text = buffer.value
+            if text.startswith("\\\\?\\UNC\\"):
+                text = "\\\\" + text[8:]
+            elif text.startswith("\\\\?\\"):
+                text = text[4:]
+            return Path(text)
+        finally:
+            close_handle(handle)
+    except Exception:
+        return None
+
+
+def _canonical_identity_path(path: Path) -> Path:
+    """Canonicalize a path using the deepest existing ancestor's filesystem identity."""
+    path = Path(os.path.abspath(str(path)))
+    missing = []
+    current = path
+    while not current.exists() and current.parent != current:
+        missing.append(current.name)
+        current = current.parent
+    canonical = _windows_final_path(current)
+    if canonical is None:
+        canonical = Path(os.path.realpath(str(current)))
+    for name in reversed(missing):
+        canonical = canonical / name
+    return Path(os.path.normpath(str(canonical)))
+
+
+def _path_is_within(path: Path, root: Path) -> bool:
+    try:
+        common = os.path.commonpath([str(path), str(root)])
+    except ValueError:
+        return False
+    return os.path.normcase(common) == os.path.normcase(str(root))
+
+
 def _replay_main(args):
     try:
         if not args.replay_retained:
             raise ReplayError("--replay-retained is required")
         if not args.output:
             raise ReplayError("--output is required for offline replay")
-        input_root = Path(args.replay_retained).expanduser().resolve()
+        input_root = _canonical_identity_path(Path(args.replay_retained).expanduser())
         if not input_root.is_dir():
             raise ReplayError("retained root is not a directory: " + str(input_root))
         output = Path(args.output).expanduser()
         if not output.is_absolute():
-            output = (Path.cwd() / output).resolve()
+            output = Path.cwd() / output
+        output = _canonical_identity_path(output)
         if output.exists():
             raise ReplayError("output already exists; refusing to mutate it: " + str(output))
-        if output.is_relative_to(input_root):
+        if _path_is_within(output, input_root):
             raise ReplayError("output must be outside the retained input root")
         variants = _load_json_file(input_root / "source" / "variants.json", "retained variants")
         if len(variants) != 5:

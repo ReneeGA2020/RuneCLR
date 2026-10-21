@@ -72,7 +72,8 @@ CoreCLR 上游的方向也是 R2R 与部分解释执行组合（[维护者说明
 272/272、包执行 15/15 加逐帧 22/22、staging 17/17、recovery 37/37 通过，
 另有 6 项新增 callback-deadline 测试通过；源码前后稳定于
 dbd6574a1222e492300c15016554f7d00c3725cb58e44cabcde55cc32618148b。
-Windows、Linux 和 macOS CI 仍待运行，因此尚不可合并。Stock 拒绝/选项测试不证明
+Windows、Linux 和 macOS 的最新 CI 结果见 [PR #17](https://github.com/ReneeGA2020/RuneCLR/pull/17)，
+合并前要求最新 PR 提交的三平台检查全部通过。Stock 拒绝/选项测试不证明
 私有 callback 时序、解释器、iOS 或原生执行。归档/本地收据：
 E:/RuneCLR-publish-evidence-20261022/verify-run-20261022/（verify-portable-summary.json；
 verify-portable-final.log SHA-256

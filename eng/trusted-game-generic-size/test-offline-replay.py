@@ -468,6 +468,72 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("outside", error)
         self.assertFalse(inside.exists())
 
+    def test_canonical_identity_collapses_parent_components(self):
+        child = self.root / "child"
+        child.mkdir()
+        dotted = child / ".." / "inside-dotdot"
+        canonical_root = M._canonical_identity_path(self.root)
+        canonical_output = M._canonical_identity_path(dotted)
+        self.assertTrue(M._path_is_within(canonical_output, canonical_root))
+        code, error = self.run_replay(dotted)
+        self.assertEqual(code, 1)
+        self.assertIn("outside", error)
+        self.assertFalse((self.root / "inside-dotdot").exists())
+
+    def test_windows_final_path_uses_handle_and_closes(self):
+        if os.name != "nt":
+            self.skipTest("Windows handle identity test")
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        get_count = kernel32.GetProcessHandleCount
+        get_count.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        get_count.restype = wintypes.BOOL
+
+        def handle_count():
+            value = wintypes.DWORD()
+            self.assertTrue(get_count(kernel32.GetCurrentProcess(),
+                                      ctypes.byref(value)))
+            return value.value
+
+        with mock.patch.object(M.os.path, "realpath",
+                               side_effect=AssertionError("realpath fallback")):
+            canonical = M._canonical_identity_path(self.root)
+        self.assertTrue(canonical.is_dir())
+        self.assertIsNotNone(M._windows_final_path(self.root))
+        M._windows_final_path(self.root)  # warm up
+        before = handle_count()
+        for _ in range(20):
+            self.assertIsNotNone(M._windows_final_path(self.root))
+        after = handle_count()
+        self.assertLessEqual(after, before + 1)
+
+    def test_output_inside_input_via_windows_short_alias(self):
+        if os.name != "nt":
+            self.skipTest("Windows short-name alias test")
+        import ctypes
+        from ctypes import wintypes
+        get_short = ctypes.windll.kernel32.GetShortPathNameW
+        get_short.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+        get_short.restype = wintypes.DWORD
+        needed = get_short(str(self.root), None, 0)
+        if not needed:
+            self.skipTest("temporary root has no 8.3 alias")
+        buffer = ctypes.create_unicode_buffer(needed + 1)
+        if not get_short(str(self.root), buffer, len(buffer)):
+            self.skipTest("could not read 8.3 alias")
+        short_root = Path(buffer.value)
+        if os.path.normcase(str(short_root)) == os.path.normcase(str(self.root)):
+            self.skipTest("temporary root has no short/long distinction")
+        inside = short_root / "inside-replay-short"
+        self.assertEqual(M._canonical_identity_path(short_root),
+                         M._canonical_identity_path(self.root))
+        code, error = self.run_replay(inside)
+        self.assertEqual(code, 1)
+        self.assertIn("outside", error)
+        self.assertFalse((self.root / "inside-replay-short").exists())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

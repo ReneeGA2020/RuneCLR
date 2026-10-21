@@ -1,10 +1,10 @@
 # Trusted update integration milestone - 2026-10-22
 
-Status: candidate milestone summary for GitHub publication. The measured
-Windows stock gate passed (./eng/verify.ps1, exit 0); GitHub CI on Windows,
-Linux and macOS remains **PENDING**. This page records maintained surfaces,
-bounded offline evidence and that single Windows stock receipt, not a CI or
-merge-ready acceptance.
+Status: milestone summary for GitHub publication. The measured Windows stock
+gate passed (./eng/verify.ps1, exit 0). Current Windows, Linux and macOS CI
+results are linked from [PR #17](https://github.com/ReneeGA2020/RuneCLR/pull/17).
+This page records maintained surfaces, bounded offline evidence and the local
+Windows stock receipt; the PR checks record validation of later commits.
 
 ## Maintained surfaces
 
@@ -131,7 +131,11 @@ step from them.
 
 ## CI and remaining gates
 
-The measured Windows stock gate above is a local stock-runtime result. GitHub
-CI on Windows, Linux and macOS is **PENDING**, and the branch is not merge-ready
-until those results are captured. Stock rejection/option tests do not establish
-private callback timing, interpreter/native execution or iOS/device behavior.
+The measured Windows stock gate above is a local stock-runtime result. Merging
+requires Windows, Linux and macOS CI to pass on the latest PR commit. Following
+the local gate, CI exposed Windows short-path alias containment and a macOS
+temporary-directory assertion issue; dedicated regressions cover both fixes.
+The replay suite now has 11 tests, including Windows alias and handle-lifetime
+checks, and the observation suite checks fixtures below a `private` ancestor.
+Stock rejection/option tests do not establish private callback timing,
+interpreter/native execution or iOS/device behavior.

@@ -564,6 +564,20 @@ def test_builder_and_replay(temp, fixture, data):
     return expected, records
 
 
+def assert_no_private_key_pin(report, run_root):
+    run_root = Path(run_root).resolve()
+    signing = run_root / 'signing'
+    key = signing / 'demo.private.pem'
+    allowed = {signing / 'A.signed.json', signing / 'B.signed.json',
+               signing / 'demo.spki'}
+    pinned = [Path(item).resolve() for item in
+              list(report['pins']['inputs']) + list(report['pins']['raw'])]
+    assert key not in pinned, 'private key was pinned: ' + str(key)
+    for item in pinned:
+        if signing in item.parents:
+            assert item in allowed, 'unexpected signing pin: ' + str(item)
+
+
 def test_cli_positive(temp, fixture, expected):
     output = Path(temp) / 'report'
     completed = run_cli(fixture.root, output)
@@ -590,9 +604,7 @@ def test_cli_positive(temp, fixture, expected):
     assert report['historicalParent']['exitCode'] == 1
     assert report['pins']['allUnchanged'] is True
     assert report['pins']['inputs'] and report['pins']['raw']
-    assert not [path for path in
-                list(report['pins']['inputs']) + list(report['pins']['raw'])
-                if 'private' in path.lower()]
+    assert_no_private_key_pin(report, fixture.root)
     assert sha256_file(fixture.private_key) == sha256_bytes(b'NOT A REAL PRIVATE KEY')
     assert report['expected']['sha256'] == sha256_bytes(
         canonical_json(expected).encode('utf-8'))
@@ -603,6 +615,33 @@ def test_cli_positive(temp, fixture, expected):
     assert (second / 'report.json').read_bytes() == report_path.read_bytes()
     print('PASS report bytes are deterministic for the same run root')
     return output, report
+
+
+def test_private_ancestor_pins(temp):
+    fixture = Fixture(Path(temp) / 'private' / 'mac-alias' / 'run with spaces')
+    assert 'private' in str(fixture.root).lower()
+    expected = build(fixture.load(), fixture.root)
+    output = Path(temp) / 'private-ancestor-report'
+    completed = run_cli(fixture.root, output)
+    assert completed.returncode == 0, (completed.stdout, completed.stderr)
+    report = load_json(output / 'report.json')
+    assert report['pins']['inputs'] and report['pins']['raw']
+    assert any('private' in str(item).lower() for item in
+               list(report['pins']['inputs']) + list(report['pins']['raw']))
+    assert_no_private_key_pin(report, fixture.root)
+    assert report['expected']['sha256'] == sha256_bytes(
+        canonical_json(expected).encode('utf-8'))
+    print('PASS pins under an ancestor named private contain no key pin')
+    consumed = deepcopy(report)
+    consumed['pins']['inputs'][str(fixture.private_key)] = {
+        'before': 'x', 'after': 'x', 'unchanged': True}
+    expect_reject('private-key-pin-under-private-ancestor',
+                  lambda: assert_no_private_key_pin(consumed, fixture.root))
+    surprise = deepcopy(report)
+    surprise['pins']['inputs'][str(fixture.signing / 'other.pem')] = {
+        'before': 'x', 'after': 'x', 'unchanged': True}
+    expect_reject('unexpected-signing-pin',
+                  lambda: assert_no_private_key_pin(surprise, fixture.root))
 
 
 def test_output_refusals(temp, fixture):
@@ -952,6 +991,7 @@ def main():
         data = fixture.load()
         expected, _ = test_builder_and_replay(temp_path, fixture, data)
         test_cli_positive(temp_path, fixture, expected)
+        test_private_ancestor_pins(temp_path)
         test_output_refusals(temp_path, fixture)
         test_validation_failure_no_report(temp_path, fixture)
         test_no_external_expected(temp_path, fixture)
@@ -989,9 +1029,7 @@ def main():
                 assert report['historicalParent']['error']
             if 'exitCode' in report['historicalParent']:
                 assert type(report['historicalParent']['exitCode']) is int
-            assert not [path for path in
-                        list(report['pins']['inputs']) + list(report['pins']['raw'])
-                        if 'private' in path.lower()]
+            assert_no_private_key_pin(report, report['runRoot'])
             print('PASS actual retained run: target18/runtime18, overall false, '
                   'pins unchanged, no key pin')
         finally:

@@ -71,8 +71,9 @@ SDK 11.0.100-rc.2.26504.105 (UTC 2026-10-21T17:07:54 to 17:14:20; local
 2026-10-22). Runtime 146/146, Packaging 307/307, trusted update 272/272, package
 execution 15/15 plus pumped 22/22, staging 17/17 and recovery 37/37 passed;
 six new callback-deadline tests also passed. Source was stable before/after at
-dbd6574a1222e492300c15016554f7d00c3725cb58e44cabcde55cc32618148b. Windows,
-Linux and macOS CI remains pending, so this is not merge-ready. Stock
+dbd6574a1222e492300c15016554f7d00c3725cb58e44cabcde55cc32618148b. Current
+Windows, Linux and macOS CI results are linked from [PR #17](https://github.com/ReneeGA2020/RuneCLR/pull/17);
+merging requires all three checks to pass on the latest PR commit. Stock
 rejection/option tests do not establish private callback timing, interpreter,
 iOS or native execution. Archival/local receipt:
 E:/RuneCLR-publish-evidence-20261022/verify-run-20261022/ (verify-portable-summary.json;
