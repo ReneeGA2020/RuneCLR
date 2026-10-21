@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>TrustedGameGenericSize</AssemblyName>
+    <RootNamespace>TrustedGameGenericSize</RootNamespace>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <VariantKind Condition="'$(VariantKind)' == ''">BASELINE</VariantKind>
+    <DefineConstants>$(DefineConstants);$(VariantKind)</DefineConstants>
+  </PropertyGroup>
+</Project>
+

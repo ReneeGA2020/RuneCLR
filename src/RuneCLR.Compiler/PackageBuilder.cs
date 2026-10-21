@@ -91,11 +91,17 @@ public static class PackageBuilder
                 foreach (var reference in info.References)
                     if (!trusted.Contains(reference))
                         throw new InvalidDataException($"Assembly {info.SimpleName} references an undeclared or unapproved assembly: {reference}.");
-            ManagedAssemblyInspector.ValidateEntry(entryBytes, entryType, profile.ContractIdentity);
+            ManagedAssemblyInspector.ValidateEntry(entryBytes, entryType, profile.ContractIdentity, hostInterface);
             var scriptIdentities = privateImages.Select(image => image.Info.AssemblyName)
                 .Append(entryInfo.AssemblyName).ToArray();
+            var hostMethods = HostMethods(hostInterface, allowedMethods);
             foreach (var bytes in privateImages.Select(image => image.Bytes).Append(entryBytes))
-                GameplayCapabilityPolicy.Validate(bytes, scriptIdentities, profile.ContractIdentity);
+            {
+                if (hostMethods is null)
+                    GameplayCapabilityPolicy.Validate(bytes, scriptIdentities, profile.ContractIdentity);
+                else
+                    GameplayCapabilityPolicy.Validate(bytes, scriptIdentities, profile.ContractIdentity, hostInterface!, hostMethods);
+            }
             var packageDirectory = Path.Combine(staging, "package");
             Directory.CreateDirectory(packageDirectory);
             var entryName = id + ".dll";
@@ -116,7 +122,6 @@ public static class PackageBuilder
             var producer = new PackageProducer("RuneCLR.PackageTool", "0.1.0", sources is null ? "il" : "source", compiler,
                 profile.Images.Select(image => image.Identity).Concat(privateIdentities).ToArray(),
                 sourceIdentities.Concat(privateIdentities).ToArray());
-            var hostMethods = HostMethods(hostInterface, allowedMethods);
             var manifest = new PackageManifest(PackageFormat.CurrentVersion, PackageFormat.CurrentApiVersion,
                 PackageFormat.InputProfile, id, entryName, entryType, entryHash, declared.ToArray(), files.ToArray(), producer, "",
                 hostInterface, hostMethods);

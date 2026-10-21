@@ -12,10 +12,14 @@ namespace RuneCLR.TrustedUpdate;
 
 /// <summary>
 /// Selects one trusted update for a process lifetime.
-/// A failed hash, missing file, or incompatible target is rejected before any
-/// candidate assembly is loaded. The selected assembly then stays loaded: this
-/// type has no unload operation and will not switch versions in-process.
-/// Another instance in a later process can select the last known good version.
+/// A failed hash, missing file, incompatible target, or missing approval is
+/// rejected before any candidate assembly is loaded and does not occupy the
+/// process. The first load or host activator occupies the process. Activation
+/// failure, including a thrown activator, keeps that occupancy, does not
+/// replace the last known good record, and does not fall back in-process.
+/// Calling the activator is the irreversible boundary even when the host fails
+/// before its own load. This type has no unload operation. A later process can
+/// select the unchanged last known good version.
 /// </summary>
 public sealed class TrustedUpdateProcess
 {
@@ -488,12 +492,13 @@ public sealed class TrustedUpdateProcess
             if (requiredVersion is not null
                 && !string.Equals(planned.SelectedVersionName, requiredVersion, StringComparison.Ordinal))
                 return new TrustedUpdateHostStart(TrustedUpdateFailure.InvalidCandidate, TrustedUpdateFailure.None, null, TrustedUpdateStartSource.None, 0);
-            var activation = activate(candidate, TrustedUpdateStartSource.Candidate, TrustedUpdateFailure.None);
+            if (!TryOccupyProcessGate())
+                return new TrustedUpdateHostStart(TrustedUpdateFailure.ProcessSelectionLocked, TrustedUpdateFailure.None, null, TrustedUpdateStartSource.None, 0);
+            var activation = InvokeActivator(activate, candidate, TrustedUpdateStartSource.Candidate, TrustedUpdateFailure.None);
             if (!activation.Succeeded)
                 return new TrustedUpdateHostStart(activation.Failure, TrustedUpdateFailure.None, null, TrustedUpdateStartSource.None, 0);
             if (!string.IsNullOrWhiteSpace(lastKnownGoodPath))
                 WriteLastKnownGood(lastKnownGoodPath, candidate);
-            Interlocked.Exchange(ref ProcessGate, 1);
             return new TrustedUpdateHostStart(TrustedUpdateFailure.None, TrustedUpdateFailure.None, candidate.VersionName, TrustedUpdateStartSource.Candidate, activation.Value);
         }
 
@@ -502,10 +507,11 @@ public sealed class TrustedUpdateProcess
         var restored = TryPlanLastKnownGood(hostTarget, lastKnownGoodPath, fallbackApproval, fallbackContentRoot, out var stored);
         if (!restored.Succeeded || stored is null)
             return new TrustedUpdateHostStart(planned.Failure, planned.Failure, null, TrustedUpdateStartSource.None, 0);
-        var fallbackActivation = activate(stored, TrustedUpdateStartSource.LastKnownGood, planned.Failure);
+        if (!TryOccupyProcessGate())
+            return new TrustedUpdateHostStart(TrustedUpdateFailure.ProcessSelectionLocked, planned.Failure, null, TrustedUpdateStartSource.None, 0);
+        var fallbackActivation = InvokeActivator(activate, stored, TrustedUpdateStartSource.LastKnownGood, planned.Failure);
         if (!fallbackActivation.Succeeded)
             return new TrustedUpdateHostStart(fallbackActivation.Failure, planned.Failure, null, TrustedUpdateStartSource.None, 0);
-        Interlocked.Exchange(ref ProcessGate, 1);
         return new TrustedUpdateHostStart(TrustedUpdateFailure.None, planned.Failure, stored.VersionName, TrustedUpdateStartSource.LastKnownGood, fallbackActivation.Value);
     }
 
@@ -554,6 +560,8 @@ public sealed class TrustedUpdateProcess
         var planned = TryPlanCandidate(candidate, hostTarget, approval);
         if (!planned.Succeeded)
             return planned;
+        if (!TryOccupyProcessGate())
+            return Reject(TrustedUpdateFailure.ProcessSelectionLocked);
 
         var context = new AssemblyLoadContext(ContextPrefix + candidate.VersionName, isCollectible: false);
         Assembly assembly;
@@ -588,7 +596,6 @@ public sealed class TrustedUpdateProcess
 
         residentContext = context;
         entryType = type;
-        Interlocked.Exchange(ref ProcessGate, 1);
         WriteLastKnownGood(lastKnownGoodPath, candidate);
         selectedVersionName = candidate.VersionName;
         return new TrustedUpdateResult(TrustedUpdateFailure.None, candidate.VersionName);
@@ -619,6 +626,13 @@ public sealed class TrustedUpdateProcess
                 selected.SelectedVersionName,
                 selected.Succeeded ? TrustedUpdateStartSource.Candidate : TrustedUpdateStartSource.None);
         }
+
+        if (planned.Failure == TrustedUpdateFailure.ProcessSelectionLocked)
+            return new TrustedUpdateStartup(
+                TrustedUpdateFailure.ProcessSelectionLocked,
+                planned.Failure,
+                null,
+                TrustedUpdateStartSource.None);
 
         var restoreApproval = fallbackApproval ?? approval;
         var restoreRoot = fallbackContentRoot ?? contentRoot;
@@ -842,6 +856,24 @@ public sealed class TrustedUpdateProcess
         var temporary = path + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(stored));
         File.Move(temporary, path, overwrite: true);
+    }
+
+    static bool TryOccupyProcessGate() => Interlocked.CompareExchange(ref ProcessGate, 1, 0) == 0;
+
+    static TrustedUpdateActivation InvokeActivator(
+        TrustedUpdateActivator activate,
+        TrustedUpdateCandidate candidate,
+        TrustedUpdateStartSource source,
+        TrustedUpdateFailure candidateFailure)
+    {
+        try
+        {
+            return activate(candidate, source, candidateFailure);
+        }
+        catch (Exception)
+        {
+            return new TrustedUpdateActivation(TrustedUpdateFailure.ActivationFailed, 0);
+        }
     }
 
     static TrustedUpdateResult Reject(TrustedUpdateFailure failure) => new(failure, null);

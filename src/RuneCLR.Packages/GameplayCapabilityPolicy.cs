@@ -14,7 +14,8 @@ public static partial class GameplayCapabilityPolicy
     public const string Profile = "managed-il-gameplay-v1";
 
     public static void Validate(ReadOnlyMemory<byte> image, IReadOnlyCollection<string> privateAssemblyIdentities,
-        string contractAssemblyIdentity)
+        string contractAssemblyIdentity,
+        string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null)
     {
         ArgumentNullException.ThrowIfNull(privateAssemblyIdentities);
         if (image.IsEmpty || image.Length > ManagedAssemblyInspector.MaximumImageBytes)
@@ -23,7 +24,7 @@ public static partial class GameplayCapabilityPolicy
         {
             using var pe = new PEReader(ImmutableArray.CreateRange(image.ToArray()));
             var reader = pe.GetMetadataReader(MetadataReaderOptions.None);
-            new Inspection(reader, pe, privateAssemblyIdentities, contractAssemblyIdentity).Validate();
+            new Inspection(reader, pe, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods).Validate();
         }
         catch (Exception error) when (error is BadImageFormatException or ArgumentException or
             InvalidOperationException or IndexOutOfRangeException or OverflowException)
@@ -121,16 +122,24 @@ public static partial class GameplayCapabilityPolicy
         private readonly PEReader pe;
         private readonly HashSet<string> privateIdentities = new(StringComparer.Ordinal);
         private readonly string contractIdentity;
+        private readonly string? hostInterface;
+        private readonly HashSet<string>? hostMethods;
         private int depth;
         private int activeSpecificationBytes;
 
-        internal Inspection(MetadataReader metadata, PEReader pe, IReadOnlyCollection<string> identities, string contract)
+        internal Inspection(MetadataReader metadata, PEReader pe, IReadOnlyCollection<string> identities, string contract,
+            string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null)
         {
             this.metadata = metadata;
             this.pe = pe;
             contractIdentity = FullIdentity(contract);
-            if (new AssemblyName(contractIdentity).Name != "RuneCLR.Abstractions")
+            if (hostInterface is null && new AssemblyName(contractIdentity).Name != "RuneCLR.Abstractions")
                 throw Invalid("The approved contract must be RuneCLR.Abstractions.");
+            this.hostInterface = hostInterface;
+            if (allowedMethods is not null)
+                hostMethods = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
+            if (hostInterface is not null && hostMethods is null)
+                throw Invalid("The host interface and allowed methods must both be present, nonempty and unique.");
             foreach (var identity in identities)
             {
                 var full = FullIdentity(identity);
@@ -199,12 +208,21 @@ public static partial class GameplayCapabilityPolicy
                 var name = Identifier(member.Name);
                 if (!declaring.Private)
                 {
-                    var surface = declaring.Assembly == contractIdentity ? Contract : Framework;
-                    if (!surface.TryGetValue(declaring.Name, out var members) || !members.Contains(name))
-                        throw Invalid($"Member '{declaring.Name}.{name}' is not approved.");
-                    // No framework/contract fields are exposed, including attributes' backing storage.
-                    if (member.GetKind() != MemberReferenceKind.Method)
-                        throw Invalid($"Field '{declaring.Name}.{name}' is not approved.");
+                    if (hostInterface is not null && declaring.Assembly == contractIdentity && declaring.Name == hostInterface
+                        && !Contract.ContainsKey(declaring.Name))
+                    {
+                        if (hostMethods is null || !hostMethods.Contains(name) || member.GetKind() != MemberReferenceKind.Method)
+                            throw Invalid($"Member '{declaring.Name}.{name}' is not approved.");
+                    }
+                    else
+                    {
+                        var surface = declaring.Assembly == contractIdentity ? Contract : Framework;
+                        if (!surface.TryGetValue(declaring.Name, out var members) || !members.Contains(name))
+                            throw Invalid($"Member '{declaring.Name}.{name}' is not approved.");
+                        // No framework/contract fields are exposed, including attributes' backing storage.
+                        if (member.GetKind() != MemberReferenceKind.Method)
+                            throw Invalid($"Field '{declaring.Name}.{name}' is not approved.");
+                    }
                 }
                 if (member.GetKind() == MemberReferenceKind.Method) CheckSignature(member.DecodeMethodSignature(this, null));
                 else _ = member.DecodeFieldSignature(this, null);
@@ -320,6 +338,8 @@ public static partial class GameplayCapabilityPolicy
                 else throw Invalid("Type references must have explicit assembly or nested-type scope.");
                 ValidateAssembly(identity);
                 if (privateIdentities.Contains(identity)) return new(name, identity, true);
+                if (hostInterface is not null && identity == contractIdentity && name == hostInterface && !Contract.ContainsKey(name))
+                    return new(name, identity, false);
                 var surface = identity == contractIdentity ? Contract : Framework;
                 if (!surface.ContainsKey(name)) throw Invalid($"Type '{name}' is not approved.");
                 return new(name, identity, false);

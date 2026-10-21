@@ -1,11 +1,544 @@
 # Development handoff
 
+## Generic Body Diagnostic And Module Witness Handoff (2026-10-21)
+
+The artifact-only r2 function-pointer body-witness candidate has one isolated
+stock-SDK compile and a bounded two-process stock smoke; neither is execution
+attribution. The compile root
+D:/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-compile-20261021-x3yd3fe4
+records exactly one stock Host build command (exit 0, zero warnings/errors) with
+no module execution. The Lead r2 compile review passes 268 checks and
+recomputes all 97 original input seals. Separately, metadata-only inspect-il
+assertions verify three direct calli sites inside three NoInlining generic
+bodies and four kernel32 infrastructure imports; those are metadata-only checks,
+not part of the 268-count provenance. See the
+r2 compile validation (archival/local evidence: `../artifacts/lead-generic-body-fnptr-r2-compile-review-20261021/VALIDATION.md`).
+
+The retained smoke root
+D:/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-stock-smoke-20261021-x3yd3fe4
+contains exactly two released stock Host processes: default-off PID 33988 and
+enabled PID 29052, both integer exit 0 and boolean timeout false. Pre-spawn
+argv/cwd/environment match the process records; stdout equals the report bytes
+and stderr is empty. Source-derived business goldens, counters, ledger and
+failure closure are equal between lanes: reference 118189, aggregate -6047711,
+ledger 248/6, CallbackFailed with unchanged ledger then Closed. The campaign is
+resident and uses mixed build provenance (new r2 Host/Contracts/TrustedUpdate
+trio plus retained Module A IL and retained leaf), not one same-build campaign.
+The default-off report only omits the diagnostic field; no I/O trace exists, so
+this is not a no-I/O claim. The enabled report has six ordered success records
+(Echo 2, Measure 3, LateRoundTrip 1) with nonzero raw PCs and TypeHandles, no
+capture errors, exact type MVIDs and closed-argument keys; raw PCs stay
+unclassified and sharing unknown. This earlier fnptr diagnostic campaign is
+its own bounded stock diagnostic observation: the Lead review passes 137 checks
+and the independent audit passes 333 checks. It has no module-side records; its
+enabled Host-side diagnostics carry closedMethodKeys with implementation
+MethodDefs 0x060000A1/0x060000A2/0x060000A6.
+The limitations of that diagnostic are part of the record: the launch harness crashed after both
+lanes while serializing a tuple-keyed validation dict (TypeError), so reports and
+after-pins were produced by an offline postprocessor without another Host run;
+before-pins were written before the lanes but after-pins are POST-HOC, not
+continuous immutability; five temporary harness scripts listed in the layout
+snapshot were later removed and three logs added, while all consumed
+lane/Host/module/leaf/pin entries remain hash-stable. See the
+Lead smoke validation (archival/local evidence: `../artifacts/lead-generic-body-fnptr-r2-smoke-review-20261021/VALIDATION.md`)
+and
+D:/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-smoke-audit-l12z-20261021/REVIEW.md
+(SHA-256 750724b1f0242d83f172a8544453116273d9b56a18aafa795d91352bbed4564d).
+
+The later module-invocation witness stock smoke is a separate campaign, not a
+rerun of the fnptr diagnostic: exactly two stock-SDK Host processes ran, default
+off PID 40020 then enabled PID 28180, both integer exit 0 and boolean timeout
+false, with no third run or retry. The enabled lane has six ordered Host records
+and produced one witness header and twelve module phase records for six calls
+(Echo 2, Measure 3, LateRoundTrip 1), with source-derived business goldens equal
+to the earlier campaign (reference 118189, aggregate -6047711, ledger 248/6).
+Its 22,053-byte witness file has SHA-256
+6e2e0252c418ad182fd7ae39ad0f605fae3e6eef7c9d721bcfed58014514c6ad; the
+disabled lane omits diagnostics and has no witness file. Independent audit
+passes 370 checks over 80 pins with zero drift and no new products.
+Static PE metadata links MethodSpecs 0x2B000002/000007/00000C/000011/00001B at
+GameModule.Run IL offsets 64/198/392/505/618/1161 to callvirt instructions;
+this is static callsite metadata, not a runtime module PC. Host implementation
+MethodDefs 0x060000A1/0x060000A2/0x060000A6 are distinct from Contracts
+interface MethodDefs 0x06000008/0x06000009/0x0600000D. Provenance is mixed: the
+r2 Host nine-file layout, the corrected Module A build and the retained leaf;
+module MVID 8a8309a7-f2c2-40ed-93b2-0ac9a523007f and Contracts MVID
+f601ceab-2245-471d-bd7c-bf86905853db. This is bounded stock functional/text
+record correlation only: runtime ResolveMethod invocation, a reflective
+CurrentScenario read and runtime module dispatch are not independently proven,
+and no module PC/IR/native/interpreter/R2R/fallback, unload, iOS/device or
+overall acceptance follows. See the stock acceptance (archival/local evidence: `../artifacts/lead-module-invocation-witness-review-20261021/stock-independent-acceptance.json`)
+and
+D:/RuneCLR-artifacts/trusted-game-generic-module-witness-stock-audit-l12z-20261021/REVIEW.md
+(SHA-256 9ad56c924abd549f52529224c09100268375baa39ff3ccc3f114139ae8c9d6d5).
+
+The r6 entry campaign remains FAILED-CLOSED: exactly two stock-SDK Publishers
+and the stageA forced-control Host ran (PIDs 7836/24672/31904, all exit 0);
+stageB and recoverB were not launched, and no retry occurred. The runner exited
+1 with EntryProbeError entry-unknown-prefix 1892 on the native "Slot ... li"
+fragment. An independent raw audit returns GO only for the bounded stageA
+observation (gameplay 1/3/6, six intact kind-6 entry records, CALLERDLL hash),
+and the offline repair still has no reusable acceptance. Version 1's actual
+reading passed, but v1 remained NO-GO for reusable validation (independent
+signature lineage absent, scalar types and framing too broad, IR row
+order/duplicates wrong, negative-test setup masking). The successor r2 guarded
+suite then passed 89 tests and 70 negatives with 57 pins, and fixed the Lead's
+seven replay cases, but the Lead found an actual AssemblyRef public-key-token
+byte-order bug: the retained Host's System.Runtime token b03f5f7f11d50a3a is
+decoded as 3a0ad5117f5f3fb0. That kept reusable acceptance NO-GO at that point; the r3
+correction remained unaccepted and was not inspected. The maintained
+28-test text IR reader is separate from the artifact 46-PASS suite, which is
+also not reusable validation. See
+D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-execution-audit-bocx5e-20261021/REVIEW.md
+and
+D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-offline-repair-review-bocx5e-20261021/REVIEW.md.
+
+The original r7 entry campaign is terminal FAILED and is not promoted: two
+stock Publishers plus stageA and stageB forced-control Hosts all exited 0;
+stageA validation passed before stageB launch, stageB was rejected with
+EntryProbeError entry-unknown-prefix 1890, and recoverB was never launched. No
+retry was released. Offline demux and reader reconstruction do not change the
+campaign status. See the
+r7 execution audit (archival/local evidence: `../artifacts/lead-entry-r6-offline-repair-r3-review-20261021/r7-independent-execution-audit-acceptance.json`).
+
+Independent public-signature verification passes 36 checks: the P-256 A/B
+envelopes verify over exact payload bytes, the public receipt binds A and its
+staged TrustedGame.Update.dll SHA, bit flips and cross-package signatures reject,
+and no private key was read. This does not prove a B Host, B receipt or
+recovery. See the
+signature validation (archival/local evidence: `../artifacts/lead-entry-r6-public-signature-review-20261021/VALIDATION.md`).
+
+The module-invocation witness compile campaign is terminal FAILED, not pending:
+exactly one authorized Module.A stock build ran (PID 45948, integer exit 1,
+boolean timeout false; Module.B not attempted) and produced no module DLL, while
+the referenced Contracts dependency compiled. Both errors are CS0118 at
+ModuleInvocationWitness.cs 227:36 and 254:49, where the simple name Module binds
+to the namespace instead of System.Reflection.Module. No Host run, source
+correction or live edit occurred in that campaign, and the Lead verified the raw
+logs and absent outputs. Report
+D:/RuneCLR-artifacts/trusted-game-generic-module-witness-compile-20261021-x3yd3fe4/REPORT.md
+(SHA-256 b39c4a09be1135b90b5f3c01e112ceee247ead1f3d37400920386d5beceac2f5).
+The corrected artifact-only derivative changes exactly those two parameter types
+to System.Reflection.Module. Its cumulative compile record is three stock build
+commands: the retained failed Module.A command (PID 45948, exit 1, two CS0118
+errors) plus successful Module.A and Module.B commands, A before B, with no Host
+execution. This is compile-only acceptance; this corrected compile campaign
+itself ran zero Hosts and has no runtime module records, and runtime MethodSpec
+resolution and serialization remain unestablished for it. The separate later
+stock smoke above supplies actual module phase records and static callsite
+metadata, but not independently proven runtime dispatch. See the
+compile acceptance (archival/local evidence: `../artifacts/lead-module-invocation-witness-review-20261021/compile-independent-acceptance.json`)
+and compile release (archival/local evidence: `../artifacts/lead-module-invocation-witness-review-20261021/COMPILE-R2-RELEASE.md`).
+The join reader r5 is accepted only as synthetic trusted-descriptor/profile text
+validation, not an actual runtime join. Static exporter r3 and demux r4 have
+separate bounded offline acceptances below; none establishes PC/image or
+RuntimeFunction binding.
+
+These additions do not alter the separate historical records: r4/r5 entry NO-GO,
+F3 443-per-campaign replay, strict generic-runner 64/136, the original
+6-build/4-Host deviation, and the resident two-Host stock baseline. The
+first-party goal of independent trusted R2R modules plus interpreter coverage
+for methods without usable bodies is unchanged. Physical devices remain skipped.
+
+## Offline Evidence Consolidation (2026-10-21)
+
+The accepted offline artifacts are separate from campaign execution and from one
+another. The join reader r5 passes 138 tests and an independent review GO within
+a trusted caller-supplied descriptor and the limited CoreLib profile; it
+validates TypeDef kind/bounds syntactically, does not derive descriptor
+provenance from PE, and is not an actual runtime join. See the
+r5 acceptance (archival/local evidence: `../artifacts/lead-module-invocation-witness-review-20261021/join-reader-r5-independent-acceptance.json`).
+
+The static exporter r3 passes 61 checks and 48 negatives, with 210 witness checks
+and 44 independent PE-reader checks, under a scoped retained
+implicit-signature/no-MethodImpl profile. This is static PE/IL evidence, not
+general ECMA metadata completeness and not runtime dispatch. See the
+r3 acceptance (archival/local evidence: `../artifacts/lead-module-invocation-witness-review-20261021/static-export-r3-independent-acceptance.json`).
+
+The demux r4 passes 34 original PASS/22 negatives, 9 fix PASS/2 negatives and
+93 regression PASS/73 negatives, including 89 canonical splits and three actual
+reference reconstructions. Exact/canonical modes are retained-reference GO only
+under an externally pinned caller-trusted manifest. Structure mode leaves
+caller-selected intops unanchored and all reference flags false. See the
+r4 demux acceptance (archival/local evidence: `../artifacts/lead-entry-r6-offline-repair-r3-review-20261021/r7-demux-r4-independent-acceptance.json`).
+The original r7 campaign remains FAILED at entry-unknown-prefix 1890 with
+recoverB absent.
+
+The r9 recorded module/Host text correlation is accepted only as an offline
+artifact result under a caller-trusted 50-input manifest: 138 synthetic, 79
+recorded (71 intended negatives) and 7 manifest tests pass; 49 r9 hashes, 48
+generated outputs and 50 immutable pins verify. The enabled run records six Host
+records and twelve module phases at PID 28180; the off run validates identity,
+business closure and resident context at PID 40020 without fabricated call
+records. The original r8 bad pin is preserved, r7 is frozen unchanged, and the
+original r7 campaign remains FAILED at entry-unknown-prefix 1890 with recoverB
+absent. The general manifest_tool API is not accepted because beforeUnchanged is
+unconditional, write_entries trusts a supplied pathKey, and
+verify_relative_manifest lacks general containment. This is text-record
+correlation, not runtime MethodSpec/dispatch, native/interpreter/R2R body,
+PC-image, whole-method, unload, iOS/device or overall acceptance. See the
+[milestone evidence summary](validation/trusted-update-milestone-20261022.md#r9-recorded-text-correlation).
+
+## Generic Interop And Offline Verification (2026-10-21)
+
+The [selected generic interactions](direct-interop.md#measured-on-desktop) have
+stock-SDK raw evidence, Lead offline checks and independent Orca Worker review,
+including a module-private value type unknown to the prebuilt Host. The current
+generic-runner strict context validation passes 64 default and 136 explicit
+checks, rejects 66/66 mutations, and rejects each/both missing
+unloadRequested/collectionClaimed fields (3 cases); see the
+Lead context checks (archival/local evidence: `../artifacts/lead-resident-stock-review-20261021/context-checks.json`).
+The historical F3 retained replay (archival/local evidence: `../artifacts/lead-generics-f3-review-20261021/checks.json`)
+passed 443 checks per campaign, and the earlier
+portable/explicit run (archival/local evidence: `../artifacts/lead-generics-portability-20261021/command.json`)
+passed 19/86 checks (including its 66 mutation rejections); those counts remain
+historical and were not produced by the current strict validator. An earlier
+integrated replay recorded 299 checks
+per campaign; that count is also historical. Process-launch
+entry points are blocked during the selftests. Observation, generic-size and
+generic-interaction portable selftests are wired into local verification and
+the existing three-OS CI configuration; the remote matrix has not been executed
+here. The original campaign exceeded the authorized 4 builds/2 Hosts: actual
+totals are 6 builds/4 Hosts. Both roots, their distinct binaries and w01's
+reporting failure remain preserved. No additional product runs were used for
+these offline checks.
+
+## Generic R2R Build, Report And Map Evidence (2026-10-21)
+
+The retained root D:/RuneCLR-artifacts/trusted-game-generics-r2r-build-20261021-x3yd3fe4
+records exactly three managed builds, five independent non-composite crossgen
+images and zero Host executions. New A/B module images were built after the
+Host; Host/Contracts/TrustedUpdate outputs stayed frozen during the late module
+builds, source inputs were unchanged, and each module pair preserves IL/R2R
+MVID parity. The
+Lead artifact audit (archival/local evidence: `../artifacts/lead-generic-r2r-build-review-20261021/VALIDATION.md`)
+and artifact checks (archival/local evidence: `../artifacts/lead-generic-r2r-build-review-20261021/checks.json`)
+pass 414 checks over command and raw-stream identities, build outputs, actual
+PE MVIDs, R2R headers, maps and layout independence, with zero new products.
+
+The parent report's five R2R section tables used an 8-byte stride and omitted
+sizes. Corrected 12-byte type/RVA/size tables are accepted only in the fresh
+derivative D:/RuneCLR-artifacts/trusted-game-generics-r2r-report-repair-20261021-x3yd3fe4;
+the Lead reran seven parser tests and 377 repair checks, all 226 parent files
+still match the preservation manifest, and no product was rerun. Useful repair
+artifacts are
+check_repair.py (archival/local evidence: `../artifacts/lead-generic-r2r-build-review-20261021/check_repair.py`)
+and repair-checks.json (archival/local evidence: `../artifacts/lead-generic-r2r-build-review-20261021/repair-checks.json`).
+
+The actual maps contain canonical Echo and LateRoundTrip rows only. Measure has
+copied IL and no selected native row. An empty exactHostCandidates set does not
+prevent a future canonical Echo witness joined to the actual T identity, PC,
+PID and call id. Map absence, fixups and section tables are not interpreter
+evidence. The
+map supplement review (archival/local evidence: `../artifacts/lead-generic-map-supplement-review-20261021/VALIDATION.md`)
+passes 31 offline checks; no deliberate root is released. These are
+build/report facts only: no generic native or interpreter execution and no
+same-source behavioral acceptance follows. Host execution remains zero for the
+R2R build campaign.
+
+## Constructed Generic IR Reader (2026-10-21)
+
+eng/trusted_game_observations/generic_ir.py is a side-effect-free, text-only
+reader for extracted interpreter IR and explicit complete constructed-generic
+target identities. The Lead accepted 28 portable synthetic/source-shaped tests
+and four former malformed-input acceptances that now reject: unbalanced
+generic/array brackets, whitespace-only method names, malformed reserved
+Compiled method headers and malformed reserved End of method lines. The
+hardening validation (archival/local evidence: `../artifacts/lead-generic-ir-hardening-review-20261021/VALIDATION.md`)
+and checks (archival/local evidence: `../artifacts/lead-generic-ir-hardening-review-20261021/checks.json`)
+record zero product calls and stable source pins.
+
+Matching retains generic arguments and complete parameter signatures exactly;
+canonical and concrete type spellings are not equated. The reader requires one
+nonempty End-terminated block per unique target, counts only source-shaped
+opcode rows, and rejects nested/truncated/empty/duplicate selected blocks. It
+does not derive assembly, token or MVID identity, parse a real dump here, or
+establish executed method, native/interpreter selection or execution mode. The
+reader/test wiring is now Lead-accepted in maintained local verification
+and CI configuration. eng/verify.ps1 and .github/workflows/ci.yml each gained
+exactly two lines invoking the 28-test suite once immediately after
+generic-interaction portability, with a PowerShell exit guard and unchanged
+three-OS matrix. Exact before/after bytes were verified; 60 Lead checks and
+PowerShell AST (PS_PARSE_OK), YAML parsing and scoped git diff --check pass. One
+measured local Windows invocation exited 0 with 28 tests, zero failures/errors
+and zero products. Remote CI was not triggered; the three-OS matrix is
+configured, not executed. Reader/test source hashes are unchanged. See the
+integration validation (archival/local evidence: `../artifacts/lead-generic-ir-integration-review-20261021/VALIDATION.md`) and
+checks (archival/local evidence: `../artifacts/lead-generic-ir-integration-review-20261021/checks.json`).
+
+## Resident Generic Stock Compatibility (2026-10-21)
+
+The Lead accepted a bounded resident managed compatibility observation on stock
+.NET 11 RC2 Windows x64. The
+validation (archival/local evidence: `../artifacts/lead-resident-stock-review-20261021/VALIDATION.md`)
+records exactly two separately released fresh Host invocations, A then B (PIDs
+872 and 27340, both exit 0, no timeout or retry) and zero builds, crossgens or
+Publisher calls in the campaign. The campaign used a new
+Host/Contracts/TrustedUpdate trio plus retained w02 A/B module images, so it is
+explicitly mixed build provenance and not one same-build campaign.
+
+Both reports record resident mode with contextIsCollectible=false,
+unloadRequested=false and collectionClaimed=false. Six fixture-derived shape
+outcomes and the callback-failure state pass; failure preserves ledger state and
+the next call returns Closed. The Lead audit executed no products and passed 138
+checks over raw streams, commands, process identities, actual PE MVIDs, pins,
+shared Contracts identity and the six shape goldens. The earlier compile-only
+resident build and its 22 artifact checks (archival/local evidence: `../artifacts/lead-generics-portability-20261021/resident-checks.json`)
+remain historical. The retained before/after pin manifest is
+`6960d5422cbb671babfe940ff7fe8e2fed16fae89f374df35c95ae09d24f099d`,
+and original and copied artifacts remain byte-identical.
+
+This is stock managed resident compatibility only. It does not establish R2R or
+native execution, interpreter selection or fallback, collection/unload,
+iOS/device or restricted-UGC behavior. Physical devices remain skipped. The
+original unauthorized 6-build/4-Host deviation and w01 evidence remain
+preserved.
+
+## Entry Preparation Release (2026-10-21)
+
+The old prep-r4/plan-r5 review remains historical NO-GO evidence for entry
+execution. It found unsealed expected Host shared Contracts/TrustedUpdate and
+Host deps/runtimeconfig identities and a misaligned plan-mutation harness; no
+entry products were executed. The old review is
+D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r4-r5-review-bocx5e-20261021/REVIEW.md.
+
+The later prep-r5/plan-r6 package passed Lead offline review: 40 input files,
+82 checks, 97 retained checks and 16 aligned gate-specific mutations, covering
+guarded synthetic/selftest and the actual sealed preflight only, with zero
+products. The independent prep-r6 review then returned GO
+(SHA-256 8e923f3f480ead0f2911ae61f866666f43696e4be251eda7c37fd0aea817016b),
+and the Lead released exactly one execute invocation of the sealed r5 runner
+against the existing r6 plan: two stock-SDK Publishers followed by three private
+Checked forced-control Hosts, stageA multiplier 1, stageB multiplier 2, recoverB
+multiplier 2. Zero builds, crossgens, retries or devices; stop at first failure.
+See the Lead release (archival/local evidence: `../artifacts/lead-entry-r6-release-20261021/RELEASE.md`).
+The independent review is
+D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-prep-r6-review-bocx5e-20261021/REVIEW.md.
+
+The released execution has now terminated FAILED-CLOSED. Exactly two stock-SDK
+Publishers and the stageA forced-control Host ran and exited 0; stageB and
+recoverB were not launched, and no retry or rerun occurred. The runner exited 1
+with EntryProbeError (entry-unknown-prefix 1892). The entire raw stageA.stdout
+has SHA-256 bb112fbdc5c01aca655d601484a35420dab62a2fb454faaf1e4f6e542b28b5ca;
+its failing line 1892 carries the unrecognized native diagnostic fragment
+"Slot 2 (local var #4 offset 64) li" immediately before an otherwise valid
+ENTRYOBSERVATION. Six stageA ENTRYOBSERVATION records cover Host/Tick ordinals
+1/2/3 with results 1/3/6, KindByte 6, DecodedKind Interpreter and
+ObservedInterpreted true; those are entry/kind observations only and do not
+establish interpretation. Host exit 0 and Host output are not attribution
+acceptance, and stageA attribution remains unaccepted. The independent raw audit returns GO only for the bounded stageA observation;
+the offline repair v1 actual reading passed but its reusable validator is NO-GO,
+its successor r2 still fails reusable acceptance on an AssemblyRef token
+byte-order bug (r3 remained unaccepted at that point), and independent public-signature
+verification passes 36 checks without proving a B Host. Acceptance is false:
+stageB/recoverB behavior and the expected B 2,6,12 results were not observed.
+The retained control report is
+D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-execution-control-dw517j-20261021/REPORT.md.
+A runner pass alone is not raw attribution acceptance. The subsequent raw audit
+and public-signature check cover only their bounded scopes; the old
+results-filename refusal and weak IR prefix/signature matching remain explicit
+residuals. This run does not establish natural mixed fallback, generic-body,
+whole-method, performance, unload, iOS or overall acceptance; physical devices
+remain skipped.
+
+## Generic R2R Size Observation (2026-10-21)
+
+Orca Worker developer-5 produced five managed builds and five independent
+Windows x64 crossgen images. The Lead byte audit (archival/local evidence: `../artifacts/lead-generic-size-review-20261021/VALIDATION.md`)
+passes 148 checks over file hashes/sizes, deterministic gzip round trips, actual
+IL/R2R MVIDs, R2R headers and selected map method nodes. Increasing this fixture
+from one to eight reference types keeps raw R2R at 20480 bytes (gzip 3413 to
+4560); one to eight value types grows raw R2R from 20480 to 24576 bytes (gzip
+3489 to 5292). Canonical method nodes remain 50 bytes; selected exact nodes grow
+from 30 to 288 bytes for the value-type pair. File alignment, callsite/metadata
+differences and method-node payloads prevent a universal per-type multiplier.
+This measures file composition only, without execution or interpreter evidence.
+The offline replay (archival/local evidence: `../artifacts/lead-generic-size-replay-review-20261021/VALIDATION.md`)
+also passes eight portable tests and an actual retained-data replay; sixteen
+Lead checks reproduce the original independently audited sizes and method-node
+totals without builds/crossgen or image execution.
+These eight portable tests are now included in eng/verify.ps1 and the existing
+three-OS CI matrix; twelve Lead entry checks and PowerShell parsing pass. Only
+the local Windows test execution is recorded here.
+The initial report failed after all products; offline regeneration preserved
+that failure and performed no extra builds/crossgen. Compression is for
+distribution and requires decompression before loading.
+
+## Maintained Desktop Regression (2026-10-21)
+
+The Lead reran the complete maintained `eng/verify.ps1` on Windows with stock
+SDK `11.0.100-rc.2.26504.105`: exit 0, no timeout, zero build warnings/errors,
+and 235 fixed preexisting source inputs unchanged. The
+execution record (archival/local evidence: `../artifacts/lead-desktop-regression-20261021-06f87e58/VALIDATION.md`)
+includes raw streams and 22 independent Lead checks. Runtime tests pass 140/140,
+packaging 307/307, controlled-package execution 15/15 and pumped execution
+22/22, trusted-update tests 272/272, typed-module lifecycle 15/15, staging
+17/17 and recovery 37/37. Signature tests, startup selftests, callback closure,
+signed delivery integration, the runner's six selftests and the signed real-A/B
+game sample also pass. This refreshes the ordinary desktop baseline; it does
+not qualify interpreter/R2R method selection or Worker-owned fixtures/tools
+created after the fixed source set was captured. Generic interoperability,
+generic R2R size measurement and method-entry evidence remain separate work.
+Physical devices remain skipped.
+
+## Current Engineering Focus (2026-10-20)
+
+The current implementation moves toward a maintained, engine-independent
+trusted-update example: a reusable typed module session in
+`RuneCLR.TrustedUpdate`, lifecycle regressions in the normal verification
+pipeline, and a game-owned contract with a host built before its update module.
+The Windows stock-SDK baseline now builds with zero warnings/errors. The
+[typed session](trusted-module-session.md) has 15 passing lifecycle checks,
+including module/callback/exception release while the closed owner remains
+alive. Independent source review found no blocking lifetime defect; its
+closed/reentry/null documentation and coverage findings were addressed and
+the 15-check harness rerun by the lead. The experimental wrapper's null
+constructor, invalid callback and valid subsequent call are also covered by
+three executed delivery-host self-test checks. The existing runtime harness
+passes 139/139 and the original sample's three contexts collect. The
+[trusted game sample](trusted-game.md) builds its host before the update,
+checks the unchanged host, and returns 1/3/6 through the shared GameState.
+Its negative delta closes before mutation; later calls, a wrong content hash,
+and an unrecognized local approval are rejected. The host dependency list
+contains no update module. This establishes desktop managed integration,
+without qualifying native R2R or interpreter execution. Verification and
+three-OS CI entries are configured; the CI matrix has not been run here.
+The [same-source build driver](trusted-game-builds.md) now also passes its
+Windows private-runtime functional baseline: four independent R2R derivatives
+preserve their IL MVIDs, both layouts return 1/3/6, and both reject a wrong
+content hash. The Lead validation (archival/local evidence: `../artifacts/lead-trusted-game-builds-20261020/VALIDATION.md`)
+records actual-byte and raw-log checks and the remaining source-pin limits.
+This qualifies build/layout behavior, without establishing actual method
+execution mode. The signed staging/recovery sample now has a reported Windows
+functional run: A stages and recovers, a tampered signed payload recovers only
+authenticated A, and a validly signed B with a missing entry type fails without
+same-process fallback; the next process recovers A. Lead review of the raw
+streams agrees with those behaviors. The corrected script has now passed a
+worker-run no-argument PowerShell 7 invocation and a separate
+Lead end-to-end run (archival/local evidence: `../artifacts/lead-trusted-game-signed-20261020/VALIDATION.md`),
+with all 12 selected source hashes unchanged. Portable child-shell selection
+and native-architecture defaults are implemented; Linux/macOS remain unrun.
+Independent Host source review is complete with no blocking defect; all 35
+review pins match before, after and the actual inputs. That historical baseline
+used a wrong-entry negative over A's bytes. The maintained sample now also has
+an independently built real B with the same assembly identity and different
+business logic. The Lead A/B run (archival/local evidence: `../artifacts/lead-trusted-game-ab-20261020/VALIDATION.md`)
+passes 18 command-result checks with 14 selected source hashes unchanged: A
+returns 1/3/6, B returns 2/6/12 for the same inputs, B persists and recovers in
+the next process, and tampered offers preserve authenticated recovery. A wrong
+Host expectation fails on B's actual result 2 and leaves the B receipt intact.
+Targeted review of this A/B delta found no concrete source-level defect; all
+13 review pins match the actual files without drift.
+The optional signed A/B same-source driver now also has a completed Windows
+private-runtime run and scoped Lead acceptance (archival/local evidence: `../artifacts/lead-signed-ab-driver-acceptance-20261020/VALIDATION.md`):
+30 commands, 221 independent evidence checks and ten actual-image metadata
+reads. Five separate IL/R2R pairs preserve MVID; both layouts stage real A/B,
+replace the receipt with B and recover B in a fresh process. All 25 captured
+source pins and copies match. The parser diagnostic-field correction is now
+promoted: the maintained runner self-test passes all six checks, and offline
+replay accepts six actual success rows while rejecting six contradictory
+activation rows. Historical inputs and raw results remain unchanged. This establishes build/layout and signed business
+behavior, without establishing actual method execution mode.
+An isolated diagnostic overlay now has a
+Lead method-PC audit (archival/local evidence: `../artifacts/lead-method-proof-run2-review-20261020/REVIEW-STATUS.md`):
+291 checks verify 18 enabled return-PC bindings in Host/A/B target methods and
+18 disabled observations in the sealed runtime image. Independent Orca Worker
+review supports the selected native return-site result with 324 checks and 88
+unchanged review pins. The original disabled non-image gate remains failed, and a separate
+post-processing error leaves the parent exit at 1. This does not establish
+interpreter fallback or promote the diagnostic overlay to the maintained sample.
+The full packaging harness has completed 307/307 checks,
+and the solution including the new Publisher builds with zero warnings/errors.
+The maintained integration checks (archival/local evidence: `../artifacts/lead-maintained-integration-20261020/VALIDATION.md`)
+record the completed package and runner checks. The signed baseline now has
+both Lead functional execution and independent source review; the distinct
+business-version increment has its own execution record and completed targeted
+source review.
+The stock sample's independent source review found no blocking
+bug. It records the current hash-check/load time window and the need to accept
+authenticated LastKnownGood activations in the recovery route; the local-build
+approval marker is not reused as signed authorization. See the
+[current sequence](next-development-plan.md#current-engineering-sequence---2026-10-20).
+Physical devices remain skipped.
+
+## Latest Mixed-Execution Handoff (2026-10-20)
+
+A same-process Windows x64 trusted mixed observation now links a selected native
+return site inside R2R GraphRules.Apply to post-invocation interpreted entries
+for a plain-IL helper, with two shared-object calls returning 107/127 and one
+helper compilation serving both calls. The scoped Lead acceptance (archival/local evidence: `../artifacts/lead-trusted-mixed-fallback-acceptance-20261020/ACCEPTANCE.md`)
+covers that narrow raw observation. The campaign's automatic acceptance remains
+false: the frozen reader expected the previous module hash, the adapter counted
+post-End GC text as compiled code, and the draft PLAN's allowance marker
+conflicts with the separately authorized single product; these remain traceable
+process defects.
+
+The next engineering item is to read expected module hash, size, map and related
+identities from one frozen descriptor and compare them with actual bytes before
+launch; also fix the End-before instruction count and keep PLAN authorization
+status consistent. Do not rerun the old product to manufacture a green result.
+Physical devices remain skipped.
+
+
 ## Published Performance Results (2026-10-19)
 
 The [durable performance report](performance-results-20261018.md) records scoped
 accepted four-platform measurements and the same-iOS R2R/IL comparison. Next is
 callback-scoped time-limit work after this documentation is committed and pushed;
 no callback deadline or formal execution-mode baseline is established here.
+
+## Current Four-Platform Descriptive Status (2026-10-18)
+
+Subsequent iOS same25-workload R2R/IL comparison now has
+scoped Lead acceptance (archival/local evidence: `../artifacts/lead-ios-r2r-comparison-acceptance-20261018/ACCEPTANCE.md`):
+four actual native method entries,9 completed apps,1050 formal observations
+and450 warmups. Results (archival/local evidence: `../artifacts/iossim-access-r2r-comparison-bocx5e-20261018/REPORT.md`)
+show workload-dependent IL/R2R median ratios7.82-204.81 on the same simulator.
+Original iOS workloads were late IL without R2R bodies; default is a request
+label. The new installed-composite comparison preserves input IL and runtime,
+but includes composite optimization/layout/loading-path effects. Independent
+downloaded R2R, per-call/all-method qualification and devices remain open.
+Both this campaign and the earlier two diagnostic attempts are closed.
+
+Four-platform descriptive warm and direct-first-use coverage is complete by
+scoped Lead acceptances, including the fresh
+Mac campaign (archival/local evidence: `../artifacts/lead-macos-complete-performance-acceptance-20261018/ACCEPTANCE.md`).
+The source-linked consolidation (archival/local evidence: `../artifacts/four-platform-descriptive-performance-20261018/REPORT.md`)
+contains exact Fraction JSON/CSV:1008 retained warm samples,105 child intervals,
+6 additional Windows parent-ready windows and480 first-use functional rows.
+Desktop warm has two separate requests; mobile warm and non-Windows first-use
+are default-only. No cross-platform pooling, ranking or mode claims. Windows
+coreclr matches Checked PDB despite its Release-named directory.
+
+The separate25group access/collections/override-dispatch extension now has
+scoped Lead acceptance (archival/local evidence: `../artifacts/lead-access-collections-acceptance-20261018/ACCEPTANCE.md`):
+22 products,3150 formal samples,1350 warmups,100 untimed checks and704 original
+lifecycle-gate rows across six separate request lanes. See the immutable
+report (archival/local evidence: `../artifacts/access-collections-performance-bocx5e-20261018/REPORT.md`),
+exact statistics (archival/local evidence: `../artifacts/access-collections-performance-bocx5e-20261018/reporting-r3/statistics.json`)
+and [scope/limits](four-platform-baseline.md#accepted-access-collections-and-dispatch-extension).
+The older1008 warm/105 child first-use baseline stays separate. Workload-dependent
+request differences do not establish mode or cause. Mobile bridge-deps omissions,
+Windows/Mac Python-seal scope, Android resolved-tool/normalized-child-stream
+limits, unknown mobile app OS exits and hardware/build differences remain
+explicit; they do not make accepted descriptive measurements pending again.
+
+All quotas remain closed. Formal method-execution qualification stays open;
+switches, loaded libraries and file hashes do not prove per-call mode. Devices
+stay skipped. Later interpreted-UGC coarse deadline work needs execution/
+enforcement prerequisites and matched OFF/ON on the same new runtime with
+frozen workload/runner/checksums; it is not implemented by existing charges,
+transport watchdogs or this report.
+
+Normal append-only owned output logs are permitted, not measurement blockers;
+input freezes are separate. The historical iOS9413-byte timeline append and
+broad all-remote-files gate failure remain preserved, not rewritten as all-
+guards-equal. Old Mac failures/recovered-snapshot gaps are not backfilled.
+The final CDB reader adjudication (archival/local evidence: `../artifacts/lead-cdb-full-reader-adjudication-20261018/ADJUDICATION.md`)
+accepts offline observation/regressions only. Original controller exit1/gatefalse
+and unknown direct helper OS wait remain; no live CLR/interpreter witness or
+launch permission follows. Earlier pending Mac/reader notes below are historical
+and superseded by this current status; unrelated evidence remains unchanged.
 
 ## Product decisions
 
@@ -49,6 +582,929 @@ restricted UGC. The custom-map analogy is one integration model.
   controlled server build pipeline. Even future R2R/JIT support does not permit
   direct execution of author-built runnable packages/native bodies. JIT normally
   generates machine code on the execution device from approved IL.
+
+## Approved next sequence - 2026-10-18
+
+The owner approved native Host/module shared-object graph composition, then a
+frozen basic performance baseline on Windows, macOS, iOS simulator and Android
+emulator, followed by a coarse callback deadline for untrusted interpreted UGC
+and a matched performance/cutoff/recovery rerun. Physical devices stay skipped.
+This updates the historical four-platform deferral of 2026-10-16.
+The [four-platform baseline status](four-platform-baseline.md) consolidates
+current platform gates, real Windows distributions and deadline entry conditions.
+The new iOS simulator functional Lead check (archival/local evidence: `../artifacts/lead-iossim-portable-review-20261018/REVIEW.md`)
+passes final32 records and1155 business-method IL comparisons without new app
+starts. The original missing-deps managed1 failure and repaired managed0 remain
+separate. Independent review is now terminal and
+scoped functional acceptance (archival/local evidence: `../artifacts/lead-iossim-functional-acceptance-20261018/ACCEPTANCE.md`)
+is complete, retaining helper/provenance limitations. No iOS timing or
+execution-mode acceptance follows. Android timing and Mac functional adaptation remain their
+separately assigned Orca tasks.
+Mac's first portable adapter has since reported two failed functional starts;
+the Lead failure review (archival/local evidence: `../artifacts/lead-macos-functional-failure-review-20261018/REVIEW.md`)
+confirms dependency resolution, argument forwarding and dyld diagnostic gaps.
+The fresh repair contract (archival/local evidence: `../artifacts/lead-macos-functional-repair-task-20261018/TASK.md`)
+requires readiness checks before new bounded starts; neither old run passes the
+Mac gate. The successful runtime build is retained separately.
+The Android descriptive timing Lead review (archival/local evidence: `../artifacts/lead-android-timing-pilot-review-20261018/REVIEW.md`)
+now passes the original four-start campaign and independently recomputes168
+actual samples,8 pooled and24 per-PID distributions. Complete1517-file guards
+remain unchanged. Independent review is now terminal and
+scoped descriptive acceptance (archival/local evidence: `../artifacts/lead-android-descriptive-pilot-acceptance-20261018/ACCEPTANCE.md`)
+is complete; executed mode and app OS exit remain unproven/unavailable.
+The Worker checks raw/closure evidence; exact statistics are the Lead's separate
+Fraction/type-7 result. No phone result follows.
+The iOS descriptive timing Lead review (archival/local evidence: `../artifacts/lead-iossim-timing-pilot-review-20261018/REVIEW.md`)
+also passes168 actual samples from one new four-start campaign, with849-file
+guards,1155-method IL parity and exact8pooled/24per-PID statistics. Independent
+timing review is terminal and
+scoped descriptive acceptance (archival/local evidence: `../artifacts/lead-iossim-descriptive-pilot-acceptance-20261018/ACCEPTANCE.md`)
+is complete, retaining app OS-exit/outermost-bootstrap-wait and execution-mode
+limits. Mac repair records recovered
+after Worker interruption contain two wait0/32-row results; the recovery task
+permits finalization only, with zero remaining product slots.
+The recovered Mac raw results now have terminal independent Orca review and
+scoped Lead adjudication (archival/local evidence: `../artifacts/lead-macos-recovered-raw-adjudication-20261018/ADJUDICATION.md`):
+99 review files,68 snapshot pins and25 ZIP entries match. This accepts the
+two functional records only; full candidate reconciliation and declared
+prelaunch/tool/runtime/SSH gaps remained at that checkpoint. The fresh frozen
+Mac campaign now supplies separate descriptive timing acceptance.
+
+The Windows direct first-use increment (archival/local evidence: `../artifacts/lead-windows-first-use-acceptance-20261018/ACCEPTANCE.md`)
+now has scoped Lead acceptance: six exit0/watchdogfalse processes,42 child
+intervals,6 separate parent-ready windows and192 functional rows. Lead verified
+245 files and all48 observations/16 summaries after the independent Orca review
+corrected its frequency-as-summary error in a separate artifact. The original
+error, failed close, authorized reference-document drift and source-manifest
+omission remain recorded. Fresh-process caches are uncontrolled; parent/child
+clock domains stay separate and execution mode stays unproven.
+The Android direct first-use increment (archival/local evidence: `../artifacts/lead-android-first-use-acceptance-20261018/r2/ACCEPTANCE.md`)
+now also has scoped acceptance after terminal independent Orca review. All1426
+files,21 direct intervals,96 functional rows and seven exact three-observation
+summaries match. The three fresh apps report managed return0/native HRESULT0
+with ADB direct wait0/watchdogfalse; app OS exit remains unknown. Cache state
+is uncontrolled and no parent startup window was measured. Its three-app budget
+is exhausted. The iOS simulator direct first-use increment (archival/local evidence: `../artifacts/lead-iossim-first-use-acceptance-20261018/r1/ACCEPTANCE.md`)
+now has scoped acceptance after terminal independent Orca review: three apps,
+21 direct intervals,96 original functional rows and seven exact summaries agree.
+All831 candidate and760 preparation files remain unchanged locally. The original
+remote timeline appended9413 bytes while retaining its35981-byte prefix; the
+historical broad remote-immutability gate failed and remains preserved. Normal
+append-only output is allowed, not a measurement blocker; frozen measurement
+inputs are separate and unchanged. simctl wait0,
+managed/native zero markers and unknown app OS exit remain distinct. Its three
+slots are exhausted, with no retry or replacement. Mode stays unproven and caches
+uncontrolled. Mac now also has21 scoped-accepted first-use intervals; formal
+execution-mode-qualified four-platform baseline remains open.
+
+The Windows interpreter-entry preflight stopped before any author/debugger
+process: the actual accepted coreclr.dll matches the Checked PDB, not the
+proposed Release PDB. The independent Lead check (archival/local evidence: `../artifacts/lead-windows-interpreter-preflight-review-20261018/REVIEW.md`)
+rehashes1886 inputs and verifies37 delivery files. A Release-named testhost
+directory is not native build provenance; existing byte-pinned timings remain
+descriptive, with execution mode unproven. Native type-layout validation against
+the matching Checked PDB is required before a separately authorized capture.
+That subsequent single-process capture has now failed to load its breakpoint
+command file. The Lead failure adjudication (archival/local evidence: `../artifacts/lead-windows-checked-entry-failure-review-20261018/REVIEW.md`)
+confirms138 files, raw2 and no complete entry chain; old1/1 author budget is
+exhausted. Native protocol controls and a separate future dispatch are required,
+without changing old mode labels. Android first-use implementation transferred
+to the existing Android adapter author after cc's zero-product preparation;
+the terminal total is cc0+boc3=3/3, with no extra smoke or retry.
+The native CDB control task subsequently used all four slots without proving
+breakpoint-origin capture and natural helper exit. Lead's
+correction adjudication (archival/local evidence: `../artifacts/lead-cdb-protocol-correction-adjudication-20261018/ADJUDICATION.md`)
+accepts the Orca Worker's corrected account, retaining the original false-positive
+claims and streams. The observed native boundary hit is insufficient: capture
+commands ran at the loader initial break and q ended debugging at the boundary.
+Next prepare a native-only script/controller and offline predicate that reject
+that transcript; Lead static review precedes any new bounded launch. No author
+retry or execution-mode upgrade is accepted.
+The prepared replacement then received a single native-only trial. Lead's
+passive trial review (archival/local evidence: `../artifacts/lead-cdb-native-trial-review-20261018/REVIEW.md`)
+verifies42 trial and806 preparation files, preserving the launched reader's
+path/exit-format rejection. The original raw supports post-hit register/read
+capture, result43 and debugger last-event exit0, subject to independent offline
+schema review. The observation adjudication (archival/local evidence: `../artifacts/lead-cdb-native-observation-adjudication-20261018/ADJUDICATION.md`)
+now accepts that literal native sequence after terminal independent Orca review,
+but excludes its unimplemented mutation-control claims. Complete schema-aware
+reader regression coverage remains open; original failed gate and unknown direct
+helper OS wait remain unchanged. No extra helper or CLR author launch follows. The
+iOS simulator first-use preparation (archival/local evidence: `../artifacts/lead-iossim-first-use-preparation-20261018/TASK.md`)
+defined the compiled adapter and offline gates. A separate bounded campaign
+followed Lead readiness review; its scoped descriptive acceptance and explicit
+timeline deviation are recorded above, without reopening its exhausted slots.
+Lead's decoder regression review (archival/local evidence: `../artifacts/lead-cdb-observed-reader-review-20261018/r2/REVIEW.md`)
+has since reproduced seven false accepts with equal-length mutations and
+relinked hashes. The new decoder remains rejected; repair must retain the
+prepared reader's anchored prompt/output, PE/file/freeze and strict record
+checks while adapting only the observed path/exit formats.
+The repair2 regression review (archival/local evidence: `../artifacts/lead-cdb-reader-repair2-review-20261018/REVIEW.md`)
+confirms that the original seven counterexamples now reject, but ten additional
+relinked record/event mutations still falsely accept. The reduced repair omits
+full frozen-file/environment/controller/clock/launch-link checks and event order.
+Reader acceptance remained rejected at that checkpoint. The subsequent final
+full-reader adjudication accepts offline observation only, without additional
+debugger/helper/author products or live mode witness.
+
+Existing Orca Workers have received the native graph implementation and
+performance preparation tasks. After the original graph Worker's model-service
+capacity failure (503 account_candidate_capacity), Lead transferred implementation
+to the existing native specialist under a distinct artifact directory; the
+transfer contract (archival/local evidence: `../artifacts/lead-native-graph-transfer-20261018hj/TRANSFER.md`)
+preserves the total product-start limit and requires residual-process checks.
+The failed dispatch is not a product/build failure or a delivered capability.
+Preparation runs alongside composition; actual
+performance measurements follow graph review and example freeze. The deadline
+is not implemented by existing instruction budgets or HTTP transport timeouts.
+Trusted code remains unlimited. Lead retains scoped acceptance; independent
+review follows delivery. See the [current sequence](trusted-embedding-next.md#approved-sequence-2026-10-18)
+and stage acceptance gates (archival/local evidence: `../artifacts/lead-approved-stage-gates-20261018hg/GATES.md`).
+
+Stage 1 now has scoped Lead acceptance (archival/local evidence: `../artifacts/lead-native-graph-acceptance-20261018hv/ACCEPTANCE.md`)
+after the terminal independent Orca Worker review. Four original Windows x64
+product runs preserve the signed shared-object graph semantics; seven observed
+Apply/Seen return sites bind to the exact independently compiled R2R files and
+method intervals. This is resident instrumented callsite evidence, without
+whole-method, Func-native, interpreter fallback, unloading or mobile claims.
+The disabled lane is not interpreter proof; no extra graph product was started.
+
+The minimal semantic example (archival/local evidence: `../artifacts/lead-performance-example-freeze-20261018hw/FREEZE.md`)
+fixes workload parameters and independent expected values. The next implementation
+is the portable functional harness (archival/local evidence: `../artifacts/lead-portable-baseline-harness-task-20261018hx/TASK.md`),
+with separate platform runtime prerequisites (archival/local evidence: `../artifacts/lead-platform-mode-prerequisites-task-20261018hy/TASK.md`).
+Its implemented sources/adapters need functional review and a final timing-source
+freeze before any new baseline. Current read-only tool metadata confirms Mac
+ARM64/Xcode27/iOS simulator SDK27 and local Android tooling; it does not establish
+compatible private execution modes. No new baseline or deadline is implemented.
+
+The exact Mac cache query (archival/local evidence: `../artifacts/lead-exact-mac-runtime-cache-20261018id/README.md`)
+now confirms that the retained mobile-batch iOS simulator Release CoreCLR,
+IL CoreLib and ARM64 Crossgen2 still exist with their recorded hashes. The
+preceding prerequisite report's unknown cache status is superseded for those
+three files only. A newly packaged harness and its invocation/mode evidence
+remain outstanding; desktop Mac runtime selection is a separate prerequisite.
+
+The portable harness functional delivery (archival/local evidence: `../artifacts/portable-baseline-harness-bocx5e-20261018/README.md`)
+now has a final Windows stock-runtime run with five workload checks and real
+collectible session/resource controls. The Lead review (archival/local evidence: `../artifacts/lead-portable-harness-review-20261018ih/REVIEW.md`)
+verified its 32 raw records, 40 frozen inputs and 908 compiler closure files.
+No new performance sample was taken. Five offline helper misacceptances
+(role, timing scopes and chronology) prevent timing freeze; the
+repair task (archival/local evidence: `../artifacts/lead-portable-harness-repair-task-20261018ii/TASK.md`)
+also adds the reusable public managed entry needed by platform bridges.
+Mac private-runtime preparation proceeds separately. Four-platform packaging,
+execution-mode evidence, baseline timing and deadline work remain outstanding.
+
+The independent JSONL statistics adapter (archival/local evidence: `../artifacts/lead-portable-statistics-adapter-20261018ij/README.md`)
+now checks the implemented event format with eight workload groups, separate
+process config identities, exact clock conversion and retained distributions.
+Its 23 rejection controls and synthetic schedule pass; the actual 32-row
+functional stream correctly fails timing eligibility. These are verification
+results only: no new performance sample or execution-mode acceptance follows.
+
+The mobile adapter reuse check (archival/local evidence: `../artifacts/lead-mobile-adapter-reuse-review-20261018ik/REVIEW.md`)
+also verifies the newer retained Android batch APK against its exact 199-file
+layout and 198 application inputs, including 11 x86_64 native libraries. The
+old bridge's budget/matrix settings require replacement; iOS needs a fresh
+composite for the new trusted assembly closure. These provide concrete build
+inputs, without a new package, simulator run or mobile execution-mode claim.
+
+The portable repair Lead review (archival/local evidence: `../artifacts/lead-portable-repair-review-20261018il/REVIEW.md`)
+now accepts the public-entry/helper repair within its stock Windows functional
+scope. Five original misacceptances reject independently; the new image has its
+own 32-row run and unchanged workload bodies. The
+Windows private adapter task (archival/local evidence: `../artifacts/lead-windows-private-harness-task-20261018im/TASK.md`)
+is the next implementation step: actual private-runtime functionality, loaded
+identity and carefully separated method-entry diagnostics. It authorizes no
+timing and does not infer interpreter execution from a switch or prepared entry.
+
+Mac private-runtime attempt1 failed before native compilation because pkg-config
+was unavailable. The independent failure review (archival/local evidence: `../artifacts/lead-mac-build-failure-review-20261018in/REVIEW.md`)
+retains the complete log and confirms that no usable native runtime resulted.
+The diagnosed retry task (archival/local evidence: `../artifacts/lead-macos-toolchain-retry-task-20261018io/TASK.md`)
+allows prerequisite tools only in a new private experiment prefix, with full
+preflight before the one remaining runtime-build attempt. It changes no system
+installation and does not advance benchmark or mobile acceptance.
+
+The Windows private adapter Lead review (archival/local evidence: `../artifacts/lead-windows-private-adapter-review-20261018ip/REVIEW.md`)
+now accepts its two untimed functional lanes within their Windows x64 scope.
+Both retain32 raw rows and exact private framework identities; selective-author
+also observes loaded clrinterpreter and37 installed interpreter precodes. These
+are installed-entry diagnostics, without per-call interpretation or performance
+eligibility. Lead's zero-product replay passes30 controls and preserves all
+candidate inputs. The Android portable adapter contract (archival/local evidence: `../artifacts/lead-android-portable-adapter-task-20261018iq/TASK.md`)
+advances to a fresh emulator app and bounded functional run using the reviewed
+public entry and exact retained mobile runtime. Mac build2 remains separate;
+actual four-platform timings and deadline implementation are still pending.
+
+Mac build2 also failed before native compilation: the isolated tools now work,
+but OpenSSL pkg-config metadata is unavailable. The
+Lead failure review (archival/local evidence: `../artifacts/lead-mac-openssl-failure-review-20261018ir/REVIEW.md`)
+retains its full125096-byte log and original recorder files; command SHA links
+and exclusive creation were missing, so the failure is not upgraded to full
+launch-provenance acceptance. The
+OpenSSL recovery contract (archival/local evidence: `../artifacts/lead-mac-openssl-recovery-task-20261018is/TASK.md`)
+explicitly extends the exhausted two-build limit by one diagnosed attempt only
+after real private OpenSSL/ICU compiler/linker/CMake preflight. Source and system
+installations stay unchanged; no usable Mac runtime or timing result yet.
+
+The Android adapter Lead review (archival/local evidence: `../artifacts/lead-android-portable-review-20261018it/REVIEW.md`)
+now checks the new app's one successful emulator run,32 original functional
+rows,19 reader cases and full package/transport closure. The managed return0,
+native hosting HRESULTs0 and ADB transport0 stay distinct; CoreCLR/JIT maps do
+not prove interpretation. No new Android timing was taken. The
+Windows timing pilot contract (archival/local evidence: `../artifacts/lead-windows-timing-pilot-task-20261018iu/TASK.md`)
+now authorizes a frozen minimal measurement wrapper, one untimed gate and
+three real measured processes per request configuration. These will be
+descriptive default/selective-request timings under unproven-selection, not
+formal interpreter/native or four-platform baseline acceptance. Deadline
+implementation still follows the formal no-deadline baseline.
+
+Mac attempt3 passed private OpenSSL checks but failed ICU header discovery.
+The Lead reproduction (archival/local evidence: `../artifacts/lead-mac-icu-discovery-review-20261018iv/REVIEW.md`)
+isolates a CMAKE_PREFIX_PATH environment separator defect: semicolon cannot
+find the existing header; colon resolves it with the same CMake expression.
+The environment repair contract (archival/local evidence: `../artifacts/lead-mac-cmake-environment-repair-task-20261018iw/TASK.md`)
+authorizes one further unchanged-source build after that discovery check,
+with corrected full-command-file hash links. Three failures remain preserved;
+the private runtime and formal Mac baseline are not established yet.
+
+The Windows real pilot Lead review (archival/local evidence: `../artifacts/lead-windows-timing-pilot-review-20261018ix/REVIEW.md`)
+now independently verifies336 actual samples from six measured processes plus
+the untimed gate. Exact rational distributions agree for16 request/workload
+groups and48 per-process groups, without new launches. Numeric pooled medians
+are3.3194ms default and28.7403ms selective-author; the faster selective session
+groups remain request observations without mode attribution. The
+independent Orca review (archival/local evidence: `../artifacts/lead-timing-pilot-independent-review-task-20261018iy/TASK.md`)
+is the next review task after cc's current Mac build. The
+iOS simulator adapter contract (archival/local evidence: `../artifacts/lead-iossim-portable-adapter-task-20261018iz/TASK.md`)
+advances a fresh app/composite and bounded functional run using existing cached
+mobile outputs. Formal four-platform execution baseline and deadline remain pending.
+
+Mac attempt4 now has a successful original build and scoped
+Lead output review (archival/local evidence: `../artifacts/lead-mac-attempt4-runtime-review-20261018/REVIEW.md`):
+actual child96624 exit0,565006-byte original stdout,13 layout files and four
+matching core/framework hashes. ARM64 runtime/interpreter/muxer outputs exist.
+The recorder rewrote command.json before launch and lacks complete inherited
+environment/tool guards; strict launch-provenance acceptance remains false.
+The Mac portable functional contract (archival/local evidence: `../artifacts/lead-macos-portable-functional-task-20261018/TASK.md`)
+requires a fresh complete freeze and two bounded untimed lanes after cc's
+independent Windows review. No runtime rebuild or historical-record repair.
+
+The independent Windows timing review is now terminal. Lead
+accepts the descriptive pilot scope (archival/local evidence: `../artifacts/lead-windows-descriptive-pilot-acceptance-20261018/ACCEPTANCE.md`)
+after rehashing the435-file delivery and reconciling raw counts. Each measured
+PID has80 intervals including24 warmups and56 actual samples;336 actual samples
+total. The48 CSV rows are eight workload summaries per PID across six PIDs.
+The independent report's65 timed-row figure excludes15 callback warmup-kind
+rows and is retained with this explicit correction. No executed-mode or formal
+four-platform baseline acceptance follows. Mac adapter work follows its own
+functional contract; deadline implementation still follows the complete baseline.
+
+The Android descriptive timing contract (archival/local evidence: `../artifacts/lead-android-portable-timing-task-20261018/TASK.md`)
+now defines the next implementation after boc's iOS functional task terminates.
+Static readiness checks all1851 original Android manifest files and unchanged
+portable Host/schedule. The existing bridge is check-only; the new adapter must
+freeze before its one untimed gate plus three fresh default-request measured
+processes. Target168 actual samples, not yet measured. This is a separate
+four-start allowance; no old successful task is rerun or given a repair slot.
+Execution-mode/formal four-platform acceptance remains pending.
+
+Lead also extracted first-use diagnostic event windows (archival/local evidence: `../artifacts/lead-windows-first-use-event-windows-20261018/REPORT.md`)
+from the six existing Windows measurement streams. They retain exact child-clock
+ticks but include event reporting; they are not new samples, pure callback or
+cold-start measurements. The later scoped Windows first-use acceptance above
+uses dedicated direct timers with deferred reporting and a separate freeze.
+Other-platform first-use coverage remains open. Do not use
+event-marker differences to select deadline thresholds or rerun the closed pilot.
+
+## Host integration status - 2026-10-17
+
+The [score-game example](score-game.md) uses a game-owned
+`ScoreGame.Contracts` assembly, without gameplay methods in RuneCLR's shared
+abstractions. The desktop source-to-package-to-session run produced scores 3
+and 30, recovered after a failing callback, and collected all four contexts.
+The lead's independent packaging rerun passed 307/307, preserving the original
+gameplay contract checks. The lead also independently reran the score example.
+Passing this package to MapPackage now rejects it before loading and directs
+the caller to HostContractSession. The packaging receipt is recorded in
+`artifacts/lead-packaging-review.log`.
+This is stock desktop managed-IL evidence; required interpretation and native
+budgets are not integrated into this host-contract session path.
+
+The [trusted startup boundary](trusted-update-startup-lifetime.md) now occupies
+the process before loading or calling a host activator. Activation failure,
+reentry and concurrent activation cannot select another version in that
+process. Planning rejections still permit last-known-good fallback. The focused
+desktop selector suite passed 272/272 in the lead's independent rerun.
+
+The optional [signed release helper](trusted-release-signing.md) verifies a
+complete listed payload and activation metadata using a host-pinned P-256 key.
+The lead's desktop rerun passed signature, tamper, directory-junction and curve
+checks. Existing local approval records do not acquire signatures automatically.
+The sample's `--signed-start` now passes the verified candidate and approval
+unchanged into the startup selector and executes a standalone IL entry. The
+lead independently ran `--signed-self-test` and the existing `--self-test`,
+both with exit code 0. The signed checks cover successful activation, oversized
+metadata/key rejection, wrong keys, metadata/private-file tampering, activation
+failure without changing last-known-good, and a good start in the next process.
+Additional payload files are authenticated, but this fixture does not execute
+private dependencies. Both sample checks run in local verification and CI.
+The [stream-based staging helper](trusted-release-staging.md) now verifies the
+complete copied inventory before one directory move. It returns final-rooted
+paths, never overwrites an existing destination, and cleans only its own stage
+on failure. The worker's run and lead's isolated rerun each passed 17/17 desktop
+tests, including cancellation, source-list mutation, stream failures and an
+incomplete copy that remains invisible at the final path. It is included in
+the solution, local verification and three-platform CI. The
+[local delivery sample](trusted-update-delivery-sample.md) joins it to signed
+startup. The final Release solution build completed with zero warnings/errors.
+The lead reran runtime tests (140/140, including the late-built map), selector
+tests (272/272), signature tests, staging tests (17/17), and all three trusted
+host self-tests successfully. The staged self-test includes an authenticated
+`TrustedUpdate.Helper..bin` and actual entry execution after publication.
+Both ordinary and pumped sample-host runs collected every context. The earlier
+307/307 packaging result covers the unchanged packaging source. Final logs are
+`artifacts/lead-final-build.log`, `artifacts/lead-final-runtime.log`, and
+`artifacts/lead-final-trusted.log`. These are Windows desktop JIT/IL receipts.
+Network transport, rollback policy across restarts, and physical iOS delivery
+acceptance remain separate work. On macOS arm64 the worker and lead each ran
+the signed-release suite successfully with the existing private .NET SDK
+11.0.100-preview.6.26359.118. All seven source hashes match the accepted Windows
+snapshot. Both directory-symlink rejection cases ran and passed; secp256k1 was
+unavailable and skipped. A separate Orca Worker then ran the accepted staging
+suite (17/17) and all three trusted-host self-tests on macOS arm64, including
+`dotted-helper`, with no skips or failures. The lead checked all 12 source
+hashes against the accepted snapshot and current files, the archive hash, all
+six command exit codes, and the output markers. Receipts are
+`artifacts/lead-macos-delivery-receipt.json` and
+`artifacts/lead-macos-delivery-run.log`. This snapshot excludes the in-progress
+signed-recovery helper. Linux and the remaining macOS integration suites remain
+unverified here. These macOS receipts are desktop managed-IL evidence.
+
+On 2026-10-18 the [signed recovery helper](trusted-release-recovery.md) passed
+37/37 in the lead's isolated Windows snapshot. Both original directory-alias
+probes now reject before activation, with zero calls and no receipt created.
+The receipt stores the original signed document and a relative release path;
+every restore verifies the pinned key, complete payload and target again. It
+does not use the selector's unsigned legacy last-known-good file. Activation
+failure locks the process; successful activation with a failed receipt write
+remains successful and reports persistence failure separately.
+
+The lead independently built and ran the [recovery startup sample](trusted-update-recovery-sample.md)
+(15/15) and [staged recovery sample](trusted-update-staged-recovery-sample.md)
+(9/9), plus all three previous trusted-host self-tests, with no skips. These
+checks include receipt-file symlink rejection, real IL entry execution, a
+failed offer restoring the old signed release, no fallback after activation
+failure, and automatic recovery in the next process without republishing it.
+The final directory stays intact after a committed stage, including a failed
+activation. Build output has zero warnings/errors. The logs are
+`artifacts/lead-recovery-crossplatform-final-host-build.log` and
+`artifacts/lead-recovery-crossplatform-final-*-self-test.log`. Recovery and staged recovery
+are included in local verification and three-platform CI. Additional files are
+authenticated, not executed as dependencies in these standalone-IL fixtures.
+
+The Orca Worker's macOS arm64 rerun passed 37/37 under each of `/var/folders/.../T/`,
+`/tmp/` and `/private/tmp/`. All five host self-tests also passed under each
+prefix, including both receipt-leaf-link checks, without skips. Both Release
+builds had zero warnings/errors, using the existing private SDK
+11.0.100-preview.6.26359.118 and direct arm64 apphosts. The lead checked the
+archive hash, all 15 source bindings, all 18 test outputs and reported exit
+codes against the accepted snapshot. Evidence is
+`artifacts/lead-macos-recovery-final-receipt.json` and
+`artifacts/lead-macos-recovery-final-run.log`; the snapshot pointer is
+`artifacts/lead-recovery-crossplatform-final-snapshot-path.txt`.
+The original 30/35 diagnostic failure under system temp aliases remains in
+`artifacts/lead-macos-recovery-receipt.json`. The fix preserves leaf-link
+rejection and uses canonical containment for `receipt-root`.
+These are Windows/macOS desktop JIT/IL results. Linux, network transport,
+rollback policy and physical iOS delivery remain separate acceptance work.
+
+The lead then ran `./eng/verify.ps1` on Windows for the integrated recovery
+snapshot; it exited 0 on 2026-10-18. This covers the Release solution build,
+late-built map, runtime 140/140, packaging 307/307, package execution 15/15 and
+22/22, selector 272/272, signature checks, staging 17/17, recovery 37/37, the
+plan/source parity checks, all five trusted-host self-tests, both collection
+samples and the ScoreGame failure/recovery run. Logs are
+`artifacts/lead-recovery-full-verify.log` and
+`artifacts/lead-recovery-full-verify-receipt.json`. The signed composition
+adapter for actual private-dependency execution is a separate Orca Worker
+assignment and is not included in this acceptance.
+
+The same accepted recovery test binaries also passed 37/37 with the pinned
+private Windows x64 Checked .NET 12 runtime, using mode 1 and R2R enabled.
+The lead rechecked all four runtime/framework hashes and the accepted source
+bindings before and after the run. A separate short-SPKI call returned the
+expected rejection without activation and emitted successful interpreter IR
+for `TrustedReleaseRecovery.TryStart`. This is library compatibility plus
+that early-rejection entry observation; it does not establish signed native
+module execution. The receipt is
+`artifacts/lead-recovery-private-runtime-receipt.json`, with raw logs under the
+directory in `artifacts/lead-recovery-private-runtime-path.txt`.
+
+The [signed composition delivery driver](trusted-composition-delivery-native.md)
+is an opt-in Windows x64 experiment under development, separate from the
+accepted recovery suites. The lead built a frozen copy of its signing harness
+with zero warnings/errors and used it to sign an existing independent R2R
+update/private pair and an IL-only helper. Verification retained both additional
+files; changing the private DLL was rejected with `ContentMismatch`. This
+preflight launched no update host and proves no native execution. Its receipt
+is `artifacts/lead-delivery-signing-preflight-receipt.json`.
+
+The first full driver attempt stopped at `host-build-blocked`: the host project
+had not compiled the shared Windows entry observer. Preserve
+`artifacts/trusted-composition-delivery-20261018-native/result.json` as failed
+evidence. The lead's review also found that receipt hashes were sampled only
+after every child finished, so they could not establish persistence behavior
+at each process boundary. Per-step snapshots, complete frozen observer inputs,
+authenticated final load paths and the full shared-object result checks must
+be verified before accepting either native lane. Review evidence is
+`artifacts/lead-delivery-native-driver-review.json`. The Orca Workers own the
+host and driver corrections; this first attempt establishes no native execution.
+
+After the observer link and self-test call sites were corrected, the lead
+built a new 25-file frozen host snapshot with zero warnings/errors. Its direct
+apphost self-test passed 11/11 on the stock Windows desktop runtime. Eight
+successful activations produced the expected private/helper values (A:
+101/310, B: 202/613), shared object identity, callback/delegate/generic results,
+fresh counters and loaded paths matching the authenticated candidate paths.
+The checks also exercised recovery without republishing, destination collision
+without source-B activation, an unlisted helper planted before first activation,
+and author failure followed by process-lock rejection and next-process recovery.
+Four malformed CLI requests returned the owned argument diagnostic and exit 2.
+Evidence is `artifacts/lead-signed-dependency-execution-receipt.json`, with the
+source/log directory in `artifacts/lead-signed-dependency-execution-path.txt`.
+The host Orca Worker subsequently delivered its implementation and reported the
+same 11 passing checks. This is a measured managed-IL snapshot. Resolver review
+and signed native R2R execution remain pending.
+The independent Orca Worker review then reproduced two resolver defects: an
+unlisted application DLL in TPA could load from the host directory, and two
+listed assemblies with the same simple name silently selected the last path.
+The ordinary adjacent unlisted-helper rejection still holds, but does not cover
+these cases. Preserve `artifacts/lead-delivery-host-review-probe-output.txt` and
+`artifacts/lead-delivery-host-review-snapshot/review-note.json`.
+The host Orca Worker fixed both cases: framework fallback now checks exact
+assembly identities and actual corelib-directory TPA paths, and the signed
+inventory rejects duplicate simple names or unreadable assembly identities
+before loading author assemblies. These inventory failures occur after
+activator entry, keep the process locked and leave the receipt unchanged.
+The lead independently built a new 29-file frozen snapshot with zero
+warnings/errors; its direct Windows stock-runtime apphost passed 16/16 checks,
+including a real unlisted application dependency in TPA that did not execute.
+Evidence is `artifacts/lead-delivery-resolver-fix-receipt.json`, with the frozen
+source/log directory in `artifacts/lead-delivery-resolver-fix-path.txt`.
+The independent Orca Worker then bound its v2 probe to that frozen real host
+assembly. The lead reran it: the fixed DLL returned exit 0 / FAILURES 0, while
+the old DLL returned the expected exit 1 / FAILURES 3. The probe verifies
+unlisted real-TPA application rejection, exact Contract sharing, framework
+availability and explicit duplicate-inventory rejection before author ALC
+creation. Evidence is `artifacts/lead-delivery-host-bound-regression-v2`;
+lead rerun logs are in the directory named by
+`artifacts/lead-delivery-parser-review-path.txt`. macOS built the same 29
+sources with zero warnings/errors: the physical `/private/tmp` run passed
+16/16, but `/tmp` returned exit 1 with 6 passes and 10 failures. Those checks
+compared lexical `/tmp` expectations with actual `/private/tmp` loaded paths;
+the reported business values were correct. Preserve
+`artifacts/lead-delivery-resolver-fix-macos-receipt.json` and its run log.
+The host Orca Worker then corrected only SelfTest path identity checks, with
+bounded component-wise link resolution, exact final-file matching and sibling
+prefix rejection. Its new 29-source archive passes 17/17 on macOS under both
+`/tmp` and `/private/tmp`, with empty stderr and no skips. The lead checked
+archive/receipt/raw-log hashes, rebuilt that archive on Windows and passed
+17/17 through its direct apphost. Production DeliverySession is unchanged.
+Evidence is `artifacts/lead-delivery-path-alias-macos-receipt.json` and
+`artifacts/lead-path-alias-acceptance-receipt.json`. Windows signed native R2R
+delivery was separately accepted in the two-lane run recorded below.
+
+The earlier 25-file frozen host also passed all 11 checks on the pinned private Windows
+x64 Checked runtime with mode 1 and R2R enabled. Nine actual helper invocations,
+including the author-failure case, supplied interpreter precode type 6 and
+successful `IlOnlyHelper.Compute` IR output; each observation path matched the
+loaded helper from the signed candidate. The four runtime/build hashes and all
+25 source hashes matched before and after. Evidence is
+`artifacts/lead-signed-dependency-private-runtime-receipt.json`. Native diagnostics
+preceded every `ENTRYOBSERVATION` marker on the same line, so an anchored
+line parser found zero of these nine records; retain the raw stdout and parse
+the marker plus JSON. This establishes compatibility and the observed helper
+entries, not native execution of signed R2R updates or complete interpretation
+coverage.
+
+The fixed 29-file resolver snapshot subsequently passed all 16 self-tests on
+that same pinned private Checked runtime, with mode 1 and R2R enabled. Eleven
+actual helper invocations supplied `Interpreted=true`, precode 6, matching
+loaded-helper paths and eleven successful Compute IR dumps. Source and runtime
+hashes matched before and after; stderr was empty. One PASS marker also had a
+native diagnostic prefix, so acceptance checks each expected full test label
+rather than assuming a line begins with PASS. Evidence is
+`artifacts/lead-delivery-fixed-private-runtime-receipt.json`; raw output and the
+initial anchored-count assessment remain in the frozen snapshot directory.
+This validates the repaired loader with the private runtime and observed helper
+entries. The later signed native R2R delivery acceptance is recorded below.
+The lead also independently crossgen'd that fixed host with 198 references,
+including the new `DeliveryAppDep` application dependency. Compilation exited
+0; the exact `TrustedComposition_DeliveryHost_DeliveryHostObject__Touch` map
+body starts at RVA 31664, inside both an executable section and an AMD64
+RuntimeFunction. Input/reference hashes remained unchanged. Evidence is
+`artifacts/lead-fixed-host-crossgen-receipt.json`. This is compilation and
+method-map evidence only; no live return PC or signed update activation was
+measured in that preflight.
+
+The driver Orca Worker subsequently completed the Windows x64 signed R2R
+delivery experiment at
+`artifacts/trusted-composition-delivery-20261018-rerun4`: both lanes passed.
+The lead checked all 35 frozen source hashes, independently audited the raw
+ten-process outputs, and reran the frozen driver into a fresh directory. That
+rerun exited 0, printed `proven` and had empty stderr; its independent audit
+also passed. The directory is named by
+`artifacts/lead-signed-native-acceptance-path.txt`; the audit receipts are
+`artifacts/lead-signed-native-worker-audit.json` and
+`artifacts/lead-signed-native-acceptance-audit.json`.
+
+Host, Contract, Update A/B and Private A/B were independently crossgen'd; the
+helper remained IL. Each lane stages A, recovers A in a new process, activates
+an intentionally failing B, recovers A again, then stages B successfully.
+With ReadyToRun enabled, each of the five steps supplies actual return PCs for
+the exact host Touch, update Execute and private Read methods, bound to final
+image paths/SHA, executable sections, RuntimeFunctions and method maps. With
+ReadyToRun disabled, those matches disappear using the same payload bytes.
+Each process also supplies a real helper invocation, precode 6,
+`Interpreted=true` and successful Compute IR. Business values, shared-object
+identity, callbacks/delegates/generics, fresh counters and loaded final paths
+match; author failure preserves A's receipt and retains B's committed final.
+The next process restores A without republishing it. This accepts the scoped
+Windows desktop signed local-file R2R delivery path. iOS packaging/signing/
+loading and device execution, network transport, anti-rollback and native
+unloading are not established by it.
+
+The verification Orca Worker added the desktop delivery host and all required
+fixture projects to the solution, then wired its no-build self-test into
+`eng/verify.ps1` and the existing three-OS CI matrix. Explicit fixture solution
+entries preserve Release output selection; Private A/B remain in separate
+directories. The lead rebuilt the solution and ran the exact wired command:
+both exited 0, with 17 passing self-tests and empty stderr. Changed input
+hashes remained stable during verification. Evidence is
+`artifacts/lead-delivery-wiring-acceptance-receipt.json`. This validates the
+Windows command, not an unperformed Ubuntu/macOS CI run. The native driver
+remains opt-in.
+
+The lead subsequently ran the integrated Windows verification. The first run
+passed the Release build, runtime 140/140 and packaging 307/307, then exited 1
+because access to the fixture staging directory was denied. Without product
+changes, the remaining verification commands passed using a fresh isolated
+fixture output: package execution 15/15 and 22/22, selector 272/272, signatures,
+staging 17/17, recovery 37/37, parity/host-callback checks, the five old host
+self-tests, delivery host 17/17, both collection samples and ScoreGame.
+The tracked verification inputs remained identical. This is combined coverage
+across two runs, not an uninterrupted successful `verify.ps1` run. The initial
+failure is preserved alongside `tail-retry/receipt.json` and
+`combined-receipt.json` in the directory named by
+`artifacts/lead-delivery-integrated-verification-path.txt`.
+
+The follow-up fixture diagnosis located a reproduced `IOException`
+(`0x80070005`) at the outer `Directory.Move`; cleanup succeeded in that run.
+The responsible external condition remains unknown. The fixture tool now
+retries that move at most five times after the first attempt, 50 ms apart,
+and preserves a primary failure if cleanup also fails. The Orca Worker's
+synthetic diagnostics cover transient failure, six exhausted attempts and a
+secondary cleanup failure. The lead's real-tool rerun generated 12 packages
+with exit 0 and empty stderr, then rejected the existing output with exit 2
+and its receipt unchanged; no staging directory remained. Evidence is
+`artifacts/lead-fixture-staging-hardening-acceptance-2ef6b6d232874ad0933edf7233470b80/receipt.json`.
+This focused check does not establish the original external cause or replace
+the failed integrated run with a successful uninterrupted one.
+
+After that hardening, a new uninterrupted Windows run of
+`eng/verify.ps1` exited 0. The lead checked all 467 input hashes and the suite
+summaries: runtime 140/140, packaging 307/307, package execution 15/15 and
+22/22, selector 272/272, staging 17/17, recovery 37/37, all host self-tests,
+collection samples and ScoreGame. The delivery self-test passed 17/17. Evidence
+is `artifacts/lead-post-hardening-full-verify-unbounded-626a93ce533844368543fd1e17eddc93/receipt.json`;
+the raw-log audit is `artifacts/lead-typed-evidence-audit-20261018f/full-verify-audit.json`.
+The earlier failed run and launcher-timeout run remain separate records. This
+active-tree verification excludes the isolated signed typed-session changes.
+
+The portable `--probe` now constructs synthetic protocol vectors
+without historical artifacts or a private runtime. The lead copied only the
+driver into a fresh source tree and reproduced exit 0, `probe passed`, and empty
+stderr. `--probe-log` explicitly opts into existing stdout replay. The helper
+proof and native execution functions are unchanged from the accepted driver;
+only the probe and its CLI routing changed. Evidence is named by
+`artifacts/lead-portable-probe-acceptance-path.txt`. This is parser and timeline
+validation, not an additional native execution receipt.
+
+The [typed-session ownership brief](trusted-embedding-next.md) also has a small
+Orca Worker prototype outside the product libraries. The lead froze its five
+source/design files, built it and ran its executable: six checks passed with
+empty stderr. It borrows a synchronous typed callback, rejects reentry, supports
+idempotent close and closes on author failure. A retained closed session does
+not keep its module or an instance-owned host alive after the stack returns.
+Close during a call clears the session field immediately; the active stack
+still holds its borrowed module until it returns. No cleanup callback runs.
+The separate Orca Worker implementation review found no defects in this policy:
+the active stack keeps its borrowed instance until return. The lead froze the
+real implementation together with that reviewer's probe and passed five checks
+with empty stderr, including actual exception-object and delegate collection
+and a game interface as TModule. The acceptance directory is named by
+`artifacts/lead-typed-implementation-review-acceptance-path.txt`.
+The Orca Worker also ran that exact six-file review closure on macOS arm64:
+Release build and direct Mach-O apphost both exited 0, with five passing probes,
+empty stderr and no skips. The lead checked the archive, source hashes and raw
+outputs in `artifacts/typed-session-review-macos-20261018c`. This is desktop
+JIT/IL ownership coverage, separate from signed loading.
+Evidence is named by `artifacts/lead-typed-session-acceptance-path.txt`; the
+design review is `artifacts/typed-trusted-session-design-review-20261018a/review.md`.
+This is an ownership spike, not a public API, signed loading, cross-ALC,
+interpreter, native R2R or iOS acceptance. The implementation review is accepted;
+the revised isolated signed integration passes the old 17 delivery checks,
+ten integration checks and 24 real-assembly resolver checks in the lead's
+frozen-source Windows rerun. It now exercises the borrowed signed module after
+Close, preserves the receipt and process lock on normal close, and clears the
+separate host root on close or later author failure. Independent adapter and
+v2 owner review require no implementation change under the documented callback
+failure contract. The reviewed implementation is now in the experimental Host.
+The isolated native initial-activation regression is accepted as described
+below. Functional evidence is named
+by `artifacts/lead-typed-delivery-v2-acceptance-path.txt`; see the
+[integration acceptance brief](trusted-embedding-next.md) for measured scope.
+The same frozen Host DLL also passes all ten integration checks on the pinned
+private Windows runtime in mode 1 with ReadyToRun disabled. Successful Update
+Execute interpreter IR appears in all four child processes; their stderr is
+empty and runtime hashes stay unchanged. Evidence is
+`artifacts/lead-signed-typed-private-runtime-0ce394771ac14aad9814d9fc6de8333c/receipt.json`.
+This adds configuration-specific signed multi-call compatibility, not native
+R2R, iOS or a per-call helper precode observation.
+
+The signed typed integration also has accepted macOS arm64 execution evidence.
+The Orca Worker supplied raw outputs and persisted exits for the same r2 apphost
+under both TMPDIR=/tmp and TMPDIR=/private/tmp: each passed 17 delivery and ten
+integration checks. The lead checked the archive, all 31 source hashes, stream
+hashes and four exit records. Only IntegrationProbe path assertions differ from
+v2; the session and loader implementations are unchanged. Original build logs
+were not retained, so this accepts execution of the existing apphost, without
+claiming an independently verified Mac build. See
+`artifacts/lead-typed-evidence-audit-20261018f/macos-acceptance.json`.
+
+A separate Orca Worker regression triggers a real unlisted DeliveryAppDep load
+only on the signed module's second call. The lead reran that probe using its
+already accepted v2 Host DLL in a fresh directory: exit 0, LATE_FAILURE_PASS,
+empty stderr. The call returns author-failed, closes the session and clears the
+host root; the receipt stays unchanged, later calls do not enter, same-process
+recovery remains locked and a fresh process restores the signed release. The
+unlisted dependency sentinel never runs. Evidence is
+`artifacts/lead-typed-evidence-audit-20261018f/late-failure-acceptance.json`.
+This is stock Windows signed IL evidence.
+
+The Orca Worker then ran both signed native lanes against the reviewed v2
+implementation. The lead re-evaluated all ten raw process outputs with the
+unchanged proof functions, verified the 37-file frozen closure and product
+hashes, and checked the receipt timelines. R2R enabled produced 15 bound native
+PC matches across five processes; R2R disabled produced none. All ten helper
+invocations have interpreted-entry plus IR evidence. The audit is
+`artifacts/lead-typed-native-v2-audit-20261018g/receipt.json`. This accepts the
+initial-activation native regression and permits experimental Host promotion.
+Repeated typed calls still need their own native witnesses.
+
+The Orca Worker promoted the four selected Host files without changing their
+reviewed bytes, using the combined path/positive-owner IntegrationProbe overlay.
+It added --integration after the existing --self-test in local verification
+and the CI matrix. The lead checked all 31 active source hashes and the raw
+outputs: Release build exit 0, delivery 17/17, integration 10/10 and selector
+272/272. Evidence:
+`artifacts/lead-typed-promotion-acceptance-20261018j/receipt.json`.
+The lead also froze that exact combination and passed 17+10 checks on stock
+Windows and the pinned private runtime, using identical Host DLL bytes. The
+private run used mode 1, R2R off and produced two InvokeLogical IR entries.
+Evidence: `artifacts/lead-canonical-typed-runtime-20261018h/receipt.json`.
+This is experimental Host adoption, not a public SDK. The canonical native
+initial-activation rerun now passes both lanes, with all 37 frozen files checked
+by the lead: 15 positive method PC matches, none in the disabled lane, and ten
+helper interpreter proofs. Evidence:
+`artifacts/lead-canonical-native-audit-20261018l/receipt.json`.
+Post-promotion full verification is now accepted from one uninterrupted local
+Windows run: actual Popen.wait returncode 0, 469 inputs unchanged, all existing
+suites and samples complete, plus delivery 17/17 and integration 10/10. Evidence
+is `artifacts/lead-promoted-full-verify-acceptance-20261018s/receipt.json`. The
+earlier run with an empty exit file remains preserved and is not used as exit
+evidence. This does not establish execution of all three configured CI jobs.
+
+The repeated-call native experiment reuses accepted v2 products. The lead
+checked 14 call segments across eight processes: 21 enabled native PC matches,
+zero disabled witnesses/matches, 14 post-call helper observations and unchanged
+receipt snapshots. Thirty of 31 source files match the current Host; only the
+unused IntegrationProbe overlay differs. Revision r3 fixes the original helper
+MVID/token and result-shape false positives, and passes lead replay and scoped
+independent review. That disposition is recorded in
+`artifacts/lead-r3-review-disposition-20261018x/receipt.json`; it does not accept
+the remaining cross-call witness gap.
+Acceptance remains pending: independent review found that copying call 1's
+witness rows into call 2 still passes, also reproduced on r3 in
+`artifacts/lead-repeat-native-r3-provenance-20261018u/receipt.json`. A new
+Orca Worker measurement will bind each fresh capture to its call identifier;
+identical native PCs across calls remain valid. The later-failure outcome never
+returns, so its zero result fields are not business values. The enabled native
+lane and disabled control must be reported separately. Original output and
+reviews remain preserved. The isolated game-owned typed-interface pilot revision q
+now passes a lead rebuild and six-process run from its exact 36-source copy,
+plus the unchanged 17 self-tests and 10 integration checks. Start and every Tick
+are checked independently; the lead's 0, 0, then three-times-step mutation is
+rejected with exit 1. A fourth module Tick throws from the actual module; fresh
+recovery after that failure explicitly requires LastKnownGood/A and resets the
+score to zero. Receipt, gate and object-release assertions pass. Independent
+Orca Worker review also accepts q within the isolated private desktop IL scope.
+The lead rechecked the exact sources, process results, negative control and
+review in `artifacts/lead-score-pilot-q-acceptance-20261018ae/receipt.json`.
+The seam is not promoted to a public SDK and proves no native, interpreter,
+iOS or successive-session capability. The original pilot and its falsely
+accepted mutation remain preserved.
+
+The subsequent same-version successive-session experiment is now independently
+accepted within the private synchronous stock Windows desktop IL scope. The
+Orca Worker implementation and separate Orca Worker review match the lead's
+37-source rebuild: five child processes exit 0, the original 17/10 checks and
+six-process score pilot pass, and a cached-module mutant is rejected in the
+normal second round. The lead's final evidence check is
+`artifacts/lead-successive-sessions-acceptance-20261018ak/receipt.json`. Each
+explicit Open creates a new module for the already-selected A; static state
+and the process gate remain resident. Pre-gate rejection, bound-activator
+failure and post-activation persistence failure have separate checked results.
+LastKnownGood records version selection before construction or gameplay, and
+GC evidence covers only the first closed module/host pair. This does not
+promote an SDK or establish same-process version switching, interpretation,
+native execution, iOS support or context unloading.
+
+The fresh call-scoped native batch has now been reviewed by the lead and a
+separate Orca Worker: eight actual exit-0 processes, 14 call segments, 21 enabled
+host/private/update method bindings, zero disabled witnesses and 14 unchanged
+receipt snapshots. Independent helper metadata was also checked against the
+published final file. Scope identity rejects copied call-1 witnesses with the
+old ID while allowing repeated PCs. This reuses the identified v2 Host; it is
+not a canonical Host compilation. Evidence is
+`artifacts/lead-call-scope-raw-audit-20261018aj/receipt.json`. The original
+validator accepted a contradictory returned outcome for later-fail and
+incorrect recovery FACTS semantics. Both reviews confirmed the untouched raw
+streams have the correct exceptional exit and LastKnownGood/A recovery; the
+repair replays those streams without another native measurement.
+
+The r4 validator revision now passes the lead's replay of those same eight raw
+processes and 26 targeted negative mutations across both lanes, including the
+fully success-shaped false outcome and each invalid recovery field. The raw
+files remain unchanged. Independent Orca Worker review accepts this exact
+revision. The lead also directly requires zero raw witnesses in the disabled
+streams, because r4 alone does not reject every extra unbound witness. Scoped
+acceptance is recorded at
+`artifacts/lead-call-scope-r4-acceptance-20261018aq/receipt.json`: 14 call
+segments, 21 enabled method bindings and zero disabled witnesses. This is
+frozen-v2 Windows x64 evidence, not a fresh native run or canonical Host build.
+
+The follow-up r5 guard closes the validator's disabled-witness gap. Lead replay
+passes 26 protocol negatives and eight inside/outside disabled-witness negatives,
+keeps all raw files unchanged and accepts the real call2/call3 shared PCs.
+Evidence is `artifacts/lead-call-scope-r5-review-20261018at/receipt.json`.
+This is a lead-reviewed minimal replay revision of the independently reviewed
+r4 parent. The relocated canonical repeated-call measurement now has lead and
+independent Orca Worker scoped acceptance: eight actual exits 0, 14 scopes,
+21 enabled bindings and zero disabled witnesses. It reuses canonical products
+without rebuilding Host. Evidence is
+`artifacts/lead-current-delivery-disposition-20261018bh/canonical-measurement-acceptance.json`.
+The reusable driver's map-reference repair passes lead preflight and offline
+replay plus independent Orca Worker review. Its scoped acceptance is
+`artifacts/lead-map-closure-acceptance-20261018bj/receipt.json`.
+Historical input snapshots are unchanged, and no hermetic compiler-input
+closure, SDK or CI promotion is claimed.
+
+The durable2 post-seal run now has actual scenario exits 0/0/0/0/1 and ordered
+seal/pin/source/build events. Lead raw review and fresh read-only product parity
+checks are at `artifacts/lead-post-seal-durable2-review-20261018au/receipt.json`
+and `artifacts/lead-durable2-product-parity-20261018av/receipt.json`. The raw run
+is retained. The recorded-final-path repair replaces stdout-derived path
+expectations; its stage-provenance derivative 3b0cedf3 also rejects duplicate
+stage keys and pins two local stale maps outside the historical closure.
+Independent Orca Worker review still rejects this derivative: an outside final
+produces an error but remains available to enabled, recover and author-fail.
+The lead reproduces this with three same-byte payload copies at
+`artifacts/lead-post-seal-containment-20261018cb/receipt.json`. The batch entry
+point would abort on that error; the five recorded streams are not false
+accepts. That rejected generation required withholding all affected
+expectations while preserving the 211 historical files and original pin. Review is
+`artifacts/post-seal-stage-provenance-review-k6zi-20261018/review.md`.
+The fresh containment derivative 4bcceeed now passes lead copied replay and
+four direct null-expectation/order/collision controls. It retains the historical
+raw closure and pin and keeps recovery on the real enabled final. Independent
+Orca Worker review now grants scoped acceptance, joined with the lead replay at
+`artifacts/lead-post-seal-acceptance-20261018cj/receipt.json`. This accepts the
+offline checker derivative without another native run. A command missing
+`--final` is rejected before duplicate membership; a valid sibling may still
+derive expectations, but any such problem aborts the batch. The five-file
+derivative closure is not a hermetic whole-tool dependency closure.
+The game-interface native multi-round delivery is now scoped-accepted after
+r2 replay and independent Orca Worker review. Five original exits are 0/0/0/0/1,
+with per-tick 2/4/6, an author-failing fourth tick and fresh same-version rounds.
+Evidence is
+`artifacts/lead-score-acceptance-map-check-20261018bi/score-acceptance.json`.
+This remains the score-specific private Windows x64 integration. The two
+unrelated contract assemblies and generic resident owner have been delivered
+in isolated stock desktop IL. Independent review rejects full interaction
+acceptance of the original: a signed return-only mutant passes with zero host
+state. A fresh revision checks honest host state and callback counts, including
+failure/close preservation. Independent review rejects its negative-control
+evidence: return-only modules use alternate zero-state checks followed by a
+forced exit 1, rather than the normal Ok/QuestOk failure path. The lead confirms
+the latest identity derivative inherits this at
+`artifacts/lead-generic-shared-predicate-20261018cc/receipt.json`. A new repair
+must run honest and signed return-only modules through the same predicates.
+That derivative is now delivered (0a2e6ce5 / Host a8aa4802). Lead source and raw
+log audit confirms shared normal child modes and first-call GAME_BAD rejection;
+independent Orca Worker focused F1/current cached-shared F2 review accepts it.
+Evidence is
+`artifacts/lead-generic-shared-predicate-review-20261018cf/receipt.json`.
+The lead also directly runs six fresh stock-IL processes with copied Host and
+signed inputs, exits 0/1/0/0/1/0, without rebuilding/signing. Evidence is
+`artifacts/lead-generic-shared-predicate-execution-20261018ch/receipt.json`.
+A joined independent Orca Worker review now accepts the bounded stock-IL
+integration gate for a separate private Windows x64 native experiment. Lead
+source/image/input verification and the gate decision are at
+`artifacts/lead-generic-native-start-20261018ck/receipt.json`. This opens
+implementation and measurement, without claiming native evidence. New-Host
+persistence failure remains unmeasured and is a declared nonblocking limit.
+The identity derivative separately delivers actual
+module-reference comparisons and a rejected cached-module control. Independent
+Orca Worker review scoped-accepts those checks and the new 4691e436 Host's
+persistence control at
+`artifacts/generic-module-identity-review-k6zi-20261018/receipt.json`, while
+rejecting complete generic acceptance because F1 remains open.
+Its valid run is pilot-output-2, while
+the earlier DestinationExists run is excluded. Published typed calls are audited
+at `artifacts/lead-generic-typed-call-audit-20261018ca/receipt.json`. A real
+receipt-lock persistence control is scoped to the older frozen 02bbe359 Host
+at `artifacts/lead-generic-persistence-control-20261018by/receipt.json`.
+Independent Orca Worker review accepts only that older Host's persistence
+control at `artifacts/host-state-f1-persistence-review-cc7q-20261018/receipt.json`.
+Those older controls remain image-scoped. The current joined gate accepts the
+stock-IL integration. The separate dual-contract native implementation has
+now delivered pilot-native-4: eight honest process exits are 0, with 18 armed
+capture attempts across the two lanes but no targeted native frames. Final
+Host parity now returns unsupported fieldrva-signature (exit 4); both module
+pairs match. Lead replay verifies 35 supplement mutations and exact-final
+Host 17/10 managed baselines. Complete per-call validation remains rejected:
+counts are cumulative, failure scopes are missing and round stays 1.
+Independent Orca Worker
+review rejects native bindings, while retaining the recorded business and
+armed disabled-control observations. That review also identifies incomplete
+failure/closed scopes and missing final-image baseline/runtime-pin records.
+The lead's frozen-delivery observation and independent signature/byte audit
+are artifacts/lead-generic-native-delivery-20261018ct/receipt.json and
+artifacts/lead-generic-native-inventory-20261018cu/receipt.json. The latter
+verifies 22 signatures and 47 file copies, without native execution acceptance.
+The standalone same-API diagnostic reproduces one unnamed MEM_MAPPED PC in
+five stock/private-runtime processes. It identifies neither mapping ownership
+nor the cause of the truncated walk. Final HTTP Host a908231b also has its own
+verified 17/10 stock baseline.
+The independent copied-binary HTTP review now scoped-accepts nine loopback
+lanes on that same a908231b image (parent PID 9160, exit 0). The joined decision
+accepts those lanes with the separately delivered final-image baseline at
+artifacts/lead-http-joined-acceptance-20261018dc/receipt.json. Redirects,
+TLS and external networking are unmeasured.
+Evidence is artifacts/lead-delivery-supplement-review-20261018da/receipt.json
+and artifacts/lead-capture-diagnostic-review-20261018cz/receipt.json.
+Current checkpoints are in
+[the integration brief](trusted-embedding-next.md).
+
+The separate distinct-version experiment now has Lead and independent Orca
+Worker scoped acceptance on Host e5c00853. Two independently compiled, signed
+Orbit modules produce actual Host state 0/3/6 and 0/5/10. Five original and
+five independently reproduced client processes exit 0: HTTP A selection,
+server-free A recovery, tampered B rejection followed by A recovery, fresh-
+process B selection, and server-free B recovery. A verified B offer in A's
+process remains ProcessSelectionLocked without another activation or receipt
+change. Independent public-key verification binds both signed inventories to
+the downloaded bytes; compiled Step bodies differ only in their 3/5 constant.
+The exact-image 17/10 baseline and the two receipt epochs are joined at
+the acceptance receipt (archival/local evidence: `../artifacts/lead-distinct-http-acceptance-20261018ez/receipt.json`).
+This is an isolated Windows desktop IL loopback artifact, not SDK promotion,
+same-process hot swap, interpreter fallback, downloaded R2R or device evidence.
+Its post-start process records do not establish launch-time image identity or
+the loaded runtime. A fresh-sibling launch-evidence repair and a separate
+repaired-Host R2R execution pair remain in progress; their results do not
+transfer from this acceptance. Physical devices and simulators remain deferred.
+
+The standalone managed IL/R2R comparison diagnostic has lead and independent
+Orca Worker scoped acceptance, including fixed-layout static data, nonempty
+resources and malformed-input controls. Evidence is
+`artifacts/lead-managed-parity-acceptance-20261018bu/receipt.json`. This is
+structural comparison, without executing inspected assemblies.
+These increments do not promote a public SDK or add physical-device evidence.
+
+Current-canonical macOS arm64 desktop acceptance is complete. The Orca Worker
+built the exact 31-source closure, including IntegrationProbe e7d54821, and
+directly ran the Mach-O apphost under both `/tmp` and `/private/tmp`. Build and
+all four runs have persisted exit 0; each alias passes delivery 17/17 and
+integration 10/10. The lead compared archived sources and raw logs and directly
+checked the remote source hashes and managed Host DLL hash. Evidence is
+`artifacts/lead-canonical-macos-acceptance-20261018v/receipt.json`. The remote
+attestation checks current post-run files; it is not a second historical
+before/after capture. This is desktop IL, without native, interpreter or iOS
+claims, and does not imply execution of all configured CI jobs.
 
 ## Current priorities - 2026-10-15
 
@@ -306,7 +1762,7 @@ fatal-exception controls, and fifteen host-budget cases/73 collected contexts.
 Twenty-one semantic corruption controls reject altered results. Selected
 post-invocation entries are recorded; fatal finalizers and host author methods
 do not have individual entry samples, and no full invocation trace is claimed.
-The [root offline recheck](../artifacts/release-budget-functional/budget-root-review-20261014-attempt1/results.json)
+The root offline recheck (archival/local evidence: `../artifacts/release-budget-functional/budget-root-review-20261014-attempt1/results.json`)
 passes against the unchanged native/CoreLib/compiler/source/layout bindings.
 
 The same Release layout also passes [production and official controls](windows-release-production.md):
@@ -355,7 +1811,7 @@ individual-file SHA/size checks preserve both build results.
 The new [iOS application acceptance](ios-budget-increment-acceptance.md)
 passes15 scenarios/73 context collections without a debugger and in a separate
 entry run, with147 selected samples across nine requested method groups.
-An [independent root review](../artifacts/mobile-budget-increment/root-ios-acceptance-review-20261014-attempt1/results.json)
+An independent root review (archival/local evidence: `../artifacts/mobile-budget-increment/root-ios-acceptance-review-20261014-attempt1/results.json`)
 recomputes entries, directly reads actual ARM64 bytes and signed/unsigned
 sections, and rejects five corruption controls. New iOS child dispatch uses
 w25; its new observer binds the actual change while retaining the old tools.
@@ -367,22 +1823,22 @@ IL stays byte-identical. ADB10055 during asset transfer and later observer
 precheck/empty-line failures are retained; recovery preserves already transferred
 bytes and the original APK. The strict later audit passes15 corruption controls
 and mobileVerified=true. New Android method-entry sampling is now accepted below.
-An [independent APK review](../artifacts/mobile-budget-increment/root-android-acceptance-review-20261014-attempt1/results.json)
+An independent APK review (archival/local evidence: `../artifacts/mobile-budget-increment/root-android-acceptance-review-20261014-attempt1/results.json`)
 rechecks the actual archive/APK, complete installed observations and four
 transport corruption controls; its
-[scenario supplement](../artifacts/mobile-budget-increment/root-android-acceptance-review-20261014-attempt1/supplement-results.json)
+scenario supplement (archival/local evidence: `../artifacts/mobile-budget-increment/root-android-acceptance-review-20261014-attempt1/supplement-results.json`)
 matches all 73 rows, exact logs, recovery roles and mapped native paths.
 The [new Android observer preparation](android-budget-increment-entry-preparation.md)
 now passes actual ELF/DWARF/source binding and five rejection controls. Its
 child contract changes to PC 0x3b0aff, opcode pointer r14 and rbp-0xe48.
-An [independent ELF review](../artifacts/mobile-budget-increment/root-android-entry-contract-review-20261014-attempt1/results.json)
+An independent ELF review (archival/local evidence: `../artifacts/mobile-budget-increment/root-android-entry-contract-review-20261014-attempt1/results.json`)
 matches actual native bytes, 34 instructions, five dependency hashes and
 three additional code alterations.
 The fresh [gated Android entry acceptance](android-budget-increment-entry-acceptance.md)
 now samples178 interpreter entries across all nine requested author groups,
 including live ReInit/reload byte checks. The capture completes15/73; the same
 APK with the gate absent and no debugger independently passes15/73 and203
-unchanged installed inputs. The [independent offline cross-check](../artifacts/mobile-budget-increment/root-android-entry-review-20261014-attempt2/results.json)
+unchanged installed inputs. The independent offline cross-check (archival/local evidence: `../artifacts/mobile-budget-increment/root-android-entry-review-20261014-attempt2/results.json`)
 recomputes raw samples/PE identities, APK native bytes and two native/debug
 GNU build-ID pairs, matches three emitted code pieces, rejects four altered
 samples and verifies both ledgers plus recorded cleanup. This is sampled
@@ -428,7 +1884,7 @@ the earlier4.68x result. The child OFF result is66.83670ms; its new calls and
 switch selection are not machine-code identical to the parent.
 At that precursor stage, the executed-only batching design still had
 pending-count flush requirements. A separate
-[source-only alternative review](../artifacts/budget-batching/derived-ledger-review-20261014-attempt1/review.md)
+source-only alternative review (archival/local evidence: `../artifacts/budget-batching/derived-ledger-review-20261014-attempt1/review.md`)
 supports deriving terminal admitted counts from initial allowance minus
 remaining, avoiding the separate executed increment without batch flushes.
 Diagnostic saturation must retain its existing independent counter. That
@@ -510,7 +1966,7 @@ signed/unsigned native hash issue is fixed through separate validated metadata
 without rebuilding the app. The actual iOS simulator five-lane run now passes
 five fresh processes/168 collections, termination/catch suppression/cleanup,
 same-process recovery and simulator shutdown. The
-[root independent iOS audit](../artifacts/mobile-budget-batching/root-ios-boundary-review-20261015-attempt1/results.json)
+root independent iOS audit (archival/local evidence: `../artifacts/mobile-budget-batching/root-ios-boundary-review-20261015-attempt1/results.json`)
 matches57 receipt members and rejects25 altered actual-lane controls.
 N100/N1000 partial settlements match their exact calibration controls.
 The new matching Android boundary layout now passes184 trusted IL inputs/185
@@ -518,19 +1974,19 @@ actual Linux x64 R2R outputs and retained CoreLib private ABI/MVID checks. Its
 second fresh APK passes five distinct processes,169 observations/168
 collections, three actual zero HRESULTs, late unchanged author IL, installed
 byte checks and same-process recovery. The
-[root Android audit](../artifacts/mobile-budget-batching/root-android-boundary-review-20261015-attempt1/results.json)
+root Android audit (archival/local evidence: `../artifacts/mobile-budget-batching/root-android-boundary-review-20261015-attempt1/results.json`)
 rechecks raw APK/native/row evidence and rejects30 altered receipts. The initial
 failed APK and tool fixes remain recorded; both owned apps and emulator5556 are
 cleaned up.
 The new separate iOS exact-entry capture now covers four direct author methods
 at filePC0x28a08c with loaded bytes, six live DWARF layouts and original
 MethodDef/MVID/path bindings. The
-[root iOS entry review](../artifacts/mobile-budget-batching/root-ios-entry-capture-review-20261015-attempt1/results.json)
+root iOS entry review (archival/local evidence: `../artifacts/mobile-budget-batching/root-ios-entry-capture-review-20261015-attempt1/results.json`)
 reconciles52 raw payloads,376 bounded hits/four samples/zero errors, normal
 target exit0 and35 completed collections; eight actual-entry alterations are
 rejected. The original normal run/app are unchanged and the separate simulator
 is shut down. The later Android initial-entry capture now has
-[independent root acceptance](../artifacts/mobile-budget-batching/root-android-batch-entry-review-20261015-attempt1/results.json):
+independent root acceptance (archival/local evidence: `../artifacts/mobile-budget-batching/root-android-batch-entry-review-20261015-attempt1/results.json`):
 four author methods/ten hits,35 semantic rows/35 collections,40 raw hashes and
 19 symbol/source payloads verified, eight altered samples rejected. Actual
 ELF entry0x3f53a0 and loaded complete metadata are bound; managed/instrumentation
@@ -670,7 +2126,7 @@ covered archive members for iOS/Android metadata/layout plus their manifests,
 and rechecks all73 iOS rows with15 rejection controls. Actual optimized-branch
 and method-entry sampling remain unperformed for this candidate. Android APK
 read-only preparation passes; its four new adapters and execution remain next.
-The [representative performance preparation](../artifacts/representative-budget/performance-preparation-20261014-attempt2/preparation.json)
+The representative performance preparation (archival/local evidence: `../artifacts/representative-budget/performance-preparation-20261014-attempt2/preparation.json`)
 freezes1324 inputs including the original1111 and20 byte-identical managed
 files,64 launch lanes and832 expected collections. Forty synthetic corruption
 controls pass; preparation/selftest alone do not constitute measured timings.
@@ -846,7 +2302,7 @@ All56 terminal scalar rows and their retired query guards/collections pass.
 On the same candidate, unchanged unmetered production contexts pass lifecycle
 24/24, player15/15 and sample/late/source-import collections; legacy policy
 selection passes20/20 and four official loader controls return expected100.
-The [root review](../artifacts/session-terminal/root-review-20261013/results.json)
+The root review (archival/local evidence: `../artifacts/session-terminal/root-review-20261013/results.json`)
 binds the frozen source/build, native objects, PE metadata and actual raw process
 outcomes without rerunning applications. The first production invocation's
 wrong parameter failed before tests; the corrected attempt and the offline
@@ -857,7 +2313,7 @@ duration, shared locks, concurrent terminal races, full EH topology, Release
 computed-goto execution, performance and mobile/physical-device acceptance
 remain unverified. The next increment is the trusted finalizer invocation
 boundary and its isolated failure/queue-progress regressions; the
-[source-reviewed finalizer design](../artifacts/session-budget/finalizer-design-20261013/design.json)
+source-reviewed finalizer design (archival/local evidence: `../artifacts/session-budget/finalizer-design-20261013/design.json`)
 uses the actual finalizer-slot definition owner instead of the object's type.
 The canonical baseline and both earlier policy/meter worktrees remain unchanged.
 
@@ -877,7 +2333,7 @@ not exhaustive native method-entry samples or mobile accounting evidence.
 On this same private layout the original session-policy matrix passes twenty
 sessions/collections, production lifecycle passes 24/24, controlled player
 passes 15/15, and four unchanged official loader tests return their expected100.
-The [root evidence review](../artifacts/session-budget/meter-root-review-20261013/results.json)
+The root evidence review (archival/local evidence: `../artifacts/session-budget/meter-root-review-20261013/results.json`)
 binds 517 framework hashes, eleven source files, three compiled objects and
 64 raw meter files without launching the applications again. Ordinary production
 and upstream contexts in those regressions are unmetered; the official loader
@@ -943,7 +2399,7 @@ PIDs/nonces retain the same APK and 246 installed hashes with live TracerPid zer
 Original raw and strict offline reviews are retained separately. Production and
 refusal method-entry samples, complete invocation counts, fast-dispatch coverage
 and physical-device acceptance remain open. The owned emulator is shut down.
-The [four-lane evidence archive receipt](../artifacts/android-session-policy/release-production-20261013-344a0b3c.receipt.json)
+The four-lane evidence archive receipt (archival/local evidence: `../artifacts/android-session-policy/release-production-20261013-344a0b3c.receipt.json`)
 verifies 243 files, all member sizes/hashes and CRC, with unchanged original
 sources; the complete frozen APK/layout is retained separately.
 The first Release framework attempt's MSB3883 compiler lock
@@ -1071,7 +2527,7 @@ interpreter-entry samples covering nine installed-fixture method groups,
 260 policy queries and 20 retired-query guards; it is not complete invocation
 counting or method-entry proof for the post-install package definitions.
 The owned simulator is shut down and raw evidence is archived separately;
-[local archive verification](../artifacts/ios-session-policy/20261013-evidence-attempt2/local-verification.json)
+local archive verification (archival/local evidence: `../artifacts/ios-session-policy/20261013-evidence-attempt2/local-verification.json`)
 passes all three archives, 214 members, 72 raw hashes and 27 source hashes.
 The later Android Release core, framework, matching layout, selection-fixture
 entry samples and separate production/refusal/control runs now pass within
@@ -1891,6 +3347,8 @@ On 2026-10-17 packaging tests passed 305/305. The operator CLI validate command 
 
 On 2026-10-17 packaging tests passed 306/306. The operator CLI validate command accepts a host-contract package, then rejects it after the package id is 129 letters and the content hash is recomputed. The error names Missing or oversized id. The id is not blank. The manifest stays in place. Only Log is allowed. Gameplay validation is unchanged. This is not an iOS result.
 
+
+On 2026-10-17 the desktop score-game sample runs two managed-IL script versions and a failing script through HostContractSession. The contract is ScoreGame.IScoreRules in samples/ScoreGame.Contracts, not RuneCLR.Abstractions or IMapContext. See score-game.md. This is not an iOS result.
 
 ## Preserve experiment evidence
 

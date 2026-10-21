@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ScoreGame.Contracts/ScoreGame.Contracts.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+  </ItemGroup>
+</Project>

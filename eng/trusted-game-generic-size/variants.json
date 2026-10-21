@@ -1,0 +1,43 @@
+[
+  {
+    "key": "baseline",
+    "define": "BASELINE",
+    "kind": "non-generic-control",
+    "instantiations": [],
+    "blocks": 8,
+    "note": "Eight CellB/OpsB blocks. The generic Cell<T>/Ops<T> definitions remain present but are not closed."
+  },
+  {
+    "key": "ref1",
+    "define": "REF1",
+    "kind": "reference-type",
+    "instantiations": ["string"],
+    "blocks": 1,
+    "note": "One Cell<string>/Ops.Relay<string> block."
+  },
+  {
+    "key": "ref8",
+    "define": "REF8",
+    "kind": "reference-type",
+    "instantiations": ["string", "object", "System.InvalidOperationException", "int[]", "string[]", "RefA", "RefB", "RefC"],
+    "blocks": 8,
+    "note": "Eight distinct reference types, same block shape as ref1."
+  },
+  {
+    "key": "val1",
+    "define": "VAL1",
+    "kind": "value-type",
+    "instantiations": ["int"],
+    "blocks": 1,
+    "note": "One Cell<int>/Ops.Relay<int> block."
+  },
+  {
+    "key": "val8",
+    "define": "VAL8",
+    "kind": "value-type",
+    "instantiations": ["byte", "short", "int", "long", "float", "double", "System.Guid", "Blob"],
+    "blocks": 8,
+    "note": "Eight diverse value types (1, 2, 4, 8, 24 byte payloads), same block shape as val1."
+  }
+]
+

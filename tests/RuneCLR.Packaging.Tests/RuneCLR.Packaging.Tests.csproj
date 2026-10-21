@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/RuneCLR.Compiler/RuneCLR.Compiler.csproj" />
     <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../../samples/ScoreGame.Contracts/ScoreGame.Contracts.csproj" />
     <ProjectReference Include="../../tools/RuneCLR.PackageTool/RuneCLR.PackageTool.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>

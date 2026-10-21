@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>TrustedGameGenerics.Contracts</AssemblyName>
+    <RootNamespace>TrustedGameGenerics.Contracts</RootNamespace>
+  </PropertyGroup>
+</Project>

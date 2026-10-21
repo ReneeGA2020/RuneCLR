@@ -44,6 +44,7 @@ internal static class PipelineCases
         yield return ("Imported host-contract IL rejects the MapId property name", HostInterfaceImportRejectsMapIdPropertyName);
         yield return ("Compiled host-contract package releases a stored entity", HostInterfaceReleasesStoredEntity);
         yield return ("Compiled host-contract package runs a later callback", HostInterfaceLaterCallback);
+        yield return ("Compiled score rules package runs without IMapContext", ScoreRulesSession);
         yield return ("Compiled host-contract package returns an int from a later callback", HostInterfaceReturnsInt);
         yield return ("Compiled host-contract package passes the host and an int", HostInterfacePassesHostAndInt);
         yield return ("Compiled host-contract package passes only an int", HostInterfacePassesIntOnly);
@@ -396,6 +397,84 @@ internal static class PipelineCases
         }
         """;
 
+    private static void ScoreRulesSession()
+    {
+        const string source = """
+            using ScoreGame;
+            public sealed class Script
+            {
+                public void OnStart(IScoreRules rules) { rules.Add(1); }
+                public void OnTick(IScoreRules rules, int amount) { rules.Add(amount); }
+                public int Total(IScoreRules rules, int scale) { return rules.Total() + (scale - scale); }
+            }
+            """;
+        const string wrongSource = """
+            namespace ScoreGame
+            {
+                public interface IScoreRules
+                {
+                    void Add(int points);
+                    int Total();
+                }
+            }
+            """;
+        using var temp = new TempDirectory();
+        var contractPath = typeof(ScoreGame.IScoreRules).Assembly.Location;
+        var independent = new ReferenceProfile(Fixtures.FrameworkReferenceDirectory, contractPath, requireAbstractions: false);
+        var gameplay = Check.Throws<InvalidDataException>(() => PackageBuilder.Compile("ScoreGameplay", "Script",
+            [new("Script.cs", source)], independent, Path.Combine(temp.Path, "gameplay")));
+        Check.Assert(gameplay.Message.Contains("IMapScript", StringComparison.Ordinal), gameplay.Message);
+        var build = PackageBuilder.Compile("ScoreRules", "Script", [new("Script.cs", source)], independent,
+            Path.Combine(temp.Path, "package"), hostInterface: "ScoreGame.IScoreRules", allowedMethods: ["Add", "Total"]);
+        Check.Assert(build.Succeeded, string.Join("; ", build.Diagnostics.Select(item => item.Message)));
+        var host = new ScoreRulesHost();
+        var session = HostContractSession.Open(build.ManifestPath!, typeof(ScoreGame.IScoreRules), host);
+        session.Invoke("OnTick", 2);
+        var total = session.InvokeInt("Total", 0);
+        var reference = session.ContextReference;
+        session.Dispose();
+        Check.Assert(host.Points == 3 && total == 3, "score " + host.Points + " " + total);
+        for (var attempt = 0; attempt < 10 && reference.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+        Check.Assert(!reference.IsAlive, "The score session context stayed alive.");
+        var wrong = SourceCompiler.Compile("ScoreGame.Wrong", [new("Contract.cs", wrongSource)], CompilerFixture.ApprovedReferences());
+        Check.Assert(wrong.Succeeded && wrong.Assembly is not null, string.Join("; ", wrong.Diagnostics.Select(item => item.Message)));
+        var alc = new System.Runtime.Loader.AssemblyLoadContext("score-wrong", isCollectible: true);
+        var wrongType = alc.LoadFromStream(new MemoryStream(wrong.Assembly!)).GetType("ScoreGame.IScoreRules", throwOnError: true)!;
+        var fresh = new ScoreRulesHost();
+        var denied = Check.Throws<InvalidDataException>(() => HostContractSession.Open(build.ManifestPath!, wrongType, fresh));
+        Check.Assert(denied.Message.Contains("shared host contract", StringComparison.Ordinal), denied.Message);
+        Check.Assert(fresh.Points == 0, "The wrong contract ran the host.");
+        alc.Unload();
+        var manifest = PackageManifestIO.Read(build.ManifestPath!);
+        var contract = manifest.Producer.References.Single(item => item.AssemblyName is not null &&
+            item.AssemblyName.Contains("ScoreGame.Contracts", StringComparison.Ordinal));
+        manifest = manifest with
+        {
+            Producer = manifest.Producer with
+            {
+                References = manifest.Producer.References.Select(item => item == contract
+                    ? item with { AssemblyName = "ScoreGame.Contracts, Version=9.9.9.9, Culture=neutral, PublicKeyToken=null" }
+                    : item).ToArray()
+            }
+        };
+        manifest = manifest with { ContentSha256 = PackageManifestIO.ComputeContentSha256(manifest) };
+        PackageManifestIO.Write(build.ManifestPath!, manifest);
+        var identity = Check.Throws<InvalidDataException>(() => PackageValidator.Validate(manifest, build.ManifestPath!));
+        Check.Assert(identity.Message.Contains("not approved", StringComparison.Ordinal), identity.Message);
+        Check.Assert(File.Exists(build.ManifestPath!), "Validate removed the package.");
+    }
+
+    private sealed class ScoreRulesHost : ScoreGame.IScoreRules
+    {
+        public int Points { get; private set; }
+        public void Add(int points) => Points += points;
+        public int Total() => Points;
+    }
     private static void HostInterfaceLaterCallback()
     {
         using var temp = new TempDirectory();

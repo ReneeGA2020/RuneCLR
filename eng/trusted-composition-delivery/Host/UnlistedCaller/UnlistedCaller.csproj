@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>DeliveryUnlistedCaller</AssemblyName>
+    <RootNamespace>TrustedComposition</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../trusted-composition/Contract/TrustedComposition.Contract.csproj" />
+    <ProjectReference Include="../UnlistedDep/DeliveryAppDep.csproj" />
+  </ItemGroup>
+</Project>

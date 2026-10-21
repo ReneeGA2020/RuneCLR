@@ -13,15 +13,29 @@ public sealed class ReferenceProfile
     public string ContractIdentity { get; }
 
     public ReferenceProfile(string frameworkReferenceDirectory, string contractAssemblyPath)
+        : this(frameworkReferenceDirectory, contractAssemblyPath, requireAbstractions: true)
+    {
+    }
+
+    public ReferenceProfile(string frameworkReferenceDirectory, string contractAssemblyPath, bool requireAbstractions)
     {
         Images = FrameworkNames.Select(name => Read(Path.Combine(frameworkReferenceDirectory, name + ".dll"), name))
-            .Append(Read(contractAssemblyPath, "RuneCLR.Abstractions")).ToArray();
-        if (new AssemblyName(Images[^1].Identity.AssemblyName!).Name != "RuneCLR.Abstractions")
-            throw new InvalidDataException("The operator must supply the approved RuneCLR.Abstractions contract.");
+            .Append(Read(contractAssemblyPath, requireAbstractions ? "RuneCLR.Abstractions" : null)).ToArray();
+        var actualName = new AssemblyName(Images[^1].Identity.AssemblyName!).Name;
+        if (requireAbstractions)
+        {
+            if (actualName != "RuneCLR.Abstractions")
+                throw new InvalidDataException("The operator must supply the approved RuneCLR.Abstractions contract.");
+        }
+        else if (string.IsNullOrEmpty(actualName) || FrameworkNames.Contains(actualName, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The operator must supply one shared host contract assembly.");
+        }
+
         ContractIdentity = Images[^1].Identity.AssemblyName!;
     }
 
-    private static ReferenceImage Read(string path, string expectedName)
+    private static ReferenceImage Read(string path, string? expectedName)
     {
         var info = new FileInfo(path);
         if (!info.Exists || info.Length is < 1 or > 32 * 1024 * 1024)
@@ -33,7 +47,7 @@ public sealed class ReferenceProfile
         var metadata = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(pe);
         if (!metadata.IsAssembly) throw new InvalidDataException("An approved reference is not an assembly.");
         var definition = metadata.GetAssemblyDefinition();
-        if (!string.Equals(metadata.GetString(definition.Name), expectedName, StringComparison.Ordinal))
+        if (expectedName is not null && !string.Equals(metadata.GetString(definition.Name), expectedName, StringComparison.Ordinal))
             throw new InvalidDataException("An approved reference does not match its fixed profile assembly name.");
         var name = new AssemblyName
         {
