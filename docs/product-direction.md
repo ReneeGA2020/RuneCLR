@@ -33,6 +33,40 @@ The source compiler follows the selected SDK compiler's latest stable C#
 version, without a project-imposed C# 12 ceiling. Compiler syntax, emitted IL/runtime features,
 framework availability and UGC policy must be reported separately.
 
+## UGC authoring and enforcement direction
+
+On 2026-10-26 the project owner clarified that UGC should follow ordinary C#
+development habits with few special authoring rules. DLL count, names, changed
+bytes, extra directory files, and author-initiated DLL loading are not by
+themselves reasons to reject a script. The intended boundary is enforcement on
+every actual UGC assembly load, including dynamically loaded dependencies:
+require controlled interpretation and apply the same API and execution policy
+regardless of how the assembly was discovered. A package manifest or hash is
+useful for delivery and provenance, but does not itself grant API authority.
+
+Keep API filtering before IL loading. Reflection access must check its actual
+target against the same policy before the operation; merely restricting the
+name of a reflection entry point does not establish that boundary. Comprehensive
+reflection enforcement and coverage of every loading route remain implementation
+work, not current guarantees. Existing loader and manifest checks remain in
+place until an implementation change is explicitly selected and verified.
+
+Game teams can use Microsoft's BannedApiAnalyzers and BannedSymbols.txt in
+their author projects for early API diagnostics. This is consumer-owned
+authoring guidance, not a request for RuneCLR to implement templates or an
+analyzer.
+
+API policy must support both default-allow and default-deny integrations, with
+composable include/exclude rules over assemblies, namespaces, types and members.
+Examples include allowing a type except method X, or denying an entire assembly.
+Do not require every game to maintain an exhaustive API allowlist. First unify
+decisions using the existing profile, then verify reflection target enforcement,
+then add the richer rule engine; concrete matching/precedence semantics and
+performance require their own acceptance. See [the API policy work](ugc-api-policy.md)
+and issues [#18](https://github.com/ReneeGA2020/RuneCLR/issues/18),
+[#19](https://github.com/ReneeGA2020/RuneCLR/issues/19) and
+[#20](https://github.com/ReneeGA2020/RuneCLR/issues/20).
+
 ## What hot update means here
 
 The first delivery target is code produced after application publication, loaded

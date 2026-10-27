@@ -1,5 +1,17 @@
 # Development handoff
 
+## Shared UGC API policy increment (2026-10-26)
+
+The [API policy work](ugc-api-policy.md) follows issues #18/#19/#20 under #5:
+one value-only target/operation evaluator, the legacy gameplay-policy adapter,
+then a trusted-boundary reflection probe before a composable rule engine.
+The ordinary versioned loader retains its fixed gameplay policy, manifest
+checks and rejection of general reflection. Runtime-wide reflection/load
+interception and include/exclude parsing are not implemented by this increment.
+The API policy document records the local stock build, Packaging 320/320,
+Runtime 145/145 and sample context retirement. These include 13 new policy/probe
+cases; no private-runtime interception or include/exclude acceptance is claimed.
+
 ## Generic Body Diagnostic And Module Witness Handoff (2026-10-21)
 
 The artifact-only r2 function-pointer body-witness candidate has one isolated
