@@ -16,6 +16,20 @@ public static partial class GameplayCapabilityPolicy
     public static void Validate(ReadOnlyMemory<byte> image, IReadOnlyCollection<string> privateAssemblyIdentities,
         string contractAssemblyIdentity,
         string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null)
+        => ValidateCore(image, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, null);
+
+    /// <summary>Validates the managed-IL envelope with a trusted caller's target policy.
+    /// Versioned packages still use the fixed gameplay profile; this does not select a new loader profile.</summary>
+    public static void ValidateWithApiPolicy(ReadOnlyMemory<byte> image, IReadOnlyCollection<string> privateAssemblyIdentities,
+        string contractAssemblyIdentity, IApiAccessPolicy apiPolicy,
+        string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null)
+    {
+        ArgumentNullException.ThrowIfNull(apiPolicy);
+        ValidateCore(image, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, apiPolicy);
+    }
+
+    private static void ValidateCore(ReadOnlyMemory<byte> image, IReadOnlyCollection<string> privateAssemblyIdentities,
+        string contractAssemblyIdentity, string? hostInterface, IReadOnlyCollection<string>? allowedMethods, IApiAccessPolicy? apiPolicy)
     {
         ArgumentNullException.ThrowIfNull(privateAssemblyIdentities);
         if (image.IsEmpty || image.Length > ManagedAssemblyInspector.MaximumImageBytes)
@@ -24,7 +38,7 @@ public static partial class GameplayCapabilityPolicy
         {
             using var pe = new PEReader(ImmutableArray.CreateRange(image.ToArray()));
             var reader = pe.GetMetadataReader(MetadataReaderOptions.None);
-            new Inspection(reader, pe, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods).Validate();
+            new Inspection(reader, pe, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, apiPolicy).Validate();
         }
         catch (Exception error) when (error is BadImageFormatException or ArgumentException or
             InvalidOperationException or IndexOutOfRangeException or OverflowException)
@@ -114,32 +128,38 @@ public static partial class GameplayCapabilityPolicy
         return result;
     }
 
-    private sealed record Shape(string Name, string Assembly, bool Private);
+    private sealed record Shape(string Name, string Assembly, bool Private, string? EncodedName = null)
+    {
+        internal string SignatureName => EncodedName ?? Name;
+    }
 
     private sealed class Inspection : ISignatureTypeProvider<Shape, object?>
     {
         private readonly MetadataReader metadata;
         private readonly PEReader pe;
         private readonly HashSet<string> privateIdentities = new(StringComparer.Ordinal);
-        private readonly string contractIdentity;
-        private readonly string? hostInterface;
-        private readonly HashSet<string>? hostMethods;
+        private readonly string ownIdentity;
+        private readonly IApiAccessPolicy apiPolicy;
         private int depth;
         private int activeSpecificationBytes;
 
         internal Inspection(MetadataReader metadata, PEReader pe, IReadOnlyCollection<string> identities, string contract,
-            string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null)
+            string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null, IApiAccessPolicy? apiPolicy = null)
         {
             this.metadata = metadata;
             this.pe = pe;
-            contractIdentity = FullIdentity(contract);
-            if (hostInterface is null && new AssemblyName(contractIdentity).Name != "RuneCLR.Abstractions")
-                throw Invalid("The approved contract must be RuneCLR.Abstractions.");
-            this.hostInterface = hostInterface;
-            if (allowedMethods is not null)
-                hostMethods = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
-            if (hostInterface is not null && hostMethods is null)
-                throw Invalid("The host interface and allowed methods must both be present, nonempty and unique.");
+            var definition = metadata.GetAssemblyDefinition();
+            var ownName = new AssemblyName
+            {
+                Name = metadata.GetString(definition.Name), Version = definition.Version,
+                CultureName = metadata.GetString(definition.Culture)
+            };
+            var publicKey = metadata.GetBlobBytes(definition.PublicKey);
+            if (publicKey.Length > 0) ownName.SetPublicKey(publicKey);
+            else ownName.SetPublicKeyToken([]);
+            ownIdentity = ownName.FullName!;
+            var legacy = CreateApiPolicy(identities.Append(ownIdentity).ToArray(), contract, hostInterface, allowedMethods);
+            this.apiPolicy = apiPolicy ?? legacy;
             foreach (var identity in identities)
             {
                 var full = FullIdentity(identity);
@@ -206,26 +226,18 @@ public static partial class GameplayCapabilityPolicy
                 CheckBlob(member.Signature);
                 var declaring = Type(member.Parent);
                 var name = Identifier(member.Name);
-                if (!declaring.Private)
+                ApiMethodSignature? methodShape = null;
+                if (member.GetKind() == MemberReferenceKind.Method)
                 {
-                    if (hostInterface is not null && declaring.Assembly == contractIdentity && declaring.Name == hostInterface
-                        && !Contract.ContainsKey(declaring.Name))
-                    {
-                        if (hostMethods is null || !hostMethods.Contains(name) || member.GetKind() != MemberReferenceKind.Method)
-                            throw Invalid($"Member '{declaring.Name}.{name}' is not approved.");
-                    }
-                    else
-                    {
-                        var surface = declaring.Assembly == contractIdentity ? Contract : Framework;
-                        if (!surface.TryGetValue(declaring.Name, out var members) || !members.Contains(name))
-                            throw Invalid($"Member '{declaring.Name}.{name}' is not approved.");
-                        // No framework/contract fields are exposed, including attributes' backing storage.
-                        if (member.GetKind() != MemberReferenceKind.Method)
-                            throw Invalid($"Field '{declaring.Name}.{name}' is not approved.");
-                    }
+                    var signature = member.DecodeMethodSignature(this, null);
+                    CheckSignature(signature);
+                    methodShape = new(signature.ReturnType.SignatureName,
+                        signature.ParameterTypes.Select(type => type.SignatureName).ToImmutableArray(),
+                        signature.GenericParameterCount, signature.Header.IsInstance);
                 }
-                if (member.GetKind() == MemberReferenceKind.Method) CheckSignature(member.DecodeMethodSignature(this, null));
                 else _ = member.DecodeFieldSignature(this, null);
+                Demand(new(declaring.Assembly, member.GetKind() == MemberReferenceKind.Method ? ApiTargetKind.Method : ApiTargetKind.Field,
+                    declaring.Name, name, methodShape));
             }
             for (var row = 1; row <= metadata.GetTableRowCount(TableIndex.MethodSpec); row++)
             {
@@ -254,20 +266,6 @@ public static partial class GameplayCapabilityPolicy
                 throw Invalid("Exported types and linked assembly modules are unsupported.");
         }
 
-        private static bool Reserved(string name) => new[] { "mscorlib", "netstandard", "System", "Microsoft", "RuneCLR" }.Contains(name, StringComparer.OrdinalIgnoreCase) ||
-            name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("RuneCLR.", StringComparison.OrdinalIgnoreCase);
-
-        private static string FullIdentity(string identity)
-        {
-            var name = new AssemblyName(identity);
-            if (name.Version is null || string.IsNullOrEmpty(name.Name) || !identity.Contains("PublicKeyToken=", StringComparison.OrdinalIgnoreCase) ||
-                !identity.Contains("Culture=", StringComparison.OrdinalIgnoreCase))
-                throw Invalid("Assembly identities must include version, culture and public-key token.");
-            return name.FullName!;
-        }
-
         private string ReferenceIdentity(AssemblyReferenceHandle handle)
         {
             var reference = metadata.GetAssemblyReference(handle);
@@ -285,15 +283,13 @@ public static partial class GameplayCapabilityPolicy
 
         private void ValidateAssembly(string full)
         {
-            if (full == contractIdentity || privateIdentities.Contains(full)) return;
-            var name = new AssemblyName(full);
-            var token = Convert.ToHexString(name.GetPublicKeyToken() ?? []).ToLowerInvariant();
-            var allowed = name.Name is "System.Runtime" or "System.Collections" or "System.Linq" or "System.ObjectModel" or "System.Runtime.Extensions";
-            if (((allowed && token == "b03f5f7f11d50a3a") ||
-                 (name.Name == "System.Private.CoreLib" && token == "7cec85d7bea7798e")) &&
-                string.IsNullOrEmpty(name.CultureName) && name.ContentType == AssemblyContentType.Default &&
-                (name.Flags & AssemblyNameFlags.Retargetable) == 0) return;
-            throw Invalid($"Assembly '{full}' is not approved.");
+            Demand(new(full, ApiTargetKind.Assembly));
+        }
+
+        private void Demand(ApiTarget target)
+        {
+            var decision = apiPolicy.Evaluate(target, ApiOperation.Reference);
+            if (!decision.Allowed) throw Invalid(decision.Reason!);
         }
 
         private Shape Type(EntityHandle handle) => handle.Kind switch
@@ -337,20 +333,33 @@ public static partial class GameplayCapabilityPolicy
                 }
                 else throw Invalid("Type references must have explicit assembly or nested-type scope.");
                 ValidateAssembly(identity);
-                if (privateIdentities.Contains(identity)) return new(name, identity, true);
-                if (hostInterface is not null && identity == contractIdentity && name == hostInterface && !Contract.ContainsKey(name))
-                    return new(name, identity, false);
-                var surface = identity == contractIdentity ? Contract : Framework;
-                if (!surface.ContainsKey(name)) throw Invalid($"Type '{name}' is not approved.");
-                return new(name, identity, false);
+                Demand(new(identity, ApiTargetKind.Type, name));
+                return new(name, identity, privateIdentities.Contains(identity));
             }
             finally { depth--; }
         }
 
         public Shape GetTypeFromDefinition(MetadataReader reader, TypeDefinitionHandle handle, byte rawTypeKind)
         {
-            var type = reader.GetTypeDefinition(handle);
-            return new(Identifier(type.Name), "self", true);
+            var name = DefinitionTypeName(handle, 0);
+            Demand(new(ownIdentity, ApiTargetKind.Type, name));
+            return new(name, ownIdentity, true);
+        }
+
+        private string DefinitionTypeName(TypeDefinitionHandle handle, int nesting)
+        {
+            if (nesting > 64) throw Invalid("Type nesting exceeds the profile limit.");
+            var type = metadata.GetTypeDefinition(handle);
+            var name = Identifier(type.Name);
+            var parent = type.GetDeclaringType();
+            if (!parent.IsNil) name = DefinitionTypeName(parent, nesting + 1) + "+" + name;
+            else
+            {
+                var ns = Identifier(type.Namespace);
+                if (ns.Length > 0) name = ns + "." + name;
+            }
+            if (name.Length > 1024) throw Invalid("Qualified type names cannot exceed 1024 characters.");
+            return name;
         }
 
         public Shape GetTypeFromSpecification(MetadataReader reader, object? genericContext, TypeSpecificationHandle handle, byte rawTypeKind)
@@ -379,16 +388,19 @@ public static partial class GameplayCapabilityPolicy
         {
             PrimitiveTypeCode.IntPtr or PrimitiveTypeCode.UIntPtr or PrimitiveTypeCode.TypedReference =>
                 throw Invalid($"Unsafe/native signature type '{code}' is unsupported."),
-            _ => new(code.ToString(), "primitive", false)
+            _ => new(code.ToString(), "primitive", false, "System." + code)
         };
-        public Shape GetArrayType(Shape elementType, ArrayShape shape) => elementType;
-        public Shape GetSZArrayType(Shape elementType) => elementType;
-        public Shape GetByReferenceType(Shape elementType) => elementType;
+        public Shape GetArrayType(Shape elementType, ArrayShape shape) => shape.Rank is >= 1 and <= 32
+            ? elementType with { EncodedName = elementType.SignatureName + "[" + new string(',', shape.Rank - 1) + "]" }
+            : throw Invalid("Array rank exceeds the managed array limit.");
+        public Shape GetSZArrayType(Shape elementType) => elementType with { EncodedName = elementType.SignatureName + "[]" };
+        public Shape GetByReferenceType(Shape elementType) => elementType with { EncodedName = elementType.SignatureName + "&" };
         public Shape GetPointerType(Shape elementType) => throw Invalid("Pointer signatures are unsupported.");
         public Shape GetFunctionPointerType(MethodSignature<Shape> signature) => throw Invalid("Function-pointer signatures are unsupported.");
-        public Shape GetGenericInstantiation(Shape genericType, ImmutableArray<Shape> typeArguments) => genericType;
-        public Shape GetGenericMethodParameter(object? genericContext, int index) => new("!!" + index, "self", true);
-        public Shape GetGenericTypeParameter(object? genericContext, int index) => new("!" + index, "self", true);
+        public Shape GetGenericInstantiation(Shape genericType, ImmutableArray<Shape> typeArguments) =>
+            genericType with { EncodedName = genericType.SignatureName + "<" + string.Join(",", typeArguments.Select(type => type.SignatureName)) + ">" };
+        public Shape GetGenericMethodParameter(object? genericContext, int index) => new("!!" + index, ownIdentity, true);
+        public Shape GetGenericTypeParameter(object? genericContext, int index) => new("!" + index, ownIdentity, true);
         public Shape GetModifiedType(Shape modifier, Shape unmodifiedType, bool isRequired) => unmodifiedType;
         public Shape GetPinnedType(Shape elementType) => throw Invalid("Pinned locals are unsupported.");
 
