@@ -15,20 +15,37 @@ internal sealed class MapLoadContext : AssemblyLoadContext
 
     public static AssemblyLoadContext Create(MapPackage package, MapDependencyResolver resolver,
         RequiredInterpreterBridge? required, TerminalPrototypeBridge? terminal, MapRunOptions options,
-        CallbackDeadlineBridge? deadline = null)
+        CallbackDeadlineBridge? deadline = null, UgcAssemblyAdmission? admission = null)
     {
         var name = $"map:{package.Id}:{Guid.NewGuid():N}";
+        var shared = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+        foreach (var assembly in options.PrototypeSharedAssemblies)
+        {
+            if (assembly is null || assembly.IsDynamic || GetLoadContext(assembly) != Default ||
+                !shared.TryAdd(assembly.GetName().Name!, assembly))
+                throw new ArgumentException("Shared assemblies must be unique, existing default-context assemblies.");
+        }
+        Assembly? ResolveRequired(AssemblyLoadContext context, AssemblyName requested)
+        {
+            if (admission is not null) return admission.Resolve(context, requested);
+            if (shared.TryGetValue(requested.Name ?? "", out var assembly))
+            {
+                MapDependencyResolver.RequireIdentity(requested, assembly.GetName());
+                return assembly;
+            }
+            return Resolve(context, resolver, requested);
+        }
         if (deadline is not null)
         {
-            var created = deadline.Create(name, (context, assemblyName) => Resolve(context, resolver, assemblyName), options);
+            var created = deadline.Create(name, ResolveRequired, options);
             try { required!.Acknowledge(created); return created; }
             catch { created.Unload(); throw; }
         }
         if (terminal is not null)
-            return terminal.Create(name, (context, assemblyName) => Resolve(context, resolver, assemblyName),
+            return terminal.Create(name, ResolveRequired,
                 options.PrototypeInstructionBudget!.Value, options.PrototypeCleanupInstructionBudget);
         return required is null ? new MapLoadContext(name, resolver) :
-            required.Create(name, (context, assemblyName) => Resolve(context, resolver, assemblyName));
+            required.Create(name, ResolveRequired);
     }
 
     protected override Assembly? Load(AssemblyName assemblyName)

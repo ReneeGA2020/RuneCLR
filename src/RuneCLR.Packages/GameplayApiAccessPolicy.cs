@@ -46,19 +46,21 @@ public static partial class GameplayCapabilityPolicy
             try { identity = FullIdentity(target.AssemblyIdentity); }
             catch (Exception error) when (error is ArgumentException or FileLoadException or InvalidDataException)
             { return ApiDecision.Deny("A full assembly identity is required."); }
-            var assembly = CheckAssembly(identity);
+            var assembly = target.IsSessionCode ? ApiDecision.Allow : CheckAssembly(identity);
             if (!assembly.Allowed) return assembly;
             if (target.Kind == ApiTargetKind.Assembly)
                 return operation is ApiOperation.Reference or ApiOperation.ReadMetadata ? ApiDecision.Allow :
                     ApiDecision.Deny("The operation requires a type or member target.");
             if (string.IsNullOrEmpty(target.TypeName)) return ApiDecision.Deny("A declaring type is required.");
             var customHost = identity == contract && target.TypeName == hostInterface && !Contract.ContainsKey(target.TypeName);
-            var script = scripts.Contains(identity);
+            var script = target.IsSessionCode || scripts.Contains(identity);
             var surface = identity == contract ? Contract : Framework;
             if (!script && !customHost && !surface.ContainsKey(target.TypeName))
                 return ApiDecision.Deny($"Type '{target.TypeName}' is not approved.");
             if (target.Kind == ApiTargetKind.Type)
-                return operation is ApiOperation.Reference or ApiOperation.ReadMetadata ? ApiDecision.Allow :
+                // Implicit value-type defaults have no constructor MemberInfo. The runtime
+                // checks that shape; author-owned type construction uses the same identity rule.
+                return operation is ApiOperation.Reference or ApiOperation.ReadMetadata || script && operation == ApiOperation.Construct ? ApiDecision.Allow :
                     ApiDecision.Deny("The operation requires a member target.");
             if (string.IsNullOrEmpty(target.MemberName)) return ApiDecision.Deny("A member name is required.");
             if (operation == ApiOperation.CreateDelegate)

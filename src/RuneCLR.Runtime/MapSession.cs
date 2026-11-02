@@ -18,6 +18,7 @@ public sealed class MapSession : IDisposable
     private AssemblyLoadContext? _loadContext;
     private TerminalPrototypeBridge? _terminal;
     private CallbackDeadlineBridge? _deadline;
+    private ReflectionPolicySession? _reflectionPolicy;
     private long _deadlineToken;
     private string? _deadlineFailure;
     private MapContext? _context;
@@ -30,28 +31,35 @@ public sealed class MapSession : IDisposable
     private MapSession(MapPackage package, MapRunOptions options, CallbackDeadlineBridge? deadlineBridge = null)
     {
         _mapId = package.Id;
-        _options = options;
+        // The session owner, not retained options/results, holds the evaluator.
+        _options = options with { PrototypeApiPolicy = null, PrototypeSharedAssemblies = [] };
         // Capability failure is a host configuration error, before opening author files.
         var required = options.ExecutionPolicy == MapExecutionPolicy.RequireInterpreter
             ? RequiredInterpreterBridge.Bind() : null;
         _deadline = options.PrototypeCallbackDeadline is not null ? deadlineBridge ?? CallbackDeadlineBridge.Bind() : null;
         _terminal = options.PrototypeInstructionBudget is not null || _deadline is not null ? TerminalPrototypeBridge.Bind(required!) : null;
         _policyVersion = required is null ? 0 : 1;
-        var resolver = new MapDependencyResolver(package);
-        _loadContext = MapLoadContext.Create(package, resolver, required, _terminal, options, _deadline);
+        if (options.PrototypeApiPolicy is not null) PrototypeReflectionPolicy.Prepare();
         try
         {
+            var resolver = new MapDependencyResolver(package, allowSessionAssemblyNames: options.PrototypeApiPolicy is not null);
+            var admission = options.PrototypeApiPolicy is { } policy
+                ? new UgcAssemblyAdmission(policy, package, options.PrototypeSharedAssemblies) : null;
+            _loadContext = MapLoadContext.Create(package, resolver, required, _terminal, options, _deadline, admission);
+            if (admission is not null)
+                _reflectionPolicy = PrototypeReflectionPolicy.Create(options.PrototypeApiPolicy!, _loadContext, admission.Admit);
             _unload = new UnloadTicket(new WeakReference(_loadContext, trackResurrection: true));
-            _context = new MapContext(package.Id, options);
+            _context = new MapContext(package.Id, _options);
+            Initialize(resolver.EntryPath, package.EntryType);
         }
         catch
         {
-            _loadContext.Unload();
+            _reflectionPolicy?.Dispose();
+            _reflectionPolicy = null;
+            _loadContext?.Unload();
             _loadContext = null;
             throw;
         }
-
-        Initialize(resolver.EntryPath, package.EntryType);
     }
 
     internal static MapSession Start(MapPackage package, MapRunOptions? options)
@@ -147,7 +155,8 @@ public sealed class MapSession : IDisposable
                 CheckPrototypeState();
                 _context!.BeginTick(_completedTicks);
                 BeginDeadline();
-                _script!.OnTick(new MapTick(_completedTicks, delta));
+                using (var activation = _reflectionPolicy?.Activate())
+                    _script!.OnTick(new MapTick(_completedTicks, delta));
                 EndDeadline();
                 CheckPrototypeState();
                 _context.CheckViolation();
@@ -197,18 +206,22 @@ public sealed class MapSession : IDisposable
         try
         {
             BeginDeadline();
-            var assembly = _loadContext!.LoadFromAssemblyPath(entryPath);
-            var entryType = assembly.GetType(entryTypeName, throwOnError: true)!;
-            if (!typeof(IMapScript).IsAssignableFrom(entryType) || entryType.IsAbstract)
-                throw new InvalidDataException("The entry type must implement IMapScript and be concrete.");
+            using (var activation = _reflectionPolicy?.Activate())
+            {
+                var assembly = _loadContext!.LoadFromAssemblyPath(entryPath);
+                var entryType = assembly.GetType(entryTypeName, throwOnError: true)!;
+                if (!typeof(IMapScript).IsAssignableFrom(entryType) || entryType.IsAbstract)
+                    throw new InvalidDataException("The entry type must implement IMapScript and be concrete.");
 
-            CheckPrototypeState();
-            _script = (IMapScript)Activator.CreateInstance(entryType)!;
+                CheckPrototypeState();
+                _script = (IMapScript)Activator.CreateInstance(entryType)!;
+            }
             EndDeadline();
             CheckPrototypeState();
             _context!.BeginCallback();
             BeginDeadline();
-            _script.OnStart(_context);
+            using (var activation = _reflectionPolicy?.Activate())
+                _script!.OnStart(_context);
             EndDeadline();
             CheckPrototypeState();
             _context.CheckViolation();
@@ -257,7 +270,8 @@ public sealed class MapSession : IDisposable
                         try
                         {
                             BeginDeadline();
-                            _script.OnStop();
+                            using (var activation = _reflectionPolicy?.Activate())
+                                _script.OnStop();
                             EndDeadline();
                             CheckPrototypeState();
                             stopReturned = true;
@@ -301,6 +315,8 @@ public sealed class MapSession : IDisposable
                 _loadContext = null;
                 _context = null;
                 _terminal = null;
+                _reflectionPolicy?.Dispose();
+                _reflectionPolicy = null;
                 try
                 {
                     if (terminal is not null)
@@ -407,7 +423,7 @@ public sealed class MapSession : IDisposable
 
         if (exception is TargetInvocationException { InnerException: { } inner }) exception = inner;
         var typeName = exception.GetType().FullName ?? "Exception";
-        if (_terminal is not null)
+        if (_terminal is not null || _reflectionPolicy is not null)
         {
             // Message/ToString may invoke author code even before native termination.
             return typeName.Length <= 512 ? typeName : typeName[..512];

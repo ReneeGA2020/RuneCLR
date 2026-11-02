@@ -16,14 +16,15 @@ internal sealed class MapDependencyResolver
     private readonly Binding _entry;
 
     public string EntryPath => _entry.Path;
+    internal static bool IsFrameworkName(string name) => FrameworkNames.Value.Contains(name);
 
-    public MapDependencyResolver(MapPackage package)
+    public MapDependencyResolver(MapPackage package, bool allowSessionAssemblyNames = false)
     {
         package.ValidateVersionedSnapshot();
         var entryPath = Path.GetFullPath(package.AssemblyPath);
         _entry = new Binding(entryPath, ReadIdentity(entryPath, package.EntrySha256));
         if (string.Equals(_entry.Identity.Name, typeof(IMapScript).Assembly.GetName().Name, StringComparison.OrdinalIgnoreCase) ||
-            FrameworkNames.Value.Contains(_entry.Identity.Name!))
+            !allowSessionAssemblyNames && FrameworkNames.Value.Contains(_entry.Identity.Name!))
         {
             throw new InvalidDataException("The map entry cannot use a shared contract or framework assembly identity.");
         }
@@ -50,7 +51,7 @@ internal sealed class MapDependencyResolver
 
             if (string.Equals(identity.Name, typeof(IMapScript).Assembly.GetName().Name, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(identity.Name, _entry.Identity.Name, StringComparison.OrdinalIgnoreCase) ||
-                FrameworkNames.Value.Contains(identity.Name!))
+                !allowSessionAssemblyNames && FrameworkNames.Value.Contains(identity.Name!))
             {
                 throw new InvalidDataException($"Dependency identity is reserved by the entry, contract or framework: {identity.Name}.");
             }

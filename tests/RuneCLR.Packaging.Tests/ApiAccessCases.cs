@@ -89,6 +89,10 @@ internal static class ApiAccessCases
             "Author names required predeclaration or mutable input changed policy.");
         Check.Assert(policy.Evaluate(new(contract, ApiTargetKind.Method, "Game.IApi", "Ping"), ApiOperation.Invoke).Allowed, "Host Ping denied.");
         Check.Assert(!policy.Evaluate(new(contract, ApiTargetKind.Method, "Game.IApi", "Forbidden"), ApiOperation.Invoke).Allowed, "Mutable method list expanded policy.");
+        var valueType = new ApiTarget("Author, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", ApiTargetKind.Type, "Author.Value");
+        Check.Assert(policy.Evaluate(valueType, ApiOperation.Construct).Allowed, "Implicit author value construction denied.");
+        Check.Assert(!policy.Evaluate(valueType, ApiOperation.Invoke).Allowed, "A type became an invokable member.");
+        Check.Assert(!policy.Evaluate(Target(typeof(string)), ApiOperation.Construct).Allowed, "Framework type construction expanded implicitly.");
     }
 
     private static void PolicyIdentity()

@@ -12,7 +12,7 @@ namespace RuneCLR.Runtime;
 
 public sealed class HostContractSession : IDisposable
 {
-    private HostContractLoadContext? _context;
+    private AssemblyLoadContext? _context;
     private object? _script;
     private object? _host;
     private Type? _contract;
@@ -22,9 +22,23 @@ public sealed class HostContractSession : IDisposable
     private Dictionary<string, byte[]>? _images;
     private string? _entryTypeName;
     private bool _invoking;
+    private ReflectionPolicySession? _reflectionPolicy;
 
     public static HostContractSession Open(string manifestPath, Type contract, object instance)
+        => OpenCore(manifestPath, contract, instance, new HostContractSessionOptions());
+
+    public static HostContractSession Open(string manifestPath, Type contract, object instance,
+        HostContractSessionOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        return OpenCore(manifestPath, contract, instance, options);
+    }
+
+    private static HostContractSession OpenCore(string manifestPath, Type contract, object instance,
+        HostContractSessionOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        PrepareOptions(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
         ArgumentNullException.ThrowIfNull(contract);
         var manifest = PackageManifestIO.Read(manifestPath);
@@ -56,15 +70,36 @@ public sealed class HostContractSession : IDisposable
         var privateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var dependency in manifest.Dependencies)
         {
-            var image = ReadPrivateImage(directory, dependency.Path, dependency.Sha256, dependency.AssemblyName, ref totalBytes);
+            var image = ReadPrivateImage(directory, dependency.Path, dependency.Sha256, dependency.AssemblyName, options.PrototypeApiPolicy is not null, ref totalBytes);
             if (!privateNames.Add(image.Name))
                 throw new InvalidDataException("Duplicate private dependency identity: " + image.Name + ".");
             privateAssemblies.Add(image);
         }
 
         var entry = ResolveEntry(directory, manifest.EntryAssembly);
-        RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256, ref totalBytes);
-        return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods, privateAssemblies);
+        byte[]? entryBytes = null;
+        string? entrySha256 = null;
+        if (options.PrototypeApiPolicy is not null)
+        {
+            entrySha256 = manifest.EntrySha256;
+            entryBytes = ReadHashed(directory, manifest.EntryAssembly, entrySha256, ref totalBytes);
+        }
+        else
+        {
+            RequireFileHash(directory, manifest.EntryAssembly, manifest.EntrySha256, ref totalBytes);
+        }
+        return new HostContractSession(contract, instance, entry, manifest.EntryType, manifest.AllowedMethods,
+            privateAssemblies, options, entryBytes, entrySha256);
+    }
+
+    private static void PrepareOptions(HostContractSessionOptions options)
+    {
+        options.Validate();
+        if (options.PrototypeApiPolicy is not null)
+        {
+            _ = RequiredInterpreterBridge.Bind();
+            PrototypeReflectionPolicy.Prepare();
+        }
     }
 
     private static void RequireManifestMetadata(PackageManifest manifest)
@@ -236,16 +271,16 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidDataException("Package content paths must be canonical relative DLL paths using forward slashes.");
     }
 
-    private static PrivateImage ReadPrivateImage(string directory, string relative, string expected, string declaredIdentity, ref long totalBytes)
+    private static PrivateImage ReadPrivateImage(string directory, string relative, string expected, string declaredIdentity, bool allowSessionNames, ref long totalBytes)
     {
         var bytes = ReadHashed(directory, relative, expected, ref totalBytes);
         var info = ManagedAssemblyInspector.Inspect(bytes);
-        if (ReservedAssembly(info.SimpleName))
+        if (!allowSessionNames && ReservedAssembly(info.SimpleName))
             throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
         if (string.IsNullOrWhiteSpace(declaredIdentity) ||
             !string.Equals(info.AssemblyName, declaredIdentity, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Dependency metadata identity mismatch: " + relative + ".");
-        return new PrivateImage(info.SimpleName, bytes);
+        return new PrivateImage(info.SimpleName, info.AssemblyName, bytes, expected);
     }
 
     private static void RequireFileHash(string directory, string relative, string expected, ref long totalBytes) =>
@@ -278,12 +313,19 @@ public sealed class HostContractSession : IDisposable
     }
 
     public HostContractSession(Type contract, object instance, string assemblyPath, string entryTypeName, IReadOnlyCollection<string> allowedMethods)
-        : this(contract, instance, assemblyPath, entryTypeName, allowedMethods, Array.Empty<PrivateImage>())
+        : this(contract, instance, assemblyPath, entryTypeName, allowedMethods, new HostContractSessionOptions())
+    {
+    }
+
+    public HostContractSession(Type contract, object instance, string assemblyPath, string entryTypeName,
+        IReadOnlyCollection<string> allowedMethods, HostContractSessionOptions options)
+        : this(contract, instance, assemblyPath, entryTypeName, allowedMethods, Array.Empty<PrivateImage>(), options, null, null)
     {
     }
 
     private HostContractSession(Type contract, object instance, string assemblyPath, string entryTypeName,
-        IReadOnlyCollection<string> allowedMethods, IReadOnlyList<PrivateImage> privateAssemblies)
+        IReadOnlyCollection<string> allowedMethods, IReadOnlyList<PrivateImage> privateAssemblies,
+        HostContractSessionOptions options, byte[]? entryBytes, string? entrySha256)
     {
         ArgumentNullException.ThrowIfNull(contract);
         ArgumentNullException.ThrowIfNull(instance);
@@ -291,6 +333,8 @@ public sealed class HostContractSession : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(entryTypeName);
         ArgumentNullException.ThrowIfNull(allowedMethods);
         ArgumentNullException.ThrowIfNull(privateAssemblies);
+        ArgumentNullException.ThrowIfNull(options);
+        PrepareOptions(options);
         if (!contract.IsInterface || !contract.IsInstanceOfType(instance))
             throw new InvalidOperationException("The host contract must be the interface implemented by the supplied instance.");
 
@@ -306,56 +350,93 @@ public sealed class HostContractSession : IDisposable
             images.Add(image.Name, image.Bytes);
         }
 
-        _context = new HostContractLoadContext(privateAssemblies);
-        ContextReference = new WeakReference(_context, trackResurrection: true);
-        try
-        {
-            var bytes = File.ReadAllBytes(Path.GetFullPath(assemblyPath));
-            RequireCoreCatchTypes(bytes, entryTypeName, ".ctor");
-            RequireCoreCatchTypes(bytes, entryTypeName, "OnStart");
-            var info = ManagedAssemblyInspector.Inspect(bytes);
-            if (string.Equals(info.SimpleName, contractName, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("Author assembly '" + info.SimpleName + "' duplicates the host contract assembly.");
-            if (ReservedAssembly(info.SimpleName))
-                throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
-            if (privateNames.Contains(info.SimpleName))
-                throw new InvalidDataException("Duplicate private dependency identity: " + info.SimpleName + ".");
+        var path = Path.GetFullPath(assemblyPath);
+        var bytes = entryBytes ?? File.ReadAllBytes(path);
+        var info = ManagedAssemblyInspector.Inspect(bytes);
+        if (string.Equals(info.SimpleName, contractName, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Author assembly '" + info.SimpleName + "' duplicates the host contract assembly.");
+        if (options.PrototypeApiPolicy is null && ReservedAssembly(info.SimpleName))
+            throw new InvalidDataException("Author assembly '" + info.SimpleName + "' spoofs a framework or host assembly name.");
+        if (privateNames.Contains(info.SimpleName))
+            throw new InvalidDataException("Duplicate private dependency identity: " + info.SimpleName + ".");
+        if (options.PrototypeApiPolicy is null)
             RequireApprovedReferences(info, contract, privateNames);
-            var authorNames = new HashSet<string>(privateNames, StringComparer.OrdinalIgnoreCase) { info.SimpleName };
+        var authorNames = new HashSet<string>(privateNames, StringComparer.OrdinalIgnoreCase) { info.SimpleName };
+        if (options.PrototypeApiPolicy is null)
+        {
             foreach (var image in privateAssemblies)
                 RequireApprovedReferences(ManagedAssemblyInspector.Inspect(image.Bytes), contract, authorNames);
-            images.Add(info.SimpleName, bytes);
-            using var stream = new MemoryStream(bytes, writable: false);
-            var assembly = _context.LoadFromStream(stream);
-            var entry = assembly.GetType(entryTypeName, throwOnError: false);
-            var start = RequireOnStart(entry, contract);
-            var allowed = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
-            RequireContractCalls(start, contract, allowed, "OnStart calls a method that is not a host contract member.", images);
-            RequireLaterCallbacks(entry!, contract, allowed, images);
-            var script = Activator.CreateInstance(entry!)!;
-            _invoking = true;
-            try
+        }
+
+        var policy = options.PrototypeApiPolicy;
+        if (policy is not null)
+        {
+            var sources = new List<UgcAssemblySource>
             {
+                new(info.SimpleName, info.AssemblyName, null, bytes, entrySha256)
+            };
+            foreach (var image in privateAssemblies)
+                sources.Add(new UgcAssemblySource(image.Name, image.FullName, null, image.Bytes, image.Sha256));
+            var shared = options.PrototypeSharedAssemblies
+                .Where(assembly => !ReferenceEquals(assembly, contract.Assembly)).ToArray();
+            var required = RequiredInterpreterBridge.Bind();
+            var effectivePolicy = new HostContractAllowedMethodsPolicy(policy, contract, instance, allowedMethods);
+            var admission = new UgcAssemblyAdmission(effectivePolicy, contract.Assembly, sources, shared);
+            _context = required.Create("RuneCLR.HostContract:" + Guid.NewGuid().ToString("n"),
+                (context, requested) => admission.Resolve(context, requested));
+            _reflectionPolicy = PrototypeReflectionPolicy.Create(effectivePolicy, _context, admission.Admit);
+        }
+        else
+        {
+            _context = new HostContractLoadContext(privateAssemblies);
+        }
+
+        ContextReference = new WeakReference(_context!, trackResurrection: true);
+        try
+        {
+            if (policy is null)
+            {
+                RequireCoreCatchTypes(bytes, entryTypeName, ".ctor");
+                RequireCoreCatchTypes(bytes, entryTypeName, "OnStart");
+            }
+            images.Add(info.SimpleName, bytes);
+            using (var activation = _reflectionPolicy?.Activate())
+            {
+                using var stream = new MemoryStream(bytes, writable: false);
+                var assembly = _context!.LoadFromStream(stream);
+                var entry = assembly.GetType(entryTypeName, throwOnError: false);
+                var start = RequireOnStart(entry, contract, policy is not null);
+                var allowed = new HashSet<string>(allowedMethods, StringComparer.Ordinal);
+                if (policy is null)
+                {
+                    RequireContractCalls(start, contract, allowed, "OnStart calls a method that is not a host contract member.", images, false);
+                    RequireLaterCallbacks(entry!, contract, allowed, images, false);
+                }
+                var script = Activator.CreateInstance(entry!)!;
+                _invoking = true;
                 try
                 {
-                    start.Invoke(script, [instance]);
-                }
-                catch (Exception exception)
-                {
-                    throw HostFailure(exception);
-                }
+                    try
+                    {
+                        start.Invoke(script, [instance]);
+                    }
+                    catch (Exception exception)
+                    {
+                        throw HostFailure(exception);
+                    }
 
-                _script = script;
-                _host = instance;
-                _contract = contract;
-                _allowedMethods = allowed;
-                _image = bytes;
-                _images = images;
-                _entryTypeName = entryTypeName;
-            }
-            finally
-            {
-                _invoking = false;
+                    _script = script;
+                    _host = instance;
+                    _contract = contract;
+                    _allowedMethods = allowed;
+                    _image = bytes;
+                    _images = images;
+                    _entryTypeName = entryTypeName;
+                }
+                finally
+                {
+                    _invoking = false;
+                }
             }
         }
         catch
@@ -384,19 +465,22 @@ public sealed class HostContractSession : IDisposable
         var takesHost = parameters.Length == 1 && parameters[0].ParameterType == _contract;
         if (method is null || method.ReturnType != typeof(void) || method.IsGenericMethod || (parameters.Length != 0 && !takesHost))
             throw new InvalidOperationException("The callback must be one public void method with no parameters or one host-contract parameter.");
-        RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
+        if (_reflectionPolicy is null) RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
         const string failure = "The callback calls a method that is not a host contract member.";
-        RequireContractCalls(method, _contract, _allowedMethods, failure, _images!);
+        if (_reflectionPolicy is null) RequireContractCalls(method, _contract, _allowedMethods, failure, _images!, false);
         _invoking = true;
         try
         {
-            try
+            using (var activation = _reflectionPolicy?.Activate())
             {
-                method.Invoke(_script, takesHost ? [_host] : null);
-            }
-            catch (Exception exception)
-            {
-                throw HostFailure(exception);
+                try
+                {
+                    method.Invoke(_script, takesHost ? [_host] : null);
+                }
+                catch (Exception exception)
+                {
+                    throw HostFailure(exception);
+                }
             }
         }
         finally
@@ -423,19 +507,22 @@ public sealed class HostContractSession : IDisposable
         var takesHostAndInt = parameters.Length == 2 && parameters[0].ParameterType == _contract && parameters[1].ParameterType == typeof(int);
         if (method is null || method.ReturnType != typeof(void) || method.IsGenericMethod || (!takesInt && !takesHostAndInt))
             throw new InvalidOperationException("The callback must be one public void method with one int parameter or the host contract and one int.");
-        RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
+        if (_reflectionPolicy is null) RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
         const string failure = "The callback calls a method that is not a host contract member.";
-        RequireContractCalls(method, _contract, _allowedMethods, failure, _images!);
+        if (_reflectionPolicy is null) RequireContractCalls(method, _contract, _allowedMethods, failure, _images!, false);
         _invoking = true;
         try
         {
-            try
+            using (var activation = _reflectionPolicy?.Activate())
             {
-                method.Invoke(_script, takesHostAndInt ? [_host, value] : [value]);
-            }
-            catch (Exception exception)
-            {
-                throw HostFailure(exception);
+                try
+                {
+                    method.Invoke(_script, takesHostAndInt ? [_host, value] : [value]);
+                }
+                catch (Exception exception)
+                {
+                    throw HostFailure(exception);
+                }
             }
         }
         finally
@@ -462,20 +549,23 @@ public sealed class HostContractSession : IDisposable
         var takesHostAndInt = parameters.Length == 2 && parameters[0].ParameterType == _contract && parameters[1].ParameterType == typeof(int);
         if (method is null || method.ReturnType != typeof(int) || method.IsGenericMethod || (!takesInt && !takesHostAndInt))
             throw new InvalidOperationException("The callback must be one public int method with one int parameter or the host contract and one int.");
-        RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
+        if (_reflectionPolicy is null) RequireCoreCatchTypes(_image!, _entryTypeName!, methodName);
         const string failure = "The callback calls a method that is not a host contract member.";
-        RequireContractCalls(method, _contract, _allowedMethods, failure, _images!);
+        if (_reflectionPolicy is null) RequireContractCalls(method, _contract, _allowedMethods, failure, _images!, false);
         _invoking = true;
         try
         {
             object? result;
-            try
+            using (var activation = _reflectionPolicy?.Activate())
             {
-                result = method.Invoke(_script, takesHostAndInt ? [_host, value] : [value]);
-            }
-            catch (Exception exception)
-            {
-                throw HostFailure(exception);
+                try
+                {
+                    result = method.Invoke(_script, takesHostAndInt ? [_host, value] : [value]);
+                }
+                catch (Exception exception)
+                {
+                    throw HostFailure(exception);
+                }
             }
 
             if (result is not int number)
@@ -499,14 +589,18 @@ public sealed class HostContractSession : IDisposable
         _entryTypeName = null;
         _contract = null;
         _allowedMethods = null;
+        _reflectionPolicy?.Dispose();
+        _reflectionPolicy = null;
         _context?.Unload();
         _context = null;
     }
 
-    private static InvalidOperationException HostFailure(Exception exception)
+    private InvalidOperationException HostFailure(Exception exception)
     {
         if (exception is TargetInvocationException { InnerException: { } inner }) exception = inner;
         var typeName = exception.GetType().FullName ?? "Exception";
+        if (_reflectionPolicy is not null)
+            return new InvalidOperationException(typeName.Length <= 512 ? typeName : typeName[..512]);
         string described;
         try
         {
@@ -521,7 +615,7 @@ public sealed class HostContractSession : IDisposable
         return new InvalidOperationException(described);
     }
 
-    private static MethodInfo RequireOnStart(Type? entry, Type contract)
+    private static MethodInfo RequireOnStart(Type? entry, Type contract, bool policyRoute)
     {
         if (entry is null || !entry.IsClass || !entry.IsPublic || entry.IsAbstract || entry.IsGenericType || entry.IsNested)
             throw new InvalidOperationException("The script entry must be a public non-abstract, non-generic, non-nested class.");
@@ -529,9 +623,9 @@ public sealed class HostContractSession : IDisposable
         var constructors = entry.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
         if (constructors.Length != 1 || constructors[0].GetParameters().Length != 0)
             throw new InvalidOperationException("The script entry must have exactly one public parameterless constructor.");
-        if (entry.TypeInitializer is not null)
+        if (!policyRoute && entry.TypeInitializer is not null)
             throw new InvalidOperationException("The script entry must not declare a type initializer.");
-        RequireOnlyObjectConstructor(constructors[0]);
+        if (!policyRoute) RequireOnlyObjectConstructor(constructors[0]);
 
         var starts = entry.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(method => method.Name == "OnStart")
@@ -618,13 +712,14 @@ public sealed class HostContractSession : IDisposable
         if (!sawBase) throw new InvalidOperationException(failure);
     }
 
-    private static void RequireLaterCallbacks(Type entry, Type contract, HashSet<string> allowed, IReadOnlyDictionary<string, byte[]> images)
+    private static void RequireLaterCallbacks(Type entry, Type contract, HashSet<string> allowed,
+        IReadOnlyDictionary<string, byte[]> images, bool policyRoute)
     {
         foreach (var method in entry.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
             if (method.Name == "OnStart" || !IsSupportedCallback(method, contract)) continue;
             RequireContractCalls(method, contract, allowed,
-                "The callback " + method.Name + " calls a method that is not a host contract member.", images);
+                "The callback " + method.Name + " calls a method that is not a host contract member.", images, policyRoute);
         }
     }
 
@@ -645,13 +740,14 @@ public sealed class HostContractSession : IDisposable
         return parameters.Length == 2 && parameters[0].ParameterType == contract && parameters[1].ParameterType == typeof(int);
     }
 
-    private static void RequireContractCalls(MethodInfo method, Type contract, HashSet<string> allowedMethods, string failure, IReadOnlyDictionary<string, byte[]> images)
+    private static void RequireContractCalls(MethodInfo method, Type contract, HashSet<string> allowedMethods,
+        string failure, IReadOnlyDictionary<string, byte[]> images, bool policyRoute)
     {
-        WalkCalls(method, contract, allowedMethods, failure, images, new HashSet<MethodBase>());
+        WalkCalls(method, contract, allowedMethods, failure, images, policyRoute, new HashSet<MethodBase>());
     }
 
     private static void WalkCalls(MethodBase method, Type contract, HashSet<string> allowedMethods, string failure,
-        IReadOnlyDictionary<string, byte[]> images, HashSet<MethodBase> seen)
+        IReadOnlyDictionary<string, byte[]> images, bool policyRoute, HashSet<MethodBase> seen)
     {
         if (!seen.Add(method)) return;
         var owner = method.DeclaringType?.Assembly.GetName().Name;
@@ -665,7 +761,7 @@ public sealed class HostContractSession : IDisposable
         while (index < il.Length)
         {
             var operation = ReadOpCode(il, ref index, failure);
-            RejectUnsafe(operation);
+            RejectUnsafe(operation, policyRoute);
             if (operation.Value == OpCodes.Call.Value || operation.Value == OpCodes.Callvirt.Value)
             {
                 var token = ReadInt32(il, ref index, failure);
@@ -676,14 +772,17 @@ public sealed class HostContractSession : IDisposable
                     continue;
                 if (IsAllowedContractCall(called, contract, allowedMethods))
                     continue;
+                if (called?.DeclaringType == contract)
+                    throw RejectedCall(failure, called);
                 if (called is MethodInfo author && IsAuthorAssembly(author, images))
                 {
                     if (author.IsGenericMethod || author.DeclaringType!.TypeInitializer is not null)
                         throw new InvalidOperationException(failure);
-                    WalkCalls(author, contract, allowedMethods, failure, images, seen);
+                    WalkCalls(author, contract, allowedMethods, failure, images, policyRoute, seen);
                     continue;
                 }
 
+                if (policyRoute && called is not null) continue;
                 throw RejectedCall(failure, called);
             }
             else if (operation.Value == OpCodes.Newobj.Value)
@@ -696,10 +795,11 @@ public sealed class HostContractSession : IDisposable
                 {
                     if (authorCtor.IsGenericMethod || authorCtor.DeclaringType!.TypeInitializer is not null)
                         throw new InvalidOperationException(failure);
-                    WalkCalls(authorCtor, contract, allowedMethods, failure, images, seen);
+                    WalkCalls(authorCtor, contract, allowedMethods, failure, images, policyRoute, seen);
                     continue;
                 }
 
+                if (policyRoute && created is not null) continue;
                 throw RejectedCall(failure, created);
             }
             else if (operation.Value == OpCodes.Calli.Value || operation.Value == OpCodes.Jmp.Value)
@@ -812,7 +912,7 @@ public sealed class HostContractSession : IDisposable
             throw new InvalidOperationException(failure);
     }
 
-    private static void RejectUnsafe(OpCode operation)
+    private static void RejectUnsafe(OpCode operation, bool allowTypeTokens = false)
     {
         var name = operation.Name ?? string.Empty;
         if (operation.Value == OpCodes.Localloc.Value || operation.Value == OpCodes.Cpblk.Value ||
@@ -821,7 +921,8 @@ public sealed class HostContractSession : IDisposable
             name.StartsWith("stind.", StringComparison.Ordinal))
             throw new InvalidOperationException("Unsafe IL is unsupported.");
         if (operation.Value == OpCodes.Ldsfld.Value || operation.Value == OpCodes.Stsfld.Value ||
-            operation.Value == OpCodes.Ldsflda.Value || operation.Value == OpCodes.Ldtoken.Value)
+            operation.Value == OpCodes.Ldsflda.Value ||
+            (!allowTypeTokens && operation.Value == OpCodes.Ldtoken.Value))
             throw new InvalidOperationException("Static field and token loads are unsupported.");
         if (operation.Value == OpCodes.Ldftn.Value || operation.Value == OpCodes.Ldvirtftn.Value)
             throw new InvalidOperationException("Function pointers are unsupported.");
@@ -901,7 +1002,7 @@ public sealed class HostContractSession : IDisposable
         .Select(field => (OpCode)field.GetValue(null)!)
         .ToDictionary(operation => operation.Value);
 
-    private readonly record struct PrivateImage(string Name, byte[] Bytes);
+    private readonly record struct PrivateImage(string Name, string FullName, byte[] Bytes, string? Sha256 = null);
 
     private sealed class HostContractLoadContext : AssemblyLoadContext
     {

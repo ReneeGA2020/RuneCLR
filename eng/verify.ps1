@@ -67,6 +67,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Generic-interaction portability selftest failed.' }
     & $PythonCommand @PythonPrefix -B eng/test-trusted-game-generic-ir.py
     if ($LASTEXITCODE -ne 0) { throw 'Generic IR reader selftest failed.' }
+    & $PythonCommand @PythonPrefix -B eng/test-verify-runtime-provenance.py
+    if ($LASTEXITCODE -ne 0) { throw 'Runtime provenance verifier tests failed.' }
     & $PythonCommand @PythonPrefix eng/verify-ios-host-callback.py
     if ($LASTEXITCODE -ne 0) { throw 'iOS host callback closure failed.' }
     & dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --self-test

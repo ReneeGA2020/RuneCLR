@@ -33,7 +33,9 @@ RuntimeTestSettings.ExecutionPolicy = args.Contains("--require-interpreter", Str
 args = args.Where(argument => argument != "--require-interpreter").ToArray();
 tests.AddRange(SessionTests.Cases());
 tests.AddRange(HostContractSessionTests.Cases());
+tests.AddRange(HostContractPolicyTests.Cases());
 tests.AddRange(CallbackDeadlineTests.Cases());
+tests.AddRange(ReflectionPolicyTests.Cases());
 
 if (args.Length == 2 && args[0] == "--late-map")
 {

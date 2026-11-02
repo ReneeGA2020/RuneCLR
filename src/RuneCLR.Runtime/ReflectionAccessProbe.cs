@@ -9,21 +9,50 @@ namespace RuneCLR.Runtime;
 public sealed class ReflectionAccessProbe(IApiAccessPolicy policy)
 {
     private readonly IApiAccessPolicy policy = policy ?? throw new ArgumentNullException(nameof(policy));
+    private readonly Func<Assembly, bool>? sessionOwns;
+
+    internal ReflectionAccessProbe(IApiAccessPolicy policy, Func<Assembly, bool> sessionOwns) : this(policy)
+        => this.sessionOwns = sessionOwns;
 
     public object? Invoke(MethodInfo method, object? instance, params object?[]? arguments)
     {
-        ArgumentNullException.ThrowIfNull(method);
-        DemandMethod(method, ApiOperation.Invoke, instance);
-        DemandArguments(arguments);
+        DemandInvocation(method, instance, arguments);
         return method.Invoke(instance, arguments);
+    }
+
+    internal void DemandInvocation(MethodInfo method, object? instance, object?[]? arguments,
+        bool runtimeDispatch = false, bool declaration = false)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        DemandMethod(method, ApiOperation.Invoke, instance, runtimeDispatch, declaration);
+        DemandArguments(arguments);
     }
 
     public object Construct(ConstructorInfo constructor, params object?[]? arguments)
     {
+        DemandConstruction(constructor, null, arguments);
+        return constructor.Invoke(arguments);
+    }
+
+    internal void DemandConstruction(ConstructorInfo constructor, object? instance, object?[]? arguments)
+    {
         ArgumentNullException.ThrowIfNull(constructor);
         DemandMethod(constructor, ApiOperation.Construct, null);
+        if (instance is not null)
+        {
+            if (!constructor.DeclaringType!.IsInstanceOfType(instance))
+                throw Refuse("The constructor requires a compatible existing receiver.");
+            DemandType(instance.GetType());
+        }
         DemandArguments(arguments);
-        return constructor.Invoke(arguments);
+    }
+
+    internal void DemandDefaultConstruction(Type type)
+    {
+        if (!type.IsValueType || type.ContainsGenericParameters)
+            throw Refuse("An implicit default construction requires a closed value type.");
+        DemandType(type);
+        Demand(Describe(type), ApiOperation.Construct);
     }
 
     public object? Read(FieldInfo field, object? instance)
@@ -34,10 +63,17 @@ public sealed class ReflectionAccessProbe(IApiAccessPolicy policy)
 
     public void Write(FieldInfo field, object? instance, object? value)
     {
+        DemandFieldWrite(field, instance, value);
+        field.SetValue(instance, value);
+    }
+
+    internal void DemandFieldRead(FieldInfo field, object? instance) => DemandField(field, ApiOperation.ReadField, instance);
+
+    internal void DemandFieldWrite(FieldInfo field, object? instance, object? value)
+    {
         DemandField(field, ApiOperation.WriteField, instance);
         if (field.IsInitOnly || field.IsLiteral) throw Refuse("Writing readonly or literal fields is unsupported by this probe.");
         if (value is not null) DemandType(value.GetType());
-        field.SetValue(instance, value);
     }
 
     public object? Read(PropertyInfo property, object? instance)
@@ -75,11 +111,12 @@ public sealed class ReflectionAccessProbe(IApiAccessPolicy policy)
         throw Refuse("Delegate creation is unsupported by this probe.");
     }
 
-    private void DemandMethod(MethodBase method, ApiOperation operation, object? instance)
+    private void DemandMethod(MethodBase method, ApiOperation operation, object? instance,
+        bool runtimeDispatch = false, bool declaration = false)
     {
         var target = Describe(method);
         Demand(target, operation);
-        if (method.ContainsGenericParameters || method.IsAbstract || method.IsStatic && method is ConstructorInfo)
+        if (method.ContainsGenericParameters || method.IsAbstract && !declaration || method.IsStatic && method is ConstructorInfo)
             throw Refuse("Open, abstract or static-constructor invocation is unsupported by this probe.");
         DemandSignature(method);
         if (!method.IsStatic && method is not ConstructorInfo)
@@ -88,7 +125,7 @@ public sealed class ReflectionAccessProbe(IApiAccessPolicy policy)
                 throw Refuse("The invocation requires a compatible receiver.");
             DemandType(instance.GetType());
             // A runtime bridge must resolve actual dispatch. Do not check a base method then execute an unchecked override.
-            if (method.IsVirtual && !method.IsFinal && instance.GetType() != method.DeclaringType)
+            if (!runtimeDispatch && method.IsVirtual && !method.IsFinal && instance.GetType() != method.DeclaringType)
                 throw Refuse("Polymorphic reflection dispatch is unsupported by this probe.");
         }
     }
@@ -145,7 +182,7 @@ public sealed class ReflectionAccessProbe(IApiAccessPolicy policy)
             foreach (var argument in type.GetGenericArguments()) DemandType(argument);
     }
 
-    private static ApiTarget Describe(MemberInfo member)
+    private ApiTarget Describe(MemberInfo member)
     {
         if (member.GetType().Assembly != typeof(object).Assembly || member is TypeDelegator)
             throw Refuse("Only runtime reflection metadata is supported by this probe.");
@@ -153,13 +190,14 @@ public sealed class ReflectionAccessProbe(IApiAccessPolicy policy)
         if (type.IsConstructedGenericType) type = type.GetGenericTypeDefinition();
         var identity = type.Assembly.GetName().FullName!;
         var name = type.FullName ?? throw Refuse("A concrete declaring type name is required.");
-        return member switch
+        ApiTarget target = member switch
         {
             Type => new(identity, ApiTargetKind.Type, name),
             MethodBase method => new(identity, ApiTargetKind.Method, name, member.Name, Signature(method)),
             FieldInfo => new(identity, ApiTargetKind.Field, name, member.Name),
             _ => throw Refuse("This metadata target is unsupported by the initial probe.")
         };
+        return sessionOwns?.Invoke(type.Assembly) == true ? target with { IsSessionCode = true } : target;
     }
 
     private static ApiMethodSignature Signature(MethodBase method)
