@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../ReflectionPolicy.CompiledLibrary/ReflectionPolicy.CompiledLibrary.csproj" />
+    <ProjectReference Include="../ReflectionPolicy.Author/ReflectionPolicy.Author.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../ReflectionPolicy.SessionAuthor/ReflectionPolicy.SessionAuthor.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../ReflectionPolicy.DynamicDependency/ReflectionPolicy.DynamicDependency.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../ReflectionPolicy.DeniedDependency/ReflectionPolicy.DeniedDependency.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopyAuthorFixture" AfterTargets="Build">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../ReflectionPolicy.Author/bin/$(Configuration)/$(TargetFramework)/ReflectionPolicy.Author.dll" DestinationFolder="$(OutDir)author" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../ReflectionPolicy.SessionAuthor/bin/$(Configuration)/$(TargetFramework)/ReflectionPolicy.SessionAuthor.dll" DestinationFolder="$(OutDir)session-author" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../ReflectionPolicy.DynamicDependency/bin/$(Configuration)/$(TargetFramework)/System.Custom.UgcDependency.dll;$(MSBuildThisFileDirectory)../ReflectionPolicy.DeniedDependency/bin/$(Configuration)/$(TargetFramework)/ReflectionPolicy.DeniedDependency.dll" DestinationFolder="$(OutDir)session-author" />
+  </Target>
+</Project>

@@ -1,5 +1,116 @@
 # Development handoff
 
+## Automatic MapSession API policy and managed loading (2026-11-02)
+
+The opt-in [session-policy increment](ugc-session-policy.md) adds an opt-in
+MapRunOptions.PrototypeApiPolicy and host-supplied shared assembly instances.
+Private bridge version 4 separates session ownership from callback activation,
+and applies IL admission plus required interpretation to common managed loading
+paths. Returned contexts retire without retiring the live session; stopped
+sessions release their evaluator and loading state.
+
+The post-commit Windows private replay against the clean published runtime
+commit passes 123 groups, required-interpreter Runtime 156/156 and four targeted
+upstream methods, with 732 input pins and zero drift.
+The review regressions cover internal delegate factories, bounded stream
+admission, resolver-depth event/cross-session loading, private DynamicMethod
+MethodInvoker construction/invocation, oversized byte[] symbol-store caps and
+the HostContractSession policy/options route. Legacy host-contract sessions,
+the contract allow list and host code outside activations are unchanged.
+Diagnostics show interpreted author/new-dependency entries and compiled host/
+library helpers. Newly admitted code uses actual session origin rather than
+prelisted DLL/function names; original versioned gameplay restrictions remain.
+The runtime source is published on ReneeGA2020/runtime branch
+`runeclr/reflection-policy-20261027` at commit
+[`7cbdad39669188c1f49f0a41216829d9a9005591`](https://github.com/ReneeGA2020/runtime/commit/7cbdad39669188c1f49f0a41216829d9a9005591),
+parent `5972a86966e56ae5f468a3e042327f0051e923d5`. Its 22 managed
+CoreLib/build/linker files are byte-equal to the accepted private source and
+CoreLib ddbf9e33d75e2188278ee8d37a58981ced6ccf90f6ab49b69406b9bc27b2ec5d;
+the post-commit replay pins runtimeCommit/runtimeHead 7cbdad... and verifies a
+clean worktree with the exact 22-file delta. The RuneCLR
+host integration remains opt-in/private and experimental; default loader/host
+behavior and README claims are unchanged. The opt-in policy adapter intentionally
+recognizes IsSessionCode and author Type construction.
+
+Global runtime-owned propagation, suppressed/unmanaged entries, custom-host/AOT
+support and full all-load acceptance remain open. No native VM
+rebuild or device run was performed.
+
+## Reflection actual-target coverage (2026-10-27)
+
+The [version 3 increment](ugc-api-policy.md#actual-dispatch-factories-and-attribute-targets-2026-10-27)
+checks both a reflected virtual/interface declaration and the runtime-resolved
+implementation. It adds the independent MethodInvoker, ConstructorInvoker,
+Activator default/generic and attribute-construction routes. This is general
+API target enforcement; serialization and DTOs are consumer use cases and
+fixtures, with no purpose-specific permission or exemption.
+
+The private Windows x64 replay passes 55 groups, Runtime 147/147 and four
+unchanged upstream methods. It seals 710 inputs with zero drift and records
+141 interpreted author method entries, no author JIT declarations, and JIT
+host/library entries including fast and generic factories. Stock Runtime
+147/147, Packaging 320/320 and sample collection pass; the old version 2
+CoreLib is refused before author loading.
+
+Scoped reflected delegate creation/invocation and DynamicMethod execution
+explicitly refuse, including cached invokers. Object-dependent dynamic
+interface casts refuse before user cast callbacks. All-load interpretation,
+runtime-owned session propagation, suppressed-flow/unmanaged entries and
+retirement races remain separate work. The shipped gameplay reflection ban
+stays in place; there is no arbitrary-reflection or sandbox acceptance.
+
+At that v3 stage, both repositories remained uncommitted/unpublished. Sixteen
+managed CoreLib files differed from the pinned session-policy base; no native VM
+rebuild was needed. Generic Activator's intrinsic is disabled in this private CoreLib so
+compiled calls cannot skip the hook; its performance cost is not measured.
+A pre-existing DynamicMethod/MethodInvoker initialization assertion and the
+local fix are tracked separately as [RCLR-UP-004](upstream-bugs/dynamic-method-invoker-signature.md).
+
+## Reflection construction, property and field increment (2026-10-27)
+
+The [version 2 reflection bridge](ugc-api-policy.md#construction-property-and-field-runtime-increment-2026-10-27)
+extends the local #19 experiment to both ConstructorInfo.Invoke overloads,
+property getter/indexer paths and the separate fast property setter, ordinary
+field reads/writes, and literal field values. All use the same IApiAccessPolicy
+evaluator. Authors and compiled libraries keep ordinary reflection syntax.
+
+The final Windows x64 private replay passes 27 groups, stock and disabled
+controls, Runtime 147/147, and three unchanged upstream regression methods
+(generic reflection plus SetValue/SetValueDirect readonly-static cases).
+Diagnostics show 58 interpreted author methods and JIT-compiled host/library
+entries, without author JIT entries. The replay seals 695 inputs with no drift.
+Stock build and Packaging 320/320 also pass. The previous version 1 CoreLib
+is explicitly rejected by the new host before author loading.
+
+Activator/ConstructorInvoker/MethodInvoker, delegates, final virtual/interface
+dispatch, all-load/session binding and broader async paths remain open. Scoped
+TypedReference-backed field access is explicitly refused. The ordinary gameplay
+profile still rejects raw reflection. At that v2 stage, source changes remained local/uncommitted in both
+repositories; no native VM edits or rebuild were part of that increment.
+
+## Ordinary MethodInfo.Invoke runtime experiment (2026-10-27)
+
+The next [#19 increment](ugc-api-policy.md#ordinary-methodinfoinvoke-runtime-experiment-2026-10-27)
+adds an opt-in CoreLib check at RuntimeMethodInfo.Invoke entry, before binder
+conversion or target execution. Author code uses ordinary reflection. The
+host installs the existing value-only API evaluator; compiled libraries inherit
+the ambient policy through ExecutionContext. No native VM source changed.
+
+The local Windows x64 private-layout experiment passes 12 cases, including
+interpreted author calls through a JIT-compiled library, denial before target
+initialization/body/file output, generics, caught denials, nested narrowing,
+flowed/retired scopes and collectible retirement. Stock and disabled controls,
+Runtime 147/147 on stock and private required-interpreter layouts, Packaging
+320/320, sample collection and one unchanged upstream reflection regression
+also pass. The maintained driver is eng/verify-runtime-reflection.py.
+
+This is a host-installed ambient MethodInfo.Invoke experiment. It does not yet
+bind policy to every runtime-owned UGC transition/load, cover suppressed flow
+or unmanaged threads, resolve unchecked virtual targets, or establish automatic
+constructor/property/field/delegate enforcement. The ordinary package profile
+still rejects general reflection. At that v1 stage, both implementation branches
+were local and uncommitted; see [the source/build boundaries](runtime-fork.md#local-reflection-policy-experiment-2026-10-27).
+
 ## Shared UGC API policy increment (2026-10-26)
 
 The [API policy work](ugc-api-policy.md) follows issues #18/#19/#20 under #5:

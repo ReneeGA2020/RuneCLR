@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../ReflectionPolicy.CompiledLibrary/ReflectionPolicy.CompiledLibrary.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

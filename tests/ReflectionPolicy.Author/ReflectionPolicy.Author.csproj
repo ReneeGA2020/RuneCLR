@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../ReflectionPolicy.CompiledLibrary/ReflectionPolicy.CompiledLibrary.csproj" />
+  </ItemGroup>
+</Project>

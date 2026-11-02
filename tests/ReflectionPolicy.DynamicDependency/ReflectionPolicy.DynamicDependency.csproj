@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>System.Custom.UgcDependency</AssemblyName></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ReflectionPolicy.CompiledLibrary/ReflectionPolicy.CompiledLibrary.csproj" />
+  </ItemGroup>
+</Project>

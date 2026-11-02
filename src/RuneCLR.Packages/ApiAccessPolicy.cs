@@ -12,7 +12,11 @@ public enum ApiOperation
 // Value-only identities can cross the policy boundary without rooting a collectible assembly.
 // The legacy policy matches member names; signature/IL validation remains a separate gate.
 public sealed record ApiTarget(string AssemblyIdentity, ApiTargetKind Kind,
-    string? TypeName = null, string? MemberName = null, ApiMethodSignature? Signature = null);
+    string? TypeName = null, string? MemberName = null, ApiMethodSignature? Signature = null)
+{
+    // Set by trusted IL admission or actual runtime-context ownership, never by an assembly's name.
+    public bool IsSessionCode { get; init; }
+}
 
 public sealed record ApiMethodSignature(string ReturnType, ImmutableArray<string> ParameterTypes,
     int GenericArity, bool IsInstance);

@@ -9,6 +9,9 @@ public enum MapExecutionPolicy
 public sealed record MapRunOptions
 {
     public MapExecutionPolicy ExecutionPolicy { get; init; } = MapExecutionPolicy.Default;
+    // Opt-in until every loading/entry path has matching runtime enforcement.
+    public RuneCLR.Packages.IApiAccessPolicy? PrototypeApiPolicy { get; init; }
+    public IReadOnlyList<System.Reflection.Assembly> PrototypeSharedAssemblies { get; init; } = [];
     // Experimental native IR-dispatch budget, not a complete execution-time sandbox.
     public long? PrototypeInstructionBudget { get; init; }
     public TimeSpan? PrototypeCallbackDeadline { get; init; }
@@ -27,6 +30,11 @@ public sealed record MapRunOptions
     internal void Validate()
     {
         if (!Enum.IsDefined(ExecutionPolicy)) throw new ArgumentOutOfRangeException(nameof(ExecutionPolicy));
+        if (PrototypeApiPolicy is not null && ExecutionPolicy != MapExecutionPolicy.RequireInterpreter)
+            throw new ArgumentException("A UGC API policy requires RequireInterpreter.", nameof(ExecutionPolicy));
+        ArgumentNullException.ThrowIfNull(PrototypeSharedAssemblies);
+        if (PrototypeSharedAssemblies.Count != 0 && PrototypeApiPolicy is null)
+            throw new ArgumentException("Explicit shared assemblies require a UGC API policy.");
         if (PrototypeInstructionBudget is { } instructionBudget)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(instructionBudget, nameof(PrototypeInstructionBudget));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(PrototypeCleanupInstructionBudget);

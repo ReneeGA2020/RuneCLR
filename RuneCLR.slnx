@@ -18,6 +18,12 @@
     <Project Path="src/RuneCLR.TrustedUpdate/RuneCLR.TrustedUpdate.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ReflectionPolicy.Author/ReflectionPolicy.Author.csproj" />
+    <Project Path="tests/ReflectionPolicy.CompiledLibrary/ReflectionPolicy.CompiledLibrary.csproj" />
+    <Project Path="tests/ReflectionPolicy.SessionAuthor/ReflectionPolicy.SessionAuthor.csproj" />
+    <Project Path="tests/ReflectionPolicy.DynamicDependency/ReflectionPolicy.DynamicDependency.csproj" />
+    <Project Path="tests/ReflectionPolicy.DeniedDependency/ReflectionPolicy.DeniedDependency.csproj" />
+    <Project Path="tests/RuneCLR.ReflectionPolicy.Tests/RuneCLR.ReflectionPolicy.Tests.csproj" />
     <Project Path="tests/DependencyMap.A/DependencyMap.A.csproj" />
     <Project Path="tests/DependencyMap.B/DependencyMap.B.csproj" />
     <Project Path="tests/PrivateDependency.A/PrivateDependency.A.csproj" />

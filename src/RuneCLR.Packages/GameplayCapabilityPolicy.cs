@@ -22,14 +22,17 @@ public static partial class GameplayCapabilityPolicy
     /// Versioned packages still use the fixed gameplay profile; this does not select a new loader profile.</summary>
     public static void ValidateWithApiPolicy(ReadOnlyMemory<byte> image, IReadOnlyCollection<string> privateAssemblyIdentities,
         string contractAssemblyIdentity, IApiAccessPolicy apiPolicy,
-        string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null)
+        string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null, bool allowReflectionTypeTokens = false,
+        bool allowSessionAssemblyNames = false)
     {
         ArgumentNullException.ThrowIfNull(apiPolicy);
-        ValidateCore(image, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, apiPolicy);
+        ValidateCore(image, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, apiPolicy,
+            allowReflectionTypeTokens, allowSessionAssemblyNames);
     }
 
     private static void ValidateCore(ReadOnlyMemory<byte> image, IReadOnlyCollection<string> privateAssemblyIdentities,
-        string contractAssemblyIdentity, string? hostInterface, IReadOnlyCollection<string>? allowedMethods, IApiAccessPolicy? apiPolicy)
+        string contractAssemblyIdentity, string? hostInterface, IReadOnlyCollection<string>? allowedMethods, IApiAccessPolicy? apiPolicy,
+        bool allowReflectionTypeTokens = false, bool allowSessionAssemblyNames = false)
     {
         ArgumentNullException.ThrowIfNull(privateAssemblyIdentities);
         if (image.IsEmpty || image.Length > ManagedAssemblyInspector.MaximumImageBytes)
@@ -38,7 +41,8 @@ public static partial class GameplayCapabilityPolicy
         {
             using var pe = new PEReader(ImmutableArray.CreateRange(image.ToArray()));
             var reader = pe.GetMetadataReader(MetadataReaderOptions.None);
-            new Inspection(reader, pe, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, apiPolicy).Validate();
+            new Inspection(reader, pe, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, apiPolicy,
+                allowReflectionTypeTokens, allowSessionAssemblyNames).Validate();
         }
         catch (Exception error) when (error is BadImageFormatException or ArgumentException or
             InvalidOperationException or IndexOutOfRangeException or OverflowException)
@@ -137,14 +141,17 @@ public static partial class GameplayCapabilityPolicy
     {
         private readonly MetadataReader metadata;
         private readonly PEReader pe;
-        private readonly HashSet<string> privateIdentities = new(StringComparer.Ordinal);
+        private readonly HashSet<string> privateIdentities = new(StringComparer.OrdinalIgnoreCase);
         private readonly string ownIdentity;
         private readonly IApiAccessPolicy apiPolicy;
+        private readonly bool allowReflectionTypeTokens;
+        private readonly bool allowSessionAssemblyNames;
         private int depth;
         private int activeSpecificationBytes;
 
         internal Inspection(MetadataReader metadata, PEReader pe, IReadOnlyCollection<string> identities, string contract,
-            string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null, IApiAccessPolicy? apiPolicy = null)
+            string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null, IApiAccessPolicy? apiPolicy = null,
+            bool allowReflectionTypeTokens = false, bool allowSessionAssemblyNames = false)
         {
             this.metadata = metadata;
             this.pe = pe;
@@ -158,12 +165,13 @@ public static partial class GameplayCapabilityPolicy
             if (publicKey.Length > 0) ownName.SetPublicKey(publicKey);
             else ownName.SetPublicKeyToken([]);
             ownIdentity = ownName.FullName!;
-            var legacy = CreateApiPolicy(identities.Append(ownIdentity).ToArray(), contract, hostInterface, allowedMethods);
-            this.apiPolicy = apiPolicy ?? legacy;
+            this.apiPolicy = apiPolicy ?? CreateApiPolicy(identities.Append(ownIdentity).ToArray(), contract, hostInterface, allowedMethods);
+            this.allowReflectionTypeTokens = allowReflectionTypeTokens;
+            this.allowSessionAssemblyNames = allowSessionAssemblyNames;
             foreach (var identity in identities)
             {
                 var full = FullIdentity(identity);
-                if (Reserved(new AssemblyName(full).Name!))
+                if (!allowSessionAssemblyNames && Reserved(new AssemblyName(full).Name!))
                     throw Invalid($"Private assembly '{full}' spoofs a framework or host assembly name.");
                 privateIdentities.Add(full);
             }
@@ -173,7 +181,7 @@ public static partial class GameplayCapabilityPolicy
         {
             var definition = metadata.GetAssemblyDefinition();
             var ownName = metadata.GetString(definition.Name);
-            if (Reserved(ownName)) throw Invalid($"Author assembly '{ownName}' spoofs a framework or host assembly name.");
+            if (!allowSessionAssemblyNames && Reserved(ownName)) throw Invalid($"Author assembly '{ownName}' spoofs a framework or host assembly name.");
             foreach (var handle in metadata.AssemblyReferences) ValidateAssembly(ReferenceIdentity(handle));
             foreach (var handle in metadata.TypeReferences) _ = GetTypeFromReference(metadata, handle, 0);
             for (var row = 1; row <= metadata.GetTableRowCount(TableIndex.TypeSpec); row++)
@@ -288,6 +296,8 @@ public static partial class GameplayCapabilityPolicy
 
         private void Demand(ApiTarget target)
         {
+            if (target.AssemblyIdentity == ownIdentity || privateIdentities.Contains(target.AssemblyIdentity))
+                target = target with { IsSessionCode = true };
             var decision = apiPolicy.Evaluate(target, ApiOperation.Reference);
             if (!decision.Allowed) throw Invalid(decision.Reason!);
         }
@@ -417,7 +427,7 @@ public static partial class GameplayCapabilityPolicy
             .Where(field => field.FieldType == typeof(OpCode)).Select(field => (OpCode)field.GetValue(null)!)
             .ToDictionary(opcode => unchecked((ushort)opcode.Value));
 
-        private static void CheckInstructions(byte[] bytes)
+        private void CheckInstructions(byte[] bytes)
         {
             var offset = 0;
             while (offset < bytes.Length)
@@ -431,7 +441,7 @@ public static partial class GameplayCapabilityPolicy
                 }
                 if (!Opcodes.TryGetValue(value, out var opcode)) throw Invalid($"Unknown IL opcode at IL offset {start}.");
                 if (opcode == OpCodes.Calli || opcode == OpCodes.Localloc || opcode == OpCodes.Jmp ||
-                    opcode == OpCodes.Ldtoken || opcode == OpCodes.Mkrefany || opcode == OpCodes.Refanytype || opcode == OpCodes.Refanyval ||
+                    opcode == OpCodes.Ldtoken && !allowReflectionTypeTokens || opcode == OpCodes.Mkrefany || opcode == OpCodes.Refanytype || opcode == OpCodes.Refanyval ||
                     opcode == OpCodes.Cpblk || opcode == OpCodes.Initblk)
                     throw Invalid($"IL opcode '{opcode.Name}' is unsupported at IL offset {start}.");
                 var size = opcode.OperandType switch
@@ -446,6 +456,14 @@ public static partial class GameplayCapabilityPolicy
                     _ => throw Invalid("Unsupported IL operand encoding.")
                 };
                 if (size > bytes.Length - offset) throw Invalid($"Truncated IL operand at IL offset {offset}.");
+                if (opcode == OpCodes.Ldtoken)
+                {
+                    int token = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset, 4));
+                    var handle = MetadataTokens.EntityHandle(token);
+                    if (handle.Kind is not (HandleKind.TypeDefinition or HandleKind.TypeReference or HandleKind.TypeSpecification))
+                        throw Invalid("Only type metadata tokens are supported by the reflection-policy input profile.");
+                    _ = Type(handle);
+                }
                 offset += size;
             }
         }
