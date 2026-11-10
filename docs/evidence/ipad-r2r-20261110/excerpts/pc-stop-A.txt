@@ -1,0 +1,47 @@
+(lldb) script exec(compile(open('<host-workdir>/pc-address-capture/pc_driver.py').read(), '<host-workdir>/pc-address-capture/pc_driver.py', 'exec'))
+Current executable set to '<host-workdir>/signed-host/TrustedUpdateHost.app/TrustedUpdateHost' (arm64).
+ATTACH_STATE 2
+Process 860 stopped
+* thread #1, stop reason = signal SIGSTOP
+      frame #0: 0x0000000104b1d9f0 dyld`_dyld_start
+dyld`_dyld_start:
+->  0x104b1d9f0 <+0>:  mov    x0, sp
+    0x104b1d9f4 <+4>:  and    sp, x0, #0xfffffffffffffff0
+    0x104b1d9f8 <+8>:  mov    x29, #0x0                 ; =0
+    0x104b1d9fc <+12>: mov    x30, #0x0                 ; =0
+Target 0: (TrustedUpdateHost) stopped.
+STOP_STATE 5
+Breakpoint 1: no locations (pending).
+WARNING:  Unable to resolve breakpoint to any actual locations.
+1 location added to breakpoint 1
+OWNER_MAPPED 15 <app-data-container>/Documents/payload/run5-A/TrustedUpdate.A.r2r.dylib 0x14d7e8000
+      Address: TrustedUpdate.A.r2r.dylib[0x0000000000004050] (TrustedUpdate.A.r2r.dylib.__TEXT.__managedcode + 0)
+      Summary: TrustedUpdate.A.r2r.dylib`TrustedUpdate_Update_TrustedUpdate_Business__Execute
+AFTER_CONTINUE_STATE 5
+STOP_PC 0x14d7ec050
+      pc = 0x000000014d7ec050  TrustedUpdate.A.r2r.dylib`TrustedUpdate_Update_TrustedUpdate_Business__Execute
+[  0] 0x000000000499c000 <host-workdir>/signed-host/TrustedUpdateHost.app/TrustedUpdateHost
+[  1] 0x0000000104c7c000 <host-workdir>/signed-host/TrustedUpdateHost.app/libcoreclr.dylib
+[  2] dyld[0x0000000180486000] /usr/lib/dyld
+
+[... full module list omitted (the session listed ~849 images); only host/owner lines retained ...]
+
+[837] 0x000000014d7e8000 <app-data-container>/Documents/payload/run5-A/TrustedUpdate.A.r2r.dylib(0x000000014d7e8000)
+      Address: TrustedUpdate.A.r2r.dylib[0x0000000000004050] (TrustedUpdate.A.r2r.dylib.__TEXT.__managedcode + 0)
+      Summary: TrustedUpdate.A.r2r.dylib`TrustedUpdate_Update_TrustedUpdate_Business__Execute
+[0x000000014d7ec000-0x000000014d7f0000) r-x __TEXT
+Modified memory (dirty) page list provided, 1 entries.
+Dirty pages: 0x14d7ec000.
+* thread #2, queue = 'com.apple.root.default-qos', stop reason = breakpoint 1.1 2.1
+  * frame #0: 0x000000014d7ec050 TrustedUpdate.A.r2r.dylib`TrustedUpdate_Update_TrustedUpdate_Business__Execute
+    frame #1: 0x000000014d7ec374 TrustedUpdate.A.r2r.dylib`TrustedUpdate_Update_TrustedUpdate_Update__Run + 52
+    frame #2: 0x000000016c8fcb8c framework.dylib`S_P_CoreLib_System_Reflection_IntrinsicInvokeHelper__Instance_Int_2Obj + 76
+    frame #3: 0x000000016c8fa97c framework.dylib`S_P_CoreLib_System_Reflection_IntrinsicInvokeHelper__Invoke + 508
+    frame #4: 0x000000016c9020e4 framework.dylib`S_P_CoreLib_System_Reflection_MethodBaseInvoker__InvokeDirectByRefWithFewArgs + 228
+    frame #5: 0x000000016c901b84 framework.dylib`S_P_CoreLib_System_Reflection_MethodBaseInvoker__InvokeWithFewArgs + 612
+    frame #6: 0x000000016c91af3c framework.dylib`S_P_CoreLib_System_Reflection_RuntimeMethodInfo__Invoke + 396
+    frame #7: 0x000000010c73c014 TrustedUpdate.host.dylib`TrustedUpdate_Host_TrustedUpdate_Driver__ExecuteLoaded + 452
+    frame #8: 0x000000010c73bcdc TrustedUpdate.host.dylib`TrustedUpdate_Host_TrustedUpdate_Driver__TryStartLoaded + 2108
+    frame #9: 0x000000010c73afc0 TrustedUpdate.host.dylib`TrustedUpdate_Host_TrustedUpdate_Driver__Run + 368
+    frame #10: 0x000000010c72c808 TrustedUpdate.host.dylib`RunEntry_ProbeEntry__Main + 952
+    frame #11: 0x000000016c6b0a8c framework.dylib`S_P_CoreLib_System_Environment__CallEntryPoint + 76

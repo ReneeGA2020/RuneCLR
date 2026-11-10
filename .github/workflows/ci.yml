@@ -27,6 +27,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+      - name: iPad deploy fake self-test
+        if: runner.os == 'macOS'
+        run: python3 -B eng/ipad-r2r-deploy/ipad_stage_selftest.py "$RUNNER_TEMP/ipad-r2r-deploy-${{ github.run_id }}-${{ github.run_attempt }}"
+      - name: Native iPad host fixture self-test
+        if: runner.os == 'macOS' && hashFiles('eng/ipad-r2r-native/host/tools/selftest.py') != ''
+        run: python3 -B eng/ipad-r2r-native/host/tools/selftest.py
       - name: Trusted game build runner diagnostics
         run: python -B eng/test-trusted-game-builds.py
       - name: Trusted game observation selftest

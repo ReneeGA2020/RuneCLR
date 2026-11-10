@@ -1,0 +1,20 @@
+RUNE_IPAD_NATIVE pid=862 nonce=d2e3f405162738495a6b7c8d9e0f1011 mode=payload payload=run5-B InterpMode=1 InterpretCollectible=1 ReadyToRun=1 Tiered=0
+RUNECLR_PATH_OK pid=862 runId=run5-B payload=<app-data-container>/Documents/payload/run5-B result=<app-data-container>/Documents/results/run5-B.json
+RUNECLR_NATIVE_CALLBACK owner=framework.dylib assembly=<app-bundle>/TrustedUpdateHost.app/System.Private.CoreLib.dll path=<app-bundle>/TrustedUpdateHost.app/framework.dylib base=0x7000000000 rtr_header=0x7002fc6368 image_size=252084224 file_size=252077280
+RUNE_IPAD_INITIALIZE pid=862 nonce=d2e3f405162738495a6b7c8d9e0f1011 hr=0 documents=<app-data-container>/Documents
+RUNECLR_NATIVE_CALLBACK owner=TrustedUpdate.host.dylib assembly=<app-bundle>/TrustedUpdateHost.app/RunEntry.dll path=<app-bundle>/TrustedUpdateHost.app/TrustedUpdate.host.dylib base=0x105d08000 rtr_header=0x105d1db08 image_size=425984 file_size=419904
+RUNECLR_NATIVE_CALLBACK owner=TrustedUpdate.B.r2r.dylib assembly=<app-data-container>/Documents/payload/run5-B/TrustedUpdate.Update.dll path=<app-data-container>/Documents/payload/run5-B/TrustedUpdate.B.r2r.dylib base=0x1086c4000 rtr_header=0x1086c87b8 image_size=81920 file_size=75360
+2026-11-10 17:56:31.843 TrustedUpdateHost[862:84931] TRUSTED_UPDATE_BEGIN expected=B directory=<app-data-container>/Documents/payload/run5-B
+HOST_ECHO=41
+HOST_DELEGATE=41
+UPDATE_BUSINESS private=41 echo=42 callback=43 helper=130
+2026-11-10 17:56:31.843 TrustedUpdateHost[862:84931] UPDATE_RUN result=215
+PRIVATE_VALUE=200
+IL_HELPER_RESULT=607
+HOST_REFLECTION_PRIVATE=200 HOST_REFLECTION_HELPER=607
+TRUSTED_UPDATE_SUCCESS version=B result=216 MANAGED_BYTES=66128
+RUNE_IPAD_EXIT pid=862 nonce=d2e3f405162738495a6b7c8d9e0f1011 managedExit=0 actualExit=0
+ANAGED_BYTES=66128\n"}
+Launched application with org.runeclr.ipadr2r20261110 bundle identifier.
+Waiting for the application to terminate...
+The app terminated with the exit code 0.
