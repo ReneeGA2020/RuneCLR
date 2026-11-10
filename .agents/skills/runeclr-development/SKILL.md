@@ -43,6 +43,12 @@ Record its base commit, patch branch/commit, platform, configuration, interprete
 selection, artifact path, and relevant test results when an experiment actually
 establishes them. Use private runtime outputs with matching framework libraries.
 
+Current runtime work starts from the fork's `runeclr/dev` branch: clone/switch
+commands are in `docs/coreclr.md`, and that branch's `docs/runeclr-dev.md` is the
+authoritative merge/promotion policy. `docs/runtime-fork.md` lists fixed
+historical experiment pins; use it to reproduce recorded results, not to choose
+a new development base.
+
 Advance one observable capability at a time and check the current handoff before
 selecting work: desktop interpreter lifecycle and opt-in execution/budget
 prototypes already have evidence. Extend the recorded gaps rather than repeating

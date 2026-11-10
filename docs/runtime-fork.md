@@ -1,5 +1,33 @@
 # Runtime fork targets
 
+## Long-lived development integration line (current entry point)
+
+Day-to-day runtime work uses the fork
+[ReneeGA2020/runtime](https://github.com/ReneeGA2020/runtime) branch
+[`runeclr/dev`](https://github.com/ReneeGA2020/runtime/tree/runeclr/dev). It is
+the only branch that receives periodic Microsoft upstream merges; the
+authoritative policy lives in
+[`docs/runeclr-dev.md`](https://github.com/ReneeGA2020/runtime/blob/runeclr/dev/docs/runeclr-dev.md)
+on that branch (merge cadence, promotion rules and the current baseline).
+
+Recorded snapshot, 2026-11-10 (a point in time, not a moving head):
+
+| Ref | Commit | Meaning |
+| --- | --- | --- |
+| `runeclr/dev` HEAD | `474eb8ad7230122cc0d34318b25d673da63fd138` | published dev tip at the snapshot |
+| initial merge | `8b085f4aaf7a0063ea5512963525e5d70f6a450a` | merge commit that created the line |
+| parent 1 | `7cbdad39669188c1f49f0a41216829d9a9005591` | `runeclr/reflection-policy-20261027` |
+| parent 2 | `275ff40cbf142e7eb9a39acff98a6242a0b83519` | `dotnet/runtime` main upstream pin |
+
+The initial line contains the reflection/session-policy work plus that upstream
+snapshot. It does **not** include the instruction-meter, terminal-prototype,
+batch-interval, mobile or callback-epoch patch stacks; those stay separate
+experiment branches below. Windows x64 evidence recorded for the dev baseline
+does not transfer to iOS or device claims.
+
+Clone or switch commands are in
+[CoreCLR integration](coreclr.md#where-the-runtime-source-lives-start-here).
+
 ## Published automatic session/reflection-loading candidate (2026-11-02)
 
 The reflection-policy runtime source is published on ReneeGA2020/runtime branch
@@ -48,10 +76,14 @@ recorded experiments are branches of
 `https://github.com/dotnet/runtime` and these branches track `fork`.
 
 The fork's `main` is reserved for upstream tracking; neither it nor upstream
-`main` is modified by this candidate. Use a named RuneCLR candidate branch.
-Every branch below is based on `runeclr/interpreter-baseline` at
+`main` is modified by these branches. **The tables below are fixed historical
+experiment branches**, kept for reproduction at their recorded pins. Each of
+them is based on `runeclr/interpreter-baseline` at
 `0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de` and does not include later upstream
-commits. Check out the named branch. Do not apply files in
+commits. That baseline statement applies only to these historical branches, not
+to `runeclr/dev`, which follows the upstream merge policy above.
+
+For a historical branch, check out the named branch. Do not apply files in
 [`eng/runtime-patches`](../eng/runtime-patches) onto a newer upstream `main`
 and treat the result as that candidate.
 

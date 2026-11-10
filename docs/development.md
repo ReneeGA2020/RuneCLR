@@ -1,5 +1,25 @@
 # Development handoff
 
+## Runtime development entry (2026-11-10)
+
+Current CoreCLR work uses the fork branch `runeclr/dev` (`ReneeGA2020/runtime`).
+Snapshot: HEAD `474eb8ad7230122cc0d34318b25d673da63fd138`, initial merge
+`8b085f4aaf7a0063ea5512963525e5d70f6a450a` of
+`7cbdad39669188c1f49f0a41216829d9a9005591` plus upstream
+`275ff40cbf142e7eb9a39acff98a6242a0b83519`. The maintenance policy (upstream
+merge cadence until .NET 12 GA, promotion rules, verification scope) is
+authoritative in that branch's
+[`docs/runeclr-dev.md`](https://github.com/ReneeGA2020/runtime/blob/runeclr/dev/docs/runeclr-dev.md).
+Clone and switch commands are in
+[CoreCLR integration](coreclr.md#where-the-runtime-source-lives-start-here);
+fixed historical pins are indexed in [runtime-fork.md](runtime-fork.md).
+
+The initial dev line carries the reflection/session-policy work plus the
+2026-11-10 upstream snapshot; the instruction-meter, terminal, batch, mobile and
+callback-epoch stacks are not part of it. Its Windows x64 build/test evidence
+does not establish iOS or device behavior - the accepted iPad results stay with
+their own recorded pins.
+
 ## Physical iPad device R2R experiment (2026-11-10)
 
 The [iPad device R2R experiment](ios-device-r2r-experiment.md) records the first
