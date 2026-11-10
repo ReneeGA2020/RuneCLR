@@ -1,0 +1,190 @@
+{
+  "schema": "runeclr.ipad-r2r-summary.v1",
+  "kind": "derived-summary",
+  "note": "Generated for publication from the retained run-5 receipts. This is not an original device receipt, not a seal, and not a substitute for the retained raw files.",
+  "measuredAt": "2026-11-10",
+  "device": {
+    "model": "iPad Air 11-inch (M4)",
+    "os": "iPadOS 27.2.1",
+    "abi": "arm64",
+    "platform": "ios-device (Mach-O platform 2)",
+    "identifiers": "removed"
+  },
+  "runtime": {
+    "role": "private device runtime used to build the host",
+    "branch": "runeclr/mobile-batch-interval",
+    "commit": "3126bbc9a8851a09ac6435b18a12882bad48f3ee",
+    "deviceLibcoreclrSha256": "34c27daf3d6ef73a1558c21733d9f101bea4dcc839b9380d182d68cea2e2b93b",
+    "hostContract": "host_runtime_contract get_native_code_data (struct/blob unchanged between the 0d73c1f2 baseline and the 275ff40c merge pin)"
+  },
+  "candidate": {
+    "readySha256": "a18682d8cd347d5da5ee5b82b56fb074118356e58e56244f95fd7ffe01d734cc",
+    "bundleId": "org.runeclr.ipadr2r20261110",
+    "fileCount": 208,
+    "bytes": 297277672,
+    "inventoryDigest": "b9f145fc1e80cb2793cf2eeee97c18e5f33323fb4976945b30fe1dc82629ec13",
+    "entry": {
+      "assembly": "RunEntry.dll",
+      "sha256": "97e761ab6f1eab32c04acf71bf8804ba88dc7f1978c043371aa65918f7376a87",
+      "token": "0x6000004",
+      "type": "ProbeEntry",
+      "method": "Main"
+    },
+    "runEntrySourceSha256": "3996ce37be8870645ec61cd11cda529b9bf896442086357aa86c2a34b7fb3674",
+    "signedAppDigest": "97994aa52d621daebe801c22506e951e868951c7d3a5993ff4bcd582800597e4",
+    "contract": {
+      "assembly": "TrustedUpdate.Contract.dll",
+      "componentSha256": "277f3596fb60f958acf4cbdf20fd5c1e5dd99653ef4a1c1403aa574f4520870c",
+      "rawIlSha256": "f0bffe24c0d49432b249f69f8dfcb67382d4e6e400eb7caabcaa143f56b0c5de",
+      "mvid": "685c96ae3a1656478d66eb3c5719c12b",
+      "mvidGuidForm": "ae965c68-163a-4756-8d66-eb3c5719c12b"
+    }
+  },
+  "install": {
+    "startedUtc": "2026-11-10T09:18:07Z",
+    "finishedUtc": "2026-11-10T09:18:11Z",
+    "outcome": "success",
+    "childPid": 48654,
+    "receiptSha256": "c8bbf0f00500dad3e40a4e1466c17836190eb425104b65d7eb651fd48a4f1287",
+    "signedBeforeCompile": true
+  },
+  "payload": {
+    "A": {
+      "nonce": "c1d2e3f405162738495a6b7c8d9e0f10",
+      "generatedAtUtc": "2026-11-10T09:18:16Z",
+      "owner": "TrustedUpdate.A.r2r.dylib",
+      "ownerRawSha256": "58834d63106c402b26fd0b539c890bab467eb9095729d2a1c874c7eebd65f808",
+      "ownerSignedSha256": "efd9302941607ce43793741f8e2e5a70c93e5ecc3c2147edf4a7c4834f687771",
+      "ownerRawBytes": 56488,
+      "ownerSignedBytes": 75360,
+      "uuid": "5537271B-CF18-361C-A722-357B01AC114B",
+      "text": {
+        "vmaddr": 0,
+        "vmsize": 32768
+      },
+      "rtrHeader": {
+        "value": 18360,
+        "section": 3
+      },
+      "componentSha256": {
+        "TrustedUpdate.Update.dll": "d6743656e306e239c837a3b9ccdd5a36991f47a3e2362a767a923ffe2c9d95fd",
+        "TrustedUpdate.Private.dll": "eb9459b91083930577260eb9452a68523c2299728205d68a8db2caa8d852495f",
+        "TrustedUpdate.IlOnlyHelper.dll": "72d8d03f026b0892fdfb7ccf6d9113d0fee146dc28b039cf77177b184c2b62e6"
+      },
+      "payloadFilesSha256": "103455bb29a264730a6519b6574de9eefc0aa74909b98f141bd832517805df6c"
+    },
+    "B": {
+      "nonce": "d2e3f405162738495a6b7c8d9e0f1011",
+      "generatedAtUtc": "2026-11-10T09:18:16Z",
+      "owner": "TrustedUpdate.B.r2r.dylib",
+      "ownerRawSha256": "5debf786c78cf6492e78a9c03f5f7de428893a5d9be152200dd65b8ba6fc6e6f",
+      "ownerSignedSha256": "38059910e8b786c93e14cf635598d45daea72f95459d2ddb8eb2263938c95061",
+      "ownerRawBytes": 56488,
+      "ownerSignedBytes": 75360,
+      "uuid": "54DFE7A2-4E78-3AAE-9DBD-6D89F802C56A",
+      "text": {
+        "vmaddr": 0,
+        "vmsize": 32768
+      },
+      "rtrHeader": {
+        "value": 18360,
+        "section": 3
+      },
+      "componentSha256": {
+        "TrustedUpdate.Update.dll": "906e3cf2021a86e4605a31cf2e5b770c2ad5766c0f266c8af592c020350285ab",
+        "TrustedUpdate.Private.dll": "12c4ef5d45ab9ee10067796e67fd9d53ec101a28546e5163d3aa7765fc5b7dc2",
+        "TrustedUpdate.IlOnlyHelper.dll": "72d8d03f026b0892fdfb7ccf6d9113d0fee146dc28b039cf77177b184c2b62e6"
+      },
+      "payloadFilesSha256": "4613a5414d4b9a1f1cdbe539d86392c33b112bb40210b453f7a323623c301580"
+    }
+  },
+  "capture": {
+    "A": {
+      "pid": 860,
+      "ownerPath": "<app-data-container>/Documents/payload/run5-A/TrustedUpdate.A.r2r.dylib",
+      "loadBase": "0x14d7e8000",
+      "methodOffset": "0x4050",
+      "pc": "0x14d7ec050",
+      "executableRegion": "[0x14d7ec000,0x14d7f0000) r-x __TEXT",
+      "stopReason": "breakpoint 1.1 2.1 (symbol breakpoint and address breakpoint)",
+      "symbol": "TrustedUpdate.A.r2r.dylib`TrustedUpdate_Update_TrustedUpdate_Business__Execute",
+      "frames": [
+        "Business.Execute",
+        "Update.Run + 52",
+        "CoreLib reflection invoke",
+        "Host.Driver.ExecuteLoaded + 452",
+        "Host.Driver.TryStartLoaded + 2108",
+        "Host.Driver.Run + 368",
+        "RunEntry.ProbeEntry.Main + 952",
+        "CoreLib CallEntryPoint + 76"
+      ],
+      "resultFileSha256": "cf3a8ff0a3f6a781134f612976759e60b40669d414aaaf1e761e5b277db86e08",
+      "processExitCode": 0
+    },
+    "B": {
+      "pid": 862,
+      "ownerPath": "<app-data-container>/Documents/payload/run5-B/TrustedUpdate.B.r2r.dylib",
+      "loadBase": "0x1086c4000",
+      "methodOffset": "0x4050",
+      "pc": "0x1086c8050",
+      "executableRegion": "[0x1086c8000,0x1086cc000) r-x __TEXT",
+      "stopReason": "breakpoint 1.1 2.1 (symbol breakpoint and address breakpoint)",
+      "symbol": "TrustedUpdate.B.r2r.dylib`TrustedUpdate_Update_TrustedUpdate_Business__Execute",
+      "frames": [
+        "Business.Execute",
+        "Update.Run + 52",
+        "CoreLib reflection invoke",
+        "Host.Driver.ExecuteLoaded + 452",
+        "Host.Driver.TryStartLoaded + 2108",
+        "Host.Driver.Run + 368",
+        "RunEntry.ProbeEntry.Main + 952",
+        "CoreLib CallEntryPoint + 76"
+      ],
+      "resultFileSha256": "3e4c561334cfd3410960466446175c5b75ff0df4b9f981b2d07b09128bdec33f",
+      "processExitCode": 0
+    }
+  },
+  "results": {
+    "A": {
+      "ok": true,
+      "observedResult": "216",
+      "observedPrivate": "100",
+      "observedHelper": "307",
+      "nonceMatches": true,
+      "versionMatches": true,
+      "goldenMatches": true,
+      "contractFromDefault": true,
+      "resultWriteFailed": false,
+      "driverExitCode": 0
+    },
+    "B": {
+      "ok": true,
+      "observedResult": "216",
+      "observedPrivate": "200",
+      "observedHelper": "607",
+      "nonceMatches": true,
+      "versionMatches": true,
+      "goldenMatches": true,
+      "contractFromDefault": true,
+      "resultWriteFailed": false,
+      "driverExitCode": 0
+    }
+  },
+  "claims": {
+    "demonstrated": [
+      "developer-signed iOS device host with get-task-allow installed once before any update compilation",
+      "independently compiled A/B R2R update owners downloaded into the app data container and loaded by the host callback",
+      "native execution of Business.Execute in the downloaded owner observed at an actual PC for both versions",
+      "host calls (interface call, delegate) and reflection-based path into Update.Run",
+      "per-version nonce and version stamps, expected result/private/helper values, contract loaded from the default context, process exit 0"
+    ],
+    "notDemonstrated": [
+      "per-method interpreter proof for the IL helper in this run",
+      "whole-method native compilation mode",
+      "production HTTP delivery or App Store distribution",
+      "unload or same-process version switching",
+      "performance, Epoch/deadline, sandbox or security hardening",
+      "upstream runtime merge as a device base"
+    ]
+  }
+}

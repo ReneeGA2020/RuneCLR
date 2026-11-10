@@ -1,0 +1,1 @@
+namespace TrustedUpdate { public interface IHostApi { int Echo(int value); } }

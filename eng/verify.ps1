@@ -71,6 +71,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Runtime provenance verifier tests failed.' }
     & $PythonCommand @PythonPrefix eng/verify-ios-host-callback.py
     if ($LASTEXITCODE -ne 0) { throw 'iOS host callback closure failed.' }
+    if ($IsMacOS -and (Test-Path 'eng/ipad-r2r-deploy/ipad_stage_selftest.py')) {
+        $ipadTemp = Join-Path ([IO.Path]::GetTempPath()) ('ipad-r2r-deploy-' + [guid]::NewGuid().ToString('N'))
+        & $PythonCommand @PythonPrefix -B eng/ipad-r2r-deploy/ipad_stage_selftest.py $ipadTemp
+        if ($LASTEXITCODE -ne 0) { throw 'iPad deploy fake self-test failed.' }
+    }
+    if ($IsMacOS -and (Test-Path 'eng/ipad-r2r-native/host/tools/selftest.py')) {
+        & $PythonCommand @PythonPrefix -B eng/ipad-r2r-native/host/tools/selftest.py
+        if ($LASTEXITCODE -ne 0) { throw 'Native iPad host fixture self-test failed.' }
+    }
     & dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --self-test
     if ($LASTEXITCODE -ne 0) { throw 'Trusted update host self-test failed.' }
     & dotnet run --project samples/RuneCLR.TrustedUpdateHost -c Release --no-build -- --signed-self-test

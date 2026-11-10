@@ -57,6 +57,15 @@ precode 6 and successful Compute IR in all ten processes. See the
 This accepts a desktop delivery increment, with iOS still requiring its own
 platform packaging/signing/loading and physical execution evidence.
 
+The first physical-device result is recorded in the
+[iPad device R2R experiment](ios-device-r2r-experiment.md) (2026-11-10): a
+developer-signed host installed once, then independently compiled A/B owners
+delivered into the app data container and observed at an actual
+`Business.Execute` PC for both versions, with the shared contract resolved from
+the default context and expected host-call outputs. That evidence covers the
+downloaded-owner native entry only; interpreter-mode proof for the IL helper,
+unload and same-process switching remain separate requirements.
+
 ## Baseline
 
 The prototype targets `net11.0`. Initial local verification used the

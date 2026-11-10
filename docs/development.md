@@ -1,5 +1,26 @@
 # Development handoff
 
+## Physical iPad device R2R experiment (2026-11-10)
+
+The [iPad device R2R experiment](ios-device-r2r-experiment.md) records the first
+physical-device run of the trusted-update route: a developer-signed host installed
+once, then A and B update owners compiled after that install, delivered into the
+app data container, loaded through the host's native-image callback and observed
+at an actual `Business.Execute` PC for both versions. Both runs also show the
+shared contract resolving from the default context, the owner calling back into
+the host through the shared interface and a host delegate, per-version nonce and
+version stamps, results 216 with private/helper 100/307 (A) and 200/607 (B), and
+process exit 0. Minimal redacted evidence, its provenance and the reproduction
+recipe are in the same page and in
+[docs/evidence/ipad-r2r-20261110](evidence/ipad-r2r-20261110/README.md).
+
+This is a bounded platform-feasibility result for developer-signed modules. It
+does not establish production delivery, unload or same-process switching,
+per-method interpreter proof for the IL helper, performance or sandboxing, and it
+does not inherit the earlier simulator, IL-session or desktop-composition
+evidence. The device runtime base stays branch `runeclr/mobile-batch-interval` at
+`3126bbc9`; the newer upstream merge is a separate experimental baseline.
+
 ## Automatic MapSession API policy and managed loading (2026-11-02)
 
 The opt-in [session-policy increment](ugc-session-policy.md) adds an opt-in
