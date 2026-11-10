@@ -103,6 +103,8 @@ The sample runs **Hello -> Arena -> Hello in one process**, with Hello's static 
 
 This quick start uses ordinary SDK runtime selection. Required interpretation and native budgets need matching private CoreCLR/CoreLib builds; see the [execution strategy](docs/execution-strategy.md). Running the sample alone does not prove interpreter execution.
 
+Private runtime work uses the [ReneeGA2020/runtime](https://github.com/ReneeGA2020/runtime) fork branch [`runeclr/dev`](https://github.com/ReneeGA2020/runtime/tree/runeclr/dev). Clone and switch commands, plus the link to that branch's maintenance policy, are in [CoreCLR integration](docs/coreclr.md#where-the-runtime-source-lives-start-here); fixed historical pins stay indexed in [runtime-fork.md](docs/runtime-fork.md).
+
 ## Explore
 
 - [Getting started and script example](docs/getting-started.md) / [Controlled source and IL packages](docs/controlled-packaging.md)

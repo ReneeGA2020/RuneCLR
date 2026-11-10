@@ -69,10 +69,14 @@ switch-controlled runtime patches and record their upstream base.
 
 RuneCLR and `dotnet/runtime` are separate repositories. Locate the runtime from
 the local document or the user's environment; do not vendor it into this repo.
-Published patch branches are on https://github.com/ReneeGA2020/runtime and are
-indexed by `docs/runtime-fork.md`. Check out the named branch. Do not retarget
-those patches onto a newer upstream `main`, and do not treat
-`eng/runtime-patches` as a substitute for the branch tip.
+Published branches are on https://github.com/ReneeGA2020/runtime and are indexed
+by `docs/runtime-fork.md`. Day-to-day development uses the long-lived
+`runeclr/dev` branch: its maintenance policy (periodic Microsoft upstream merge,
+promotion rules, verification scope) is authoritative in that branch's
+`docs/runeclr-dev.md`, and clone/switch commands are in `docs/coreclr.md`.
+Fixed historical experiment branches keep their recorded pins: check out the
+named branch, do not retarget those patches onto a newer upstream `main`, and
+do not treat `eng/runtime-patches` as a substitute for the branch tip.
 Before editing it, read its applicable `AGENTS.md` files, check its branch and
 working tree, and read its checked-out build documentation. Preserve unrelated
 work and use a dedicated branch or worktree for RuneCLR runtime changes when

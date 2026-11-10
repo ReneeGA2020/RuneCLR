@@ -1,5 +1,49 @@
 # CoreCLR interpreter integration
 
+## Where the runtime source lives (start here)
+
+RuneCLR does not vendor CoreCLR. For new runtime work use the fork
+[ReneeGA2020/runtime](https://github.com/ReneeGA2020/runtime), branch
+[`runeclr/dev`](https://github.com/ReneeGA2020/runtime/tree/runeclr/dev). It is
+the long-lived integration line that periodically merges Microsoft upstream; its
+baseline, merge cadence and promotion rules are authoritative in
+[`docs/runeclr-dev.md`](https://github.com/ReneeGA2020/runtime/blob/runeclr/dev/docs/runeclr-dev.md)
+on that branch. Snapshot at 2026-11-10: HEAD
+`474eb8ad7230122cc0d34318b25d673da63fd138`, initial merge
+`8b085f4aaf7a0063ea5512963525e5d70f6a450a` of
+`7cbdad39669188c1f49f0a41216829d9a9005591` plus upstream
+`275ff40cbf142e7eb9a39acff98a6242a0b83519`.
+
+Fresh clone of the runtime (a separate repository next to this checkout):
+
+```sh
+git clone --branch runeclr/dev https://github.com/ReneeGA2020/runtime.git runtime
+```
+
+If an official `dotnet/runtime` checkout already exists, keep its `origin` and add
+the fork beside it:
+
+```sh
+git remote add fork https://github.com/ReneeGA2020/runtime.git
+git fetch fork
+git switch -c runeclr/dev --track fork/runeclr/dev
+```
+
+If the local `runeclr/dev` branch already exists, just switch to it instead of
+creating a second tracking branch: `git switch runeclr/dev`.
+
+Before building, record `git rev-parse --abbrev-ref HEAD` and
+`git rev-parse HEAD`, confirm the interpreter configuration the experiment needs,
+and read the build instructions checked out in that branch
+(`docs/workflow/building/coreclr/` there). Runtime, CoreLib, crossgen2 and
+framework outputs must be produced from that same branch and commit. Do not
+substitute Microsoft `main`, and do not treat the slices in
+[`eng/runtime-patches`](../eng/runtime-patches) as a replacement for the branch tip.
+
+Fixed historical experiment branches with their recorded pins are indexed in
+[runtime-fork.md](runtime-fork.md). Older pins stay reproducible; new work starts
+from `runeclr/dev`.
+
 ## Why it matters
 
 The primary product goal is C# iOS hot-update scripting, with UGC management
