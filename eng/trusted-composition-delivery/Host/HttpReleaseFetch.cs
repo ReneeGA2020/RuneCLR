@@ -54,8 +54,11 @@ static class HttpReleaseFetch
 
         try
         {
-            ReadDocument("documentA");
-            ReadDocument("documentB");
+            foreach (var key in request.Keys)
+            {
+                if (key.StartsWith("document", StringComparison.Ordinal) && key.EndsWith("Url", StringComparison.Ordinal))
+                    ReadDocument(key[..^"Url".Length]);
+            }
             return true;
         }
         catch (OperationCanceledException ex)
@@ -127,8 +130,9 @@ static class HttpReleaseFetch
     static bool TrySources(string documentKey, string contentKey, out byte[] document, out TrustedReleaseStageSource[] sources)
     {
         document = File.ReadAllBytes(map![documentKey]);
-        var filesKey = contentKey == "contentA" ? "filesA" : "filesB";
-        var baseKey = contentKey == "contentA" ? "contentBaseA" : "contentBaseB";
+        var suffix = contentKey.StartsWith("content", StringComparison.Ordinal) ? contentKey["content".Length..] : "";
+        var filesKey = "files" + suffix;
+        var baseKey = "contentBase" + suffix;
         var names = map[filesKey].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var prefix = map[baseKey];
         sources = names.Select(name => new TrustedReleaseStageSource(name, token => OpenFile(prefix, name, token))).ToArray();

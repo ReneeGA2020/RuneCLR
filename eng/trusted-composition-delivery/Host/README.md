@@ -96,7 +96,11 @@ This host does not claim a sandbox, a race-proof snapshot, network authenticatio
 
 This path is experimental stock desktop IL. It is not a public SDK, not native
 R2R execution, and not an iOS result. It is not part of eng/verify.ps1 or CI.
-Run it only when you pass --distinct-http explicitly.
+Run it only when you pass --distinct-http explicitly. Required compatibility is opt-in per host process:
+- the desktop `stage-start`/`recover` CLI turns it on with `RUNECLR_COMPAT_REQUIRED=1`;
+- `--distinct-http` does not read that variable for its own children' decisions; it passes an explicit required check callback to `TrustedReleaseRecovery.TryStart` for both the offered and the receipt candidate;
+- the portable iPad bridge is planned to hardcode required:true in its own callback; device integration is not accepted yet.
+Without the requirement a package without the sidecar is only host-self-checked and reports `sidecar-absent:unchecked`.
 
 Build the maintained Host from source, then point the driver at a fresh output
 directory outside the source tree:
@@ -111,11 +115,31 @@ OrbitGame.Contracts.dll into the output and records that seal before it writes
 or builds the late modules. Module A calls host.Move(3). Module B calls
 host.Move(5). They are separate compiles, not a renamed copy of one DLL.
 
-Five processes share one receipt, in order: HTTP offer A (start 0, step 3,
+Twenty-three lanes share one receipt, in order: HTTP offer A (start 0, step 3,
 step 6, calls 0/1/2), restore A with the server stopped, a tampered B body
 (ContentMismatch, no activation, then the same A sequence and the same
-receipt), a new process HTTP offer B (0, 5, 10), and restore B with the server
-stopped. After A is active, a second TryStart of the already verified B is
+receipt), a new process HTTP offer B (0, 5, 10), restore B with the server
+stopped, a stalled body that hits the per-download deadline, early EOF, an
+oversize document, a signed package for another runtime (IncompatibleTarget),
+a signed package whose compat sidecar names a different Contract MVID, a signed architecture mismatch, a package with no sidecar and one with an unlisted sidecar (both required-mode rejections), a tampered sidecar, an
+activator that throws (receipt unchanged, second start locked), and a child
+killed inside the activator followed by a new process that restores the
+previous version. Two further lanes make the host check throw for the offered and the
+receipt candidate: the first still recovers the last known good, the second reports
+LastKnownGoodUnusable without occupying the gate, and neither leaks the exception text. The last lane is why the run also proves the recovery
+success point: the receipt is written only after the activator returns.
+
+Two lanes advance the shared receipt: `offer-b` (B) and `sidecar-mvid-n-format` (I). The two
+legacy-receipt lanes use their own `world-lkg` receipt file; the `world-lkg` before/after copies
+are that file, not the shared main receipt.
+
+Every signed package also carries `runeclr.compat.json` inside its signed file
+set. The host compares that sidecar's runtime/architecture and Contract
+name/version/MVID against the deployment Contract it reads from PE metadata
+before the activation gate, so an authentic-but-incompatible package is
+rejected without occupying the gate and the last known good starts. A package
+without the sidecar is only host-self-checked. See docs/trusted-update-flow.md
+for the sidecar shape and the measured limits. After A is active, a second TryStart of the already verified B is
 ProcessSelectionLocked. That is process-boundary selection, not a same-process
 version switch. The server process is stopped separately from the client exit.
 Signing uses an in-memory P-256 key. The run must not leave a private key file.

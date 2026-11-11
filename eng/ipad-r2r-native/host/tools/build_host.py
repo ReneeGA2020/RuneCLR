@@ -28,6 +28,12 @@ def inventory(root):
             for p in sorted(root.rglob('*')) if p.is_file()}
 
 
+GLOBAL_USINGS = [
+    'global using System;', 'global using System.Collections.Generic;',
+    'global using System.IO;', 'global using System.Linq;',
+    'global using System.Net.Http;', 'global using System.Net.Http.Json;',
+    'global using System.Threading;', 'global using System.Threading.Tasks;']
+
 def run_stage(out, name, argv, cwd):
     env = {k: v for k, v in __import__('os').environ.items()
            if not k.startswith(('DOTNET_', 'COMPlus_', 'RUNECLR_', 'DYLD_', 'LD_'))}
@@ -124,6 +130,14 @@ def main():
     sdk = dotnet
     sdk_root = runtime / ".dotnet"
     csc = (args.csc or (sdk_root / "sdk/11.0.100-rc.1.26420.103/Roslyn/bincore/csc.dll")).resolve()
+    def _tool_version(exe):
+        try:
+            proc = subprocess.run([str(exe), '--version'], capture_output=True, text=True)
+            return proc.stdout.strip() if proc.returncode == 0 else ''
+        except Exception:
+            return ''
+    toolchain = {'dotnet': str(dotnet), 'dotnetVersion': _tool_version(dotnet),
+                 'csc': str(csc), 'cscSha256': sha(csc)}
     out = args.output.resolve()
     if out.exists():
         raise SystemExit('fresh output required')
@@ -143,19 +157,25 @@ def main():
     pinned_il = []
     source_names = ['main.m', 'runtime.m', 'util.m', 'util.h', 'runtime.h',
                     'coreclrhost.h', 'host_runtime_contract.h', 'path_norm.c', 'path_norm.h',
-                    'RunEntry.cs']
+                    'RunEntry.cs', 'DeliveryHost.cs', 'DeliveryHostKey.cs']
+    generated_usings_text = chr(10).join(GLOBAL_USINGS) + chr(10)
+    (out / 'global-usings.g.cs').write_text(generated_usings_text, encoding='ascii')
+    generated_usings_pin = {'sha256': hashlib.sha256(generated_usings_text.encode('ascii')).hexdigest(),
+                            'lines': GLOBAL_USINGS}
     pins_before = {
         'schema': 'runeclr.ipados.r2r.host-inputs.v1', 'capturedUtc': utc(),
         'frameworkDirectory': str(framework), 'frameworkInputs': inputs,
         'frameworkLayout': layout,
-        'crossgen2': str(crossgen2), 'crossgen2Sha256': sha(crossgen2),
+        'crossgen2': str(crossgen2), 'crossgen2Sha256': sha(crossgen2), 'toolchain': toolchain,
         'hostIl': {p.name: sha(p) for p in pinned_il},
         'sources': {n: sha(sources / n) for n in source_names},
+        'generatedGlobalUsings': generated_usings_pin,
         'managedSources': {**{str(pp.relative_to(update_src)): sha(pp) for pp in sorted(update_src.rglob('*.cs'))},
                             **{str(pp.relative_to(trusted_src)): sha(pp) for pp in sorted(trusted_src.rglob('*.cs'))}},
         'managedSources': {**{str(pp.relative_to(update_src)): sha(pp) for pp in sorted(update_src.rglob('*.cs'))},
                             **{str(pp.relative_to(trusted_src)): sha(pp) for pp in sorted(trusted_src.rglob('*.cs'))}},
     }
+
     (out / 'inputs-before.json').write_text(json.dumps(pins_before, indent=2) + chr(10), encoding='ascii')
 
     result = {'schema': 'runeclr.ipados.r2r.host-build.v1', 'success': False, 'bundleId': bundle_id,
@@ -177,23 +197,24 @@ def main():
         if cc['exitCode'] != 0:
             raise RuntimeError('contract compile failed: ' + (out / 'contract-compile.stdout').read_text()[:1200])
         shutil.copyfile(contract, out / 'TrustedUpdate.Contract.raw.dll')
+        global_usings = out / 'global-usings.g.cs'
         host_dll = app / 'TrustedUpdate.Host.dll'
         entry_dll = app / 'RunEntry.dll'
         trusted_dll = app / 'RuneCLR.TrustedUpdate.dll'
         tu_sources = sorted(trusted_src.glob('*.cs'))
         compile_trusted = [sdk, csc, '-nologo', '-noconfig', '-nostdlib+', '-optimize+', '-deterministic+',
-                           '-target:library', '-out:' + str(trusted_dll)] + ['-r:' + str(r) for r in refs_all + [contract]] + [str(x) for x in tu_sources]
+                           '-target:library', '-out:' + str(trusted_dll)] + ['-r:' + str(r) for r in refs_all + [contract]] + ['-nullable:enable', str(global_usings)] + [str(x) for x in tu_sources]
         c0 = run_stage(out, 'trusted-compile', compile_trusted, PACKAGE_ROOT)
         if c0['exitCode'] != 0:
             raise RuntimeError('trusted-update compile failed: ' + (out / 'trusted-compile.stdout').read_text()[:1500])
         trusted = trusted_dll
         compile_host = [sdk, csc, '-nologo', '-noconfig', '-nostdlib+', '-optimize+', '-deterministic+',
-                        '-target:library', '-out:' + str(host_dll)] + ['-r:' + str(r) for r in refs_all + [contract, trusted]] + [str(update_src / 'Host.cs')]
+                        '-target:library', '-out:' + str(host_dll)] + ['-r:' + str(r) for r in refs_all + [contract, trusted]] + ['-nullable:enable', str(global_usings), str(update_src / 'Host.cs'), str(sources / 'DeliveryHost.cs'), str(sources / 'DeliveryHostKey.cs')]
         c1 = run_stage(out, 'host-compile', compile_host, PACKAGE_ROOT)
         if c1['exitCode'] != 0:
             raise RuntimeError('host compile failed: ' + (out / 'host-compile.stderr').read_text()[:1500])
         compile_entry = [sdk, csc, '-nologo', '-noconfig', '-nostdlib+', '-optimize+', '-deterministic+',
-                         '-target:exe', '-out:' + str(entry_dll)] + ['-r:' + str(r) for r in refs_all + [contract, trusted, host_dll]] + [str(sources / 'RunEntry.cs')]
+                         '-target:exe', '-out:' + str(entry_dll)] + ['-r:' + str(r) for r in refs_all + [contract, trusted, host_dll]] + ['-nullable:enable', str(global_usings), str(sources / 'RunEntry.cs')]
         c2 = run_stage(out, 'entry-compile', compile_entry, PACKAGE_ROOT)
         if c2['exitCode'] != 0:
             raise RuntimeError('entry compile failed: ' + (out / 'entry-compile.stderr').read_text()[:1500])
@@ -288,9 +309,10 @@ def main():
         result['error'] = str(error)
         (out / 'failure.txt').write_text(traceback.format_exc())
     pins_after = {
+        'generatedGlobalUsings': generated_usings_pin,
         'schema': 'runeclr.ipados.r2r.host-inputs.v1', 'capturedUtc': utc(),
         'frameworkInputs': inputs, 'frameworkLayout': inventory(framework / 'layout'),
-        'crossgen2Sha256': sha(crossgen2), 'hostIl': {p.name: sha(p) for p in pinned_il},
+        'crossgen2Sha256': sha(crossgen2), 'toolchain': toolchain, 'hostIl': {p.name: sha(p) for p in pinned_il},
         'sources': {n: sha(sources / n) for n in source_names},
         'managedSources': {**{str(pp.relative_to(update_src)): sha(pp) for pp in sorted(update_src.rglob('*.cs'))},
                             **{str(pp.relative_to(trusted_src)): sha(pp) for pp in sorted(trusted_src.rglob('*.cs'))}},

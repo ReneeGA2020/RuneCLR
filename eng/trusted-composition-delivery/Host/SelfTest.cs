@@ -630,6 +630,7 @@ static class SelfTest
             && clone.HelperValue == facts.HelperValue
             && clone.Calls == facts.Calls
             && clone.Detail == facts.Detail
+            && clone.Compatibility == facts.Compatibility
             && clone.HelperLoaded == facts.HelperLoaded;
     }
 

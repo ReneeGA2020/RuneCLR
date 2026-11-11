@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>RuneCLR.IpadDelivery</AssemblyName>
+    <!-- Core TrustedUpdate sources. Default is the repo-relative path; override with
+         -p:CoreTrustedUpdateRoot=<path> to build against a private tree that has the 7-param
+         TrustedReleaseRecovery.TryStart overload. -->
+    <CoreTrustedUpdateRoot Condition="'$(CoreTrustedUpdateRoot)' == ''">../../../../src/RuneCLR.TrustedUpdate</CoreTrustedUpdateRoot>
+    <RootNamespace>RuneCLR.IpadDelivery</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <Compile Include="$(CoreTrustedUpdateRoot)/*.cs" />
+  </ItemGroup>
+</Project>

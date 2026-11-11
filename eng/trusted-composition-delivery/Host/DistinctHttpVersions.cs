@@ -47,13 +47,42 @@ static class DistinctHttpDriver
         string spkiPath = Path.Combine(output, "host.spki");
         byte[] docA;
         byte[] docB;
+        byte[] docC;
+        byte[] docD;
+        byte[] docE;
+        byte[] docF;
+        byte[] docG;
+        byte[] docH;
+        byte[] docI;
+        byte[] docJ;
+        foreach (var name in new[] { "c", "d", "e", "f", "g", "h", "i", "j" })
+        {
+            Directory.CreateDirectory(Path.Combine(late, name));
+            File.Copy(dllA, Path.Combine(late, name, Entry), true);
+        }
         using (var key = ECDsa.Create(ECCurve.NamedCurves.nistP256))
         {
             File.WriteAllBytes(spkiPath, key.ExportSubjectPublicKeyInfo());
             docA = Sign(key, Path.Combine(late, "a", "out"), "A");
             docB = Sign(key, Path.Combine(late, "b", "out"), "B");
+            docC = Sign(key, Path.Combine(late, "c"), "C", runtime: "net10.0");
+            docD = Sign(key, Path.Combine(late, "d"), "D", badContract: true);
+            docE = Sign(key, Path.Combine(late, "e"), "E", architecture: "x86");
+            docF = Sign(key, Path.Combine(late, "f"), "F", includeSidecar: false);
+            docG = Sign(key, Path.Combine(late, "g"), "G", includeSidecar: false);
+            docH = Sign(key, Path.Combine(late, "h"), "H");
+            var contractPath = Path.Combine(AppContext.BaseDirectory, "OrbitGame.Contracts.dll");
+            if (!ContractCompatibility.TryReadAssembly(contractPath, out var contractIdentity, out var contractDetail))
+                return Fail(output, "contract-" + contractDetail);
+            var contractMvid = Guid.Parse(contractIdentity.Mvid);
+            var canonicalN = contractMvid.ToString("N");
+            var heapOrder = Convert.ToHexString(contractMvid.ToByteArray()).ToLowerInvariant();
+            docI = Sign(key, Path.Combine(late, "i"), "I", mvidOverride: canonicalN);
+            docJ = Sign(key, Path.Combine(late, "j"), "J", mvidOverride: heapOrder);
         }
-        if (docA.Length == 0 || docB.Length == 0)
+        if (docA.Length == 0 || docB.Length == 0 || docC.Length == 0 || docD.Length == 0
+            || docE.Length == 0 || docF.Length == 0 || docG.Length == 0 || docH.Length == 0
+            || docI.Length == 0 || docJ.Length == 0)
             return Fail(output, "sign");
         var serverRoot = Path.Combine(output, "server-root");
         Directory.CreateDirectory(Path.Combine(serverRoot, "orbit-a"));
@@ -63,9 +92,43 @@ static class DistinctHttpDriver
         File.WriteAllBytes(Path.Combine(serverRoot, "b.bin"), docB);
         File.Copy(dllA, Path.Combine(serverRoot, "orbit-a", Entry), true);
         File.Copy(dllB, Path.Combine(serverRoot, "orbit-b", Entry), true);
+        Directory.CreateDirectory(Path.Combine(serverRoot, "orbit-c"));
+        Directory.CreateDirectory(Path.Combine(serverRoot, "orbit-d"));
+        File.Copy(dllA, Path.Combine(serverRoot, "orbit-c", Entry), true);
+        File.Copy(dllA, Path.Combine(serverRoot, "orbit-d", Entry), true);
+        Directory.CreateDirectory(Path.Combine(serverRoot, "eof"));
+        Directory.CreateDirectory(Path.Combine(serverRoot, "oversize"));
+        File.WriteAllBytes(Path.Combine(serverRoot, "eof", "a.bin"), docA);
+        File.WriteAllBytes(Path.Combine(serverRoot, "oversize", "a.bin"), new byte[TrustedRelease.MaxDocumentBytes + 1024]);
+        File.WriteAllBytes(Path.Combine(serverRoot, "c.bin"), docC);
+        File.WriteAllBytes(Path.Combine(serverRoot, "d.bin"), docD);
+        File.WriteAllBytes(Path.Combine(serverRoot, "e.bin"), docE);
+        File.WriteAllBytes(Path.Combine(serverRoot, "f.bin"), docF);
+        File.WriteAllBytes(Path.Combine(serverRoot, "g.bin"), docG);
+        File.WriteAllBytes(Path.Combine(serverRoot, "h.bin"), docH);
+        File.WriteAllBytes(Path.Combine(serverRoot, "i.bin"), docI);
+        File.WriteAllBytes(Path.Combine(serverRoot, "j.bin"), docJ);
+        foreach (var name in new[] { "orbit-e", "orbit-f", "orbit-g", "orbit-h", "orbit-i", "orbit-j" })
+            Directory.CreateDirectory(Path.Combine(serverRoot, name));
+        File.Copy(dllA, Path.Combine(serverRoot, "orbit-e", Entry), true);
+        File.Copy(dllA, Path.Combine(serverRoot, "orbit-f", Entry), true);
+        File.Copy(dllA, Path.Combine(serverRoot, "orbit-g", Entry), true);
+        File.Copy(dllA, Path.Combine(serverRoot, "orbit-h", Entry), true);
+        File.Copy(Path.Combine(late, "e", ContractCompatibility.SidecarName), Path.Combine(serverRoot, "orbit-e", ContractCompatibility.SidecarName), true);
+        File.Copy(Path.Combine(late, "h", ContractCompatibility.SidecarName), Path.Combine(serverRoot, "orbit-h", ContractCompatibility.SidecarName), true);
+        foreach (var name in new[] { "i", "j" })
+        {
+            File.Copy(dllA, Path.Combine(serverRoot, "orbit-" + name, Entry), true);
+            File.Copy(Path.Combine(late, name, ContractCompatibility.SidecarName), Path.Combine(serverRoot, "orbit-" + name, ContractCompatibility.SidecarName), true);
+        }
+        File.Copy(Path.Combine(late, "a", "out", ContractCompatibility.SidecarName), Path.Combine(serverRoot, "orbit-a", ContractCompatibility.SidecarName), true);
+        File.Copy(Path.Combine(late, "b", "out", ContractCompatibility.SidecarName), Path.Combine(serverRoot, "orbit-b", ContractCompatibility.SidecarName), true);
+        File.Copy(Path.Combine(late, "c", ContractCompatibility.SidecarName), Path.Combine(serverRoot, "orbit-c", ContractCompatibility.SidecarName), true);
+        File.Copy(Path.Combine(late, "d", ContractCompatibility.SidecarName), Path.Combine(serverRoot, "orbit-d", ContractCompatibility.SidecarName), true);
         var bad = File.ReadAllBytes(dllB);
         bad[^1] ^= 0xFF;
         File.WriteAllBytes(Path.Combine(serverRoot, "bad-body", Entry), bad);
+        File.Copy(Path.Combine(late, "b", "out", ContractCompatibility.SidecarName), Path.Combine(serverRoot, "bad-body", ContractCompatibility.SidecarName), true);
         if (File.Exists(Path.Combine(output, "private-key.bin")) || File.Exists(Path.Combine(output, "host.pkcs8")))
             return Fail(output, "key-persisted");
         Mark("signed-public-only");
@@ -97,6 +160,85 @@ static class DistinctHttpDriver
         RunLane(output, "restore-b", false, serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems);
         if (!Same(receipt, receiptB))
             problems.Add("restore-b-receipt");
+
+        // New lanes: transport deadline, incompatible target, signed-but-incompatible
+        // Contract sidecar, and a process killed inside the activator.
+        RunExtraLane(output, "stall-body", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string> { ["documentAUrl"] = "http://127.0.0.1:{port}/hold/a.bin" });
+        if (Directory.Exists(Path.Combine(releases, "published-stall")))
+            problems.Add("stall-final");
+        if (!Same(receipt, receiptB))
+            problems.Add("stall-receipt");
+        RunExtraLane(output, "incompatible", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, receiptB))
+            problems.Add("incompatible-receipt");
+        RunExtraLane(output, "contract-bad", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, receiptB))
+            problems.Add("contract-bad-receipt");
+        RunExtraLane(output, "eof-body", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string> { ["documentAUrl"] = "http://127.0.0.1:{port}/eof/a.bin" });
+        if (!Same(receipt, receiptB))
+            problems.Add("eof-receipt");
+        RunExtraLane(output, "oversize", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string> { ["documentAUrl"] = "http://127.0.0.1:{port}/oversize/a.bin" });
+        if (!Same(receipt, receiptB))
+            problems.Add("oversize-receipt");
+        RunExtraLane(output, "throw", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, receiptB))
+            problems.Add("throw-receipt");
+        RunExtraLane(output, "incompatible-arch", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, receiptB))
+            problems.Add("incompatible-arch-receipt");
+        RunExtraLane(output, "sidecar-missing", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, receiptB))
+            problems.Add("sidecar-missing-receipt");
+        RunExtraLane(output, "sidecar-unlisted", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, receiptB))
+            problems.Add("sidecar-unlisted-receipt");
+        RunExtraLane(output, "sidecar-tampered", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, receiptB))
+            problems.Add("sidecar-tampered-receipt");
+        var crashReceipt = File.Exists(receipt) ? File.ReadAllBytes(receipt) : Array.Empty<byte>();
+        RunCrashLane(output, serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems, ref crashReceipt);
+        RunExtraLane(output, "restore-after-crash", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, crashReceipt))
+            problems.Add("crash-restore-receipt");
+        RunExtraLane(output, "check-throw-offer", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, crashReceipt))
+            problems.Add("check-throw-offer-receipt");
+        RunExtraLane(output, "check-throw-lkg", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, crashReceipt))
+            problems.Add("check-throw-lkg-receipt");
+        // A callback exception must not leak its message into the host output.
+        foreach (var lane in new[] { "check-throw-offer", "check-throw-lkg" })
+        {
+            var laneOut = Path.Combine(output, "lanes", lane, "client.stdout");
+            if (File.Exists(laneOut) && File.ReadAllText(laneOut).Contains("secret", StringComparison.Ordinal))
+                problems.Add(lane + "-leak");
+        }
+        RunExtraLane(output, "sidecar-mvid-heap-order", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        if (!Same(receipt, crashReceipt))
+            problems.Add("mvid-heap-receipt");
+        RunExtraLane(output, "sidecar-mvid-n-format", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        Directory.CreateDirectory(Path.Combine(output, "world-lkg", "releases"));
+        Directory.CreateDirectory(Path.Combine(output, "world-lkg", "state"));
+        RunExtraLane(output, "lkg-seed-legacy", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+        RunExtraLane(output, "lkg-required-restore", serverRoot, releases, receipt, spkiPath, finalA, verifiedB, publishedB, finalBad, problems,
+            new Dictionary<string, string>());
+
         var report = problems.Count == 0 ? "DISTINCT_HTTP_OBSERVED" : "DISTINCT_HTTP_FAIL " + string.Join(",", problems);
         Console.WriteLine(report);
         File.WriteAllText(Path.Combine(output, "driver-result.txt"), report + Environment.NewLine);
@@ -116,6 +258,24 @@ static class DistinctHttpDriver
                 "bad-b" => BadB(map),
                 "offer-b" => OfferB(map),
                 "restore-b" => Restore(map, "B", 5),
+                "stall-body" => StallBody(map),
+                "incompatible" => Incompatible(map),
+                "contract-bad" => ContractBad(map),
+                "crash" => Crash(map),
+                "eof-body" => BodyFailure(map, "eof"),
+                "oversize" => BodyFailure(map, "oversize"),
+                "throw" => Throw(map),
+                "incompatible-arch" => RejectThenRecover(map, "finalE", "documentE", "contentE", "none", "incompatible-arch"),
+                "sidecar-missing" => RejectThenRecover(map, "finalF", "documentF", "contentF", "none", "sidecar-missing"),
+                "sidecar-unlisted" => RejectThenRecover(map, "finalG", "documentG", "contentG", "unlisted", "sidecar-unlisted"),
+                "sidecar-tampered" => RejectThenRecover(map, "finalH", "documentH", "contentH", "tampered", "sidecar-tampered"),
+                "sidecar-mvid-heap-order" => RejectThenRecover(map, "finalJ", "documentJ", "contentJ", "none", "sidecar-mvid-heap-order"),
+                "sidecar-mvid-n-format" => MvidAccepted(map),
+                "lkg-seed-legacy" => LkgSeedLegacy(map),
+                "lkg-required-restore" => LkgRequiredRestore(map),
+                "check-throw-offer" => CheckThrowOffer(map),
+                "check-throw-lkg" => CheckThrowLkg(map),
+                "restore-after-crash" => Restore(map, "B", 5),
                 _ => FailMode("mode"),
             };
         }
@@ -136,7 +296,8 @@ static class DistinctHttpDriver
         if (!HttpReleaseFetch.Stage(map, "finalA", "documentA", "contentA"))
             return FailMode("stage-a");
         var before = Activations;
-        var started = Offer(map, map["finalA"], File.ReadAllBytes(map["documentA"]));
+        if (!TryOffer(map, map["finalA"], File.ReadAllBytes(map["documentA"]), out var started))
+            return FailMode("compat-a");
         Console.WriteLine("START " + Describe(started) + " activations=" + Activations);
         if (!started.Activated || started.Source != TrustedUpdateStartSource.Candidate || started.SelectedVersion != "A" || !DistinctOrbit.Publish(started))
             return FailMode("start-a");
@@ -150,7 +311,8 @@ static class DistinctHttpDriver
         var verified = Path.Combine(map["finalVerifiedB"], Entry);
         Console.WriteLine("VERIFY_B path=" + verified + " sha256=" + Sha(verified) + " sourceFolder=" + verified.Contains("late", StringComparison.OrdinalIgnoreCase));
         var lockedBefore = Activations;
-        var locked = Offer(map, map["finalVerifiedB"], File.ReadAllBytes(map["documentB"]));
+        if (!TryOffer(map, map["finalVerifiedB"], File.ReadAllBytes(map["documentB"]), out var locked))
+            return FailMode("compat-b");
         Console.WriteLine("LOCK " + Describe(locked) + " activations=" + Activations);
         if (locked.Activated || locked.Candidate.Plan != TrustedUpdateFailure.ProcessSelectionLocked || Activations != lockedBefore)
             return FailMode("lock");
@@ -168,7 +330,8 @@ static class DistinctHttpDriver
             return FailMode("final-b-exists");
         if (!HttpReleaseFetch.Stage(map, "finalB", "documentB", "contentB"))
             return FailMode("stage-b");
-        var started = Offer(map, map["finalB"], File.ReadAllBytes(map["documentB"]));
+        if (!TryOffer(map, map["finalB"], File.ReadAllBytes(map["documentB"]), out var started))
+            return FailMode("compat-b2");
         Console.WriteLine("START " + Describe(started) + " activations=" + Activations);
         if (!started.Activated || started.Source != TrustedUpdateStartSource.Candidate || started.SelectedVersion != "B" || !DistinctOrbit.Publish(started))
             return FailMode("start-b");
@@ -197,7 +360,7 @@ static class DistinctHttpDriver
     static int Restore(Dictionary<string, string> map, string version, int delta)
     {
         var before = File.ReadAllBytes(map["receipt"]);
-        var started = TrustedReleaseRecovery.TryStart(null, File.ReadAllBytes(map["spki"]), DeliverySession.Target, map["releases"], map["receipt"], DistinctOrbit.Activate);
+        var started = TrustedReleaseRecovery.TryStart(null, File.ReadAllBytes(map["spki"]), DeliverySession.Target, map["releases"], map["receipt"], DistinctOrbit.Activate, CandidateCheck);
         Console.WriteLine("RECOVER " + Describe(started) + " activations=" + Activations);
         if (!started.Activated || started.Source != TrustedUpdateStartSource.LastKnownGood || started.SelectedVersion != version || !DistinctOrbit.Publish(started))
             return FailMode("restore");
@@ -237,13 +400,523 @@ static class DistinctHttpDriver
         return result.Completed && result.Failure.Length == 0 && result.Value == expected && host.Position == expected && host.Calls == calls;
     }
 
-    static TrustedReleaseRecoveryStart Offer(Dictionary<string, string> map, string final, byte[] document) =>
-        TrustedReleaseRecovery.TryStart(new TrustedReleaseOffer(final, document), File.ReadAllBytes(map["spki"]), DeliverySession.Target, map["releases"], map["receipt"], DistinctOrbit.Activate);
+    static bool CandidateCheck(string contentRoot, TrustedUpdateCandidate candidate)
+    {
+        var contract = Path.Combine(AppContext.BaseDirectory, "OrbitGame.Contracts.dll");
+        var allowed = ContractCompatibility.Check(contentRoot, candidate, DeliverySession.Target, contract, require: true, out var status, out var compatibility);
+        Console.WriteLine("COMPAT " + status + ":" + compatibility + " selected=" + candidate.VersionName);
+        return allowed;
+    }
+
+    static bool TryOffer(Dictionary<string, string> map, string final, byte[] document, out TrustedReleaseRecoveryStart started)
+    {
+        var spki = File.ReadAllBytes(map["spki"]);
+        var verified = TrustedRelease.Verify(final, document, spki);
+        if (!verified.Succeeded || verified.Candidate is null)
+        {
+            Console.WriteLine("COMPAT unverified " + verified.Failure + "/" + verified.Detail);
+            started = null!;
+            return false;
+        }
+
+        var contract = Path.Combine(AppContext.BaseDirectory, "OrbitGame.Contracts.dll");
+        if (!ContractCompatibility.Check(final, verified.Candidate, DeliverySession.Target, contract, require: true, out var status, out var compatibility))
+        {
+            Console.WriteLine("COMPAT rejected " + status + ":" + compatibility);
+            started = null!;
+            return false;
+        }
+
+        Console.WriteLine("COMPAT " + status + ":" + compatibility);
+        started = TrustedReleaseRecovery.TryStart(new TrustedReleaseOffer(final, document), spki, DeliverySession.Target, map["releases"], map["receipt"], DistinctOrbit.Activate, CandidateCheck);
+        return true;
+    }
 
     static string Describe(TrustedReleaseRecoveryStart started) =>
         "activated=" + started.Activated + " version=" + started.SelectedVersion + " source=" + started.Source + " plan=" + started.Candidate.Plan + " detail=" + started.Candidate.Detail;
 
     static int Activations => DistinctOrbit.Activations;
+
+    static int StallBody(Dictionary<string, string> map)
+    {
+        var receipt = File.ReadAllBytes(map["receipt"]);
+        var bound = HttpReleaseFetch.Bind(map);
+        Console.WriteLine("STALL bound=" + bound);
+        if (bound)
+            return FailMode("stall-bound");
+        if (Directory.Exists(map["finalStall"]))
+            return FailMode("stall-final");
+        if (!File.ReadAllBytes(map["receipt"]).AsSpan().SequenceEqual(receipt))
+            return FailMode("stall-receipt");
+        Console.WriteLine("DISTINCT_OK stall-body");
+        return 0;
+    }
+
+    static int Incompatible(Dictionary<string, string> map)
+    {
+        if (!HttpReleaseFetch.Bind(map))
+            return FailMode("bind");
+        if (!HttpReleaseFetch.Stage(map, "finalC", "documentC", "contentC"))
+            return FailMode("stage-c");
+        var receipt = File.ReadAllBytes(map["receipt"]);
+        if (!TryOffer(map, map["finalC"], File.ReadAllBytes(map["documentC"]), out var started))
+            return FailMode("compat-c");
+        Console.WriteLine("INCOMPAT " + Describe(started));
+        if (started.Candidate.Plan != TrustedUpdateFailure.IncompatibleTarget)
+            return FailMode("incompatible-plan");
+        if (!started.Activated || started.Source != TrustedUpdateStartSource.LastKnownGood || started.SelectedVersion != "B" || !DistinctOrbit.Publish(started))
+            return FailMode("incompatible-fallback");
+        if (!File.ReadAllBytes(map["receipt"]).AsSpan().SequenceEqual(receipt))
+            return FailMode("incompatible-receipt");
+        if (!Play("B", 5, map["finalB"]))
+            return FailMode("incompatible-play");
+        Console.WriteLine("DISTINCT_OK incompatible");
+        return 0;
+    }
+
+    static int ContractBad(Dictionary<string, string> map)
+    {
+        if (!HttpReleaseFetch.Bind(map))
+            return FailMode("bind");
+        if (!HttpReleaseFetch.Stage(map, "finalD", "documentD", "contentD"))
+            return FailMode("stage-d");
+        var receipt = File.ReadAllBytes(map["receipt"]);
+        var before = Activations;
+        if (TryOffer(map, map["finalD"], File.ReadAllBytes(map["documentD"]), out var started))
+            return FailMode("contract-accepted");
+        if (Activations != before)
+            return FailMode("contract-activated");
+        if (!File.ReadAllBytes(map["receipt"]).AsSpan().SequenceEqual(receipt))
+            return FailMode("contract-receipt");
+        var fallback = TrustedReleaseRecovery.TryStart(null, File.ReadAllBytes(map["spki"]), DeliverySession.Target, map["releases"], map["receipt"], DistinctOrbit.Activate);
+        Console.WriteLine("CONTRACT_FALLBACK " + Describe(fallback));
+        if (!fallback.Activated || fallback.Source != TrustedUpdateStartSource.LastKnownGood || fallback.SelectedVersion != "B" || !DistinctOrbit.Publish(fallback))
+            return FailMode("contract-fallback");
+        if (!Play("B", 5, map["finalB"]))
+            return FailMode("contract-play");
+        Console.WriteLine("DISTINCT_OK contract-bad");
+        return 0;
+    }
+
+    static int BodyFailure(Dictionary<string, string> map, string kind)
+    {
+        var receipt = File.ReadAllBytes(map["receipt"]);
+        var finalKey = kind == "eof" ? "finalEof" : "finalOversize";
+        var staged = HttpReleaseFetch.Bind(map) && HttpReleaseFetch.Stage(map, finalKey, "documentA", "contentA");
+        Console.WriteLine("BODY " + kind + " staged=" + staged + " exists=" + Directory.Exists(map[finalKey]));
+        if (staged || Directory.Exists(map[finalKey]))
+            return FailMode(kind + "-staged");
+        if (!File.ReadAllBytes(map["receipt"]).AsSpan().SequenceEqual(receipt))
+            return FailMode(kind + "-receipt");
+        Console.WriteLine("DISTINCT_OK " + kind);
+        return 0;
+    }
+
+    static int RejectThenRecover(Dictionary<string, string> map, string finalKey, string documentKey, string contentKey, string setup, string mode)
+    {
+        if (!HttpReleaseFetch.Bind(map))
+            return FailMode("bind");
+        if (!HttpReleaseFetch.Stage(map, finalKey, documentKey, contentKey))
+            return FailMode("stage-" + mode);
+        var final = map[finalKey];
+        if (setup == "unlisted")
+        {
+            // Valid-looking sidecar that is NOT in the signed file set: it must be ignored.
+            File.Copy(map["validSidecar"], Path.Combine(final, ContractCompatibility.SidecarName), true);
+        }
+        else if (setup == "tampered")
+        {
+            var sidecar = Path.Combine(final, ContractCompatibility.SidecarName);
+            var json = File.ReadAllText(sidecar);
+            var index = json.IndexOf("\"mvid\":\"", StringComparison.Ordinal);
+            if (index < 0)
+                return FailMode("tamper-shape");
+            json = json[..(index + 9)] + "0" + json[(index + 9)..];
+            File.WriteAllText(sidecar, json);
+        }
+
+        var receipt = File.ReadAllBytes(map["receipt"]);
+        var before = Activations;
+        if (TryOffer(map, final, File.ReadAllBytes(map[documentKey]), out _))
+            return FailMode(mode + "-accepted");
+        if (Activations != before)
+            return FailMode(mode + "-activated");
+        if (!File.ReadAllBytes(map["receipt"]).AsSpan().SequenceEqual(receipt))
+            return FailMode(mode + "-receipt");
+        var fallback = TrustedReleaseRecovery.TryStart(null, File.ReadAllBytes(map["spki"]), DeliverySession.Target, map["releases"], map["receipt"], DistinctOrbit.Activate);
+        Console.WriteLine("REJECT_FALLBACK " + Describe(fallback));
+        if (!fallback.Activated || fallback.Source != TrustedUpdateStartSource.LastKnownGood || fallback.SelectedVersion != "B" || !DistinctOrbit.Publish(fallback))
+            return FailMode(mode + "-fallback");
+        if (!Play("B", 5, map["finalB"]))
+            return FailMode(mode + "-play");
+        Console.WriteLine("DISTINCT_OK " + mode);
+        return 0;
+    }
+
+    static int MvidAccepted(Dictionary<string, string> map)
+    {
+        if (!HttpReleaseFetch.Bind(map))
+            return FailMode("bind");
+        if (!HttpReleaseFetch.Stage(map, "finalI", "documentI", "contentI"))
+            return FailMode("stage-i");
+        if (!TryOffer(map, map["finalI"], File.ReadAllBytes(map["documentI"]), out var started))
+            return FailMode("mvid-n-rejected");
+        Console.WriteLine("MVID_N " + Describe(started));
+        if (!started.Activated || started.Source != TrustedUpdateStartSource.Candidate || started.SelectedVersion != "I" || !DistinctOrbit.Publish(started))
+            return FailMode("mvid-n-start");
+        if (!Play("I", 3, map["finalI"]))
+            return FailMode("mvid-n-play");
+        Console.WriteLine("DISTINCT_OK sidecar-mvid-n-format");
+        return 0;
+    }
+
+    static int CheckThrowOffer(Dictionary<string, string> map)
+    {
+        if (!HttpReleaseFetch.Bind(map))
+            return FailMode("bind");
+        if (!HttpReleaseFetch.Stage(map, "finalK", "documentC", "contentC"))
+            return FailMode("stage-k");
+        var receipt = File.ReadAllBytes(map["receipt"]);
+        var before = Activations;
+        bool ThrowForOffer(string root, TrustedUpdateCandidate candidate)
+        {
+            if (candidate.VersionName == "C")
+                throw new InvalidOperationException("offer-check-secret");
+            return CandidateCheck(root, candidate);
+        }
+
+        var started = TrustedReleaseRecovery.TryStart(
+            new TrustedReleaseOffer(map["finalK"], File.ReadAllBytes(map["documentC"])),
+            File.ReadAllBytes(map["spki"]),
+            DeliverySession.Target,
+            map["releases"],
+            map["receipt"],
+            DistinctOrbit.Activate,
+            ThrowForOffer);
+        Console.WriteLine("THROW_OFFER " + Describe(started));
+        if (started.Activated && started.SelectedVersion == "C")
+            return FailMode("offer-throw-activated");
+        if (started.Candidate.Plan != TrustedUpdateFailure.InvalidCandidate || started.Candidate.Detail != "compat")
+            return FailMode("offer-throw-plan");
+        if (!started.Activated || started.Source != TrustedUpdateStartSource.LastKnownGood || started.SelectedVersion != "B" || !DistinctOrbit.Publish(started))
+            return FailMode("offer-throw-fallback");
+        if (Activations != before + 1)
+            return FailMode("offer-throw-activations");
+        if (!File.ReadAllBytes(map["receipt"]).AsSpan().SequenceEqual(receipt))
+            return FailMode("offer-throw-receipt");
+        if (!Play("B", 5, map["finalB"]))
+            return FailMode("offer-throw-play");
+        Console.WriteLine("DISTINCT_OK check-throw-offer");
+        return 0;
+    }
+
+    static int CheckThrowLkg(Dictionary<string, string> map)
+    {
+        var receipt = File.ReadAllBytes(map["receipt"]);
+        var before = Activations;
+        var thrown = TrustedReleaseRecovery.TryStart(
+            null,
+            File.ReadAllBytes(map["spki"]),
+            DeliverySession.Target,
+            map["releases"],
+            map["receipt"],
+            DistinctOrbit.Activate,
+            (root, candidate) => throw new InvalidOperationException("lkg-check-secret"));
+        Console.WriteLine("THROW_LKG " + Describe(thrown));
+        if (thrown.Activated)
+            return FailMode("lkg-throw-activated");
+        if (thrown.Recovery.Plan != TrustedUpdateFailure.LastKnownGoodUnusable || thrown.Recovery.Detail != "compat")
+            return FailMode("lkg-throw-plan");
+        if (Activations != before)
+            return FailMode("lkg-throw-activations");
+        if (!File.ReadAllBytes(map["receipt"]).AsSpan().SequenceEqual(receipt))
+            return FailMode("lkg-throw-receipt");
+
+        // The gate must still be free after a throwing check: a second, valid selection works.
+        var recovered = TrustedReleaseRecovery.TryStart(
+            null,
+            File.ReadAllBytes(map["spki"]),
+            DeliverySession.Target,
+            map["releases"],
+            map["receipt"],
+            DistinctOrbit.Activate,
+            CandidateCheck);
+        Console.WriteLine("THROW_LKG_RETRY " + Describe(recovered));
+        if (!recovered.Activated || recovered.Source != TrustedUpdateStartSource.LastKnownGood || recovered.SelectedVersion != "B" || !DistinctOrbit.Publish(recovered))
+            return FailMode("lkg-retry");
+        if (!Play("B", 5, map["finalB"]))
+            return FailMode("lkg-retry-play");
+        Console.WriteLine("DISTINCT_OK check-throw-lkg");
+        return 0;
+    }
+
+    static int LkgSeedLegacy(Dictionary<string, string> map)
+    {
+        if (!HttpReleaseFetch.Bind(map))
+            return FailMode("bind");
+        if (!HttpReleaseFetch.Stage(map, "lkgFinal", "documentF", "contentF"))
+            return FailMode("stage-lkg");
+        var started = TrustedReleaseRecovery.TryStart(
+            new TrustedReleaseOffer(map["lkgFinal"], File.ReadAllBytes(map["documentF"])),
+            File.ReadAllBytes(map["spki"]),
+            DeliverySession.Target,
+            map["lkgReleases"],
+            map["lkgReceipt"],
+            DistinctOrbit.Activate);
+        Console.WriteLine("LKG_SEED " + Describe(started));
+        if (!started.Activated || started.Source != TrustedUpdateStartSource.Candidate || started.SelectedVersion != "F" || !DistinctOrbit.Publish(started))
+            return FailMode("lkg-seed");
+        Console.WriteLine("DISTINCT_OK lkg-seed-legacy");
+        return 0;
+    }
+
+    static int LkgRequiredRestore(Dictionary<string, string> map)
+    {
+        if (!File.Exists(map["lkgReceipt"]))
+            return FailMode("lkg-receipt-missing");
+        var before = File.ReadAllBytes(map["lkgReceipt"]);
+        var started = TrustedReleaseRecovery.TryStart(
+            null,
+            File.ReadAllBytes(map["spki"]),
+            DeliverySession.Target,
+            map["lkgReleases"],
+            map["lkgReceipt"],
+            DistinctOrbit.Activate,
+            CandidateCheck);
+        Console.WriteLine("LKG_REQUIRED " + Describe(started));
+        if (started.Activated)
+            return FailMode("lkg-activated");
+        if (Activations != 0)
+            return FailMode("lkg-activation-count");
+        if (!File.ReadAllBytes(map["lkgReceipt"]).AsSpan().SequenceEqual(before))
+            return FailMode("lkg-receipt");
+        if (started.Recovery.Plan != TrustedUpdateFailure.LastKnownGoodUnusable)
+            return FailMode("lkg-plan");
+        Console.WriteLine("DISTINCT_OK lkg-required-restore");
+        return 0;
+    }
+
+    static int Throw(Dictionary<string, string> map)
+    {
+        if (!HttpReleaseFetch.Bind(map))
+            return FailMode("bind");
+        if (!HttpReleaseFetch.Stage(map, "finalThrow", "documentB", "contentB"))
+            return FailMode("stage-throw");
+        var receipt = File.ReadAllBytes(map["receipt"]);
+        var failed = TrustedReleaseRecovery.TryStart(
+            new TrustedReleaseOffer(map["finalThrow"], File.ReadAllBytes(map["documentB"])),
+            File.ReadAllBytes(map["spki"]),
+            DeliverySession.Target,
+            map["releases"],
+            map["receipt"],
+            (candidate, source, _) => throw new InvalidOperationException("activation-throw"));
+        Console.WriteLine("THROW " + Describe(failed));
+        if (failed.Activated)
+            return FailMode("throw-activated");
+        if (failed.Candidate.Activation != TrustedUpdateFailure.ActivationFailed)
+            return FailMode("throw-plan");
+        if (!File.ReadAllBytes(map["receipt"]).AsSpan().SequenceEqual(receipt))
+            return FailMode("throw-receipt");
+        var locked = TrustedReleaseRecovery.TryStart(
+            new TrustedReleaseOffer(map["finalThrow"], File.ReadAllBytes(map["documentB"])),
+            File.ReadAllBytes(map["spki"]),
+            DeliverySession.Target,
+            map["releases"],
+            map["receipt"],
+            DistinctOrbit.Activate);
+        Console.WriteLine("THROW_LOCK " + Describe(locked));
+        if (locked.Activated || locked.Candidate.Plan != TrustedUpdateFailure.ProcessSelectionLocked)
+            return FailMode("throw-lock");
+        if (Activations != 0)
+            return FailMode("throw-activations");
+        Console.WriteLine("DISTINCT_OK throw");
+        return 0;
+    }
+
+    static int Crash(Dictionary<string, string> map)
+    {
+        if (!HttpReleaseFetch.Bind(map))
+            return FailMode("bind");
+        if (!HttpReleaseFetch.Stage(map, "finalCrash", "documentB", "contentB"))
+            return FailMode("stage-crash");
+        var started = TrustedReleaseRecovery.TryStart(
+            new TrustedReleaseOffer(map["finalCrash"], File.ReadAllBytes(map["documentB"])),
+            File.ReadAllBytes(map["spki"]),
+            DeliverySession.Target,
+            map["releases"],
+            map["receipt"],
+            (candidate, source, _) =>
+            {
+                File.WriteAllText(map["crashMarker"], "entered " + candidate.VersionName);
+                Thread.Sleep(60000);
+                return new TrustedUpdateActivation(TrustedUpdateFailure.None, 0);
+            });
+        Console.WriteLine("CRASH_RETURNED " + Describe(started));
+        return FailMode("crash-returned");
+    }
+
+    static Dictionary<string, string> ExtraRequest(string output, string mode, int port, string serverRoot, string releases, string receipt, string spki, string finalA, string verifiedB, string publishedB, string finalBad, Dictionary<string, string> overrides)
+    {
+        var lane = Path.Combine(output, "lanes", mode);
+        var lines = new Dictionary<string, string>
+        {
+            ["releases"] = releases,
+            ["receipt"] = receipt,
+            ["spki"] = spki,
+            ["finalA"] = finalA,
+            ["finalVerifiedB"] = verifiedB,
+            ["finalB"] = publishedB,
+            ["finalBad"] = finalBad,
+            ["finalStall"] = Path.Combine(releases, "published-stall"),
+            ["finalC"] = Path.Combine(releases, "published-c"),
+            ["finalD"] = Path.Combine(releases, "published-bad-contract"),
+            ["finalCrash"] = Path.Combine(releases, "published-crash"),
+            ["finalThrow"] = Path.Combine(releases, "published-throw"),
+            ["finalEof"] = Path.Combine(releases, "published-eof"),
+            ["finalE"] = Path.Combine(releases, "published-arch"),
+            ["finalF"] = Path.Combine(releases, "published-missing-sidecar"),
+            ["finalG"] = Path.Combine(releases, "published-unlisted-sidecar"),
+            ["finalH"] = Path.Combine(releases, "published-tampered-sidecar"),
+            ["finalI"] = Path.Combine(releases, "published-mvid-n"),
+            ["finalJ"] = Path.Combine(releases, "published-mvid-heap"),
+            ["documentE"] = Path.Combine(lane, "document-e.bin"),
+            ["documentF"] = Path.Combine(lane, "document-f.bin"),
+            ["documentG"] = Path.Combine(lane, "document-g.bin"),
+            ["documentH"] = Path.Combine(lane, "document-h.bin"),
+            ["documentI"] = Path.Combine(lane, "document-i.bin"),
+            ["documentJ"] = Path.Combine(lane, "document-j.bin"),
+            ["documentEUrl"] = "http://127.0.0.1:" + port + "/e.bin",
+            ["documentFUrl"] = "http://127.0.0.1:" + port + "/f.bin",
+            ["documentGUrl"] = "http://127.0.0.1:" + port + "/g.bin",
+            ["documentHUrl"] = "http://127.0.0.1:" + port + "/h.bin",
+            ["documentIUrl"] = "http://127.0.0.1:" + port + "/i.bin",
+            ["documentJUrl"] = "http://127.0.0.1:" + port + "/j.bin",
+            ["contentBaseE"] = "http://127.0.0.1:" + port + "/orbit-e/",
+            ["contentBaseF"] = "http://127.0.0.1:" + port + "/orbit-f/",
+            ["contentBaseG"] = "http://127.0.0.1:" + port + "/orbit-g/",
+            ["contentBaseH"] = "http://127.0.0.1:" + port + "/orbit-h/",
+            ["contentBaseI"] = "http://127.0.0.1:" + port + "/orbit-i/",
+            ["contentBaseJ"] = "http://127.0.0.1:" + port + "/orbit-j/",
+            ["filesE"] = Entry + ";" + ContractCompatibility.SidecarName,
+            ["filesF"] = Entry,
+            ["filesG"] = Entry,
+            ["filesH"] = Entry + ";" + ContractCompatibility.SidecarName,
+            ["filesI"] = Entry + ";" + ContractCompatibility.SidecarName,
+            ["filesJ"] = Entry + ";" + ContractCompatibility.SidecarName,
+            ["finalOversize"] = Path.Combine(releases, "published-oversize"),
+            ["documentA"] = Path.Combine(lane, "document-a.bin"),
+            ["documentB"] = Path.Combine(lane, "document-b.bin"),
+            ["documentC"] = Path.Combine(lane, "document-c.bin"),
+            ["documentD"] = Path.Combine(lane, "document-d.bin"),
+            ["documentAUrl"] = "http://127.0.0.1:" + port + "/a.bin",
+            ["documentBUrl"] = "http://127.0.0.1:" + port + "/b.bin",
+            ["documentCUrl"] = "http://127.0.0.1:" + port + "/c.bin",
+            ["documentDUrl"] = "http://127.0.0.1:" + port + "/d.bin",
+            ["contentBaseA"] = "http://127.0.0.1:" + port + "/orbit-a/",
+            ["contentBaseB"] = "http://127.0.0.1:" + port + "/orbit-b/",
+            ["contentBaseC"] = "http://127.0.0.1:" + port + "/orbit-c/",
+            ["contentBaseD"] = "http://127.0.0.1:" + port + "/orbit-d/",
+            ["filesA"] = Entry + ";" + ContractCompatibility.SidecarName,
+            ["filesB"] = Entry + ";" + ContractCompatibility.SidecarName,
+            ["filesC"] = Entry + ";" + ContractCompatibility.SidecarName,
+            ["filesD"] = Entry + ";" + ContractCompatibility.SidecarName,
+            ["entry"] = Entry,
+            ["crashMarker"] = Path.Combine(lane, "crash.entered"),
+            ["validSidecar"] = Path.Combine(output, "late", "a", "out", ContractCompatibility.SidecarName),
+            ["lkgReleases"] = Path.Combine(output, "world-lkg", "releases"),
+            ["lkgReceipt"] = Path.Combine(output, "world-lkg", "state", "receipt.bin"),
+            ["lkgFinal"] = Path.Combine(output, "world-lkg", "releases", "published-legacy"),
+            ["finalK"] = Path.Combine(releases, "published-check-throw"),
+        };
+        foreach (var pair in overrides)
+            lines[pair.Key] = pair.Value.Replace("{port}", port.ToString());
+        var request = Path.Combine(lane, "request.txt");
+        File.WriteAllLines(request, lines.Select(pair => pair.Key + "=" + pair.Value));
+        return lines;
+    }
+
+    static bool StartServer(string lane, string serverRoot, out int port, out Process serverProcess)
+    {
+        var portFile = Path.Combine(lane, "port.txt");
+        var log = Path.Combine(lane, "server.log");
+        var stall = Path.Combine(lane, "stall.signal");
+        File.WriteAllText(log, "");
+        serverProcess = Start(new[] { "--http-server", serverRoot, portFile, log, stall }, lane, "server");
+        if (!WaitFile(portFile, 10000))
+        {
+            Stop(serverProcess, lane, "server");
+            port = 0;
+            return false;
+        }
+
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            try
+            {
+                port = int.Parse(File.ReadAllText(portFile).Trim());
+                return true;
+            }
+            catch (IOException)
+            {
+                Thread.Sleep(50);
+            }
+        }
+
+        Stop(serverProcess, lane, "server");
+        port = 0;
+        return false;
+    }
+
+    static void RunExtraLane(string output, string mode, string serverRoot, string releases, string receiptPath, string spki, string finalA, string verifiedB, string publishedB, string finalBad, List<string> problems, Dictionary<string, string> overrides)
+    {
+        var lane = Path.Combine(output, "lanes", mode);
+        Directory.CreateDirectory(lane);
+        if (!StartServer(lane, serverRoot, out var port, out var serverProcess))
+        {
+            problems.Add(mode + ":no-port");
+            return;
+        }
+
+        ExtraRequest(output, mode, port, serverRoot, releases, receiptPath, spki, finalA, verifiedB, publishedB, finalBad, overrides);
+        var request = Path.Combine(lane, "request.txt");
+        CopyReceipt(output, mode + "-before", receiptPath);
+        var client = Start(new[] { "--distinct-http-child", mode, request }, lane, "client");
+        var finished = Finish(client, lane, "client", 25000);
+        Stop(serverProcess, lane, "server");
+        CopyReceipt(output, mode + "-after", receiptPath);
+        var stdout = File.ReadAllText(Path.Combine(lane, "client.stdout"));
+        Console.WriteLine("LANE " + mode + " pid=" + finished.Pid + " exit=" + finished.Exit + " watchdog=" + finished.Watchdog);
+        if (finished.Watchdog || finished.Exit != 0 || !stdout.Contains("DISTINCT_OK", StringComparison.Ordinal))
+            problems.Add(mode);
+    }
+
+    static void RunCrashLane(string output, string serverRoot, string releases, string receiptPath, string spki, string finalA, string verifiedB, string publishedB, string finalBad, List<string> problems, ref byte[] receiptBefore)
+    {
+        const string mode = "crash";
+        var lane = Path.Combine(output, "lanes", mode);
+        Directory.CreateDirectory(lane);
+        if (!StartServer(lane, serverRoot, out var port, out var serverProcess))
+        {
+            problems.Add(mode + ":no-port");
+            return;
+        }
+
+        var lines = ExtraRequest(output, mode, port, serverRoot, releases, receiptPath, spki, finalA, verifiedB, publishedB, finalBad, new Dictionary<string, string>());
+        var request = Path.Combine(lane, "request.txt");
+        CopyReceipt(output, mode + "-before", receiptPath);
+        var client = Start(new[] { "--distinct-http-child", mode, request }, lane, "client");
+        var marker = lines["crashMarker"];
+        var entered = WaitFile(marker, 20000);
+        var alive = !client.HasExited;
+        Stop(client, lane, "client");
+        Stop(serverProcess, lane, "server");
+        CopyReceipt(output, mode + "-after", receiptPath);
+        Console.WriteLine("LANE crash entered=" + entered + " killed-while-running=" + alive + " pid=" + client.Id);
+        if (!entered || !alive)
+            problems.Add("crash-not-interrupted");
+        if (!File.ReadAllBytes(receiptPath).AsSpan().SequenceEqual(receiptBefore))
+            problems.Add("crash-receipt");
+    }
 
     static void RunLane(string output, string mode, bool server, string serverRoot, string releases, string receipt, string spki, string finalA, string verifiedB, string publishedB, string finalBad, List<string> problems)
     {
@@ -283,8 +956,8 @@ static class DistinctHttpDriver
             "documentBUrl=http://127.0.0.1:" + port + "/b.bin",
             "contentBaseA=http://127.0.0.1:" + port + "/orbit-a/",
             "contentBaseB=http://127.0.0.1:" + port + "/" + (badBase ? "bad-body" : "orbit-b") + "/",
-            "filesA=" + Entry,
-            "filesB=" + Entry,
+            "filesA=" + Entry + ";" + ContractCompatibility.SidecarName,
+            "filesB=" + Entry + ";" + ContractCompatibility.SidecarName,
             "entry=" + Entry,
         });
         CopyReceipt(output, mode + "-before", receipt);
@@ -410,10 +1083,35 @@ static class DistinctHttpDriver
         File.WriteAllText(Path.Combine(dir, "mod.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net11.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors><AssemblyName>OrbitGame.Module</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems><OutputPath>out/</OutputPath><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath></PropertyGroup><ItemGroup><Compile Include=\"Module.cs\" /><Reference Include=\"OrbitGame.Contracts\"><HintPath>" + contract + "</HintPath><Private>false</Private></Reference></ItemGroup></Project>");
     }
 
-    static byte[] Sign(ECDsa key, string dir, string version)
+    static byte[] Sign(ECDsa key, string dir, string version, bool badContract = false, string? runtime = null, string? architecture = null, bool includeSidecar = true, string? mvidOverride = null)
     {
-        var signed = TrustedRelease.Sign(dir, new TrustedReleaseIdentity(version, "net11.0", DeliverySession.Target.Architecture, TypeName, MethodName, Entry), new[] { Entry }, key);
+        if (includeSidecar)
+            WriteSidecar(dir, badContract, architecture, mvidOverride);
+        var files = includeSidecar ? new[] { Entry, ContractCompatibility.SidecarName } : new[] { Entry };
+        var signed = TrustedRelease.Sign(
+            dir,
+            new TrustedReleaseIdentity(version, runtime ?? "net11.0", architecture ?? DeliverySession.Target.Architecture, TypeName, MethodName, Entry),
+            files,
+            key);
         return signed.Succeeded && signed.Document is not null ? signed.Document : Array.Empty<byte>();
+    }
+
+    // The sidecar is one signed file, not a new envelope field. The expected
+    // Contract identity comes from the host deployment, not from the package.
+    static void WriteSidecar(string dir, bool badContract, string? architecture = null, string? mvidOverride = null)
+    {
+        var contract = Path.Combine(AppContext.BaseDirectory, "OrbitGame.Contracts.dll");
+        if (!ContractCompatibility.TryReadAssembly(contract, out var identity, out var detail))
+            throw new InvalidOperationException("contract " + detail);
+        var mvid = mvidOverride ?? (badContract ? Guid.NewGuid().ToString("D") : identity.Mvid);
+        var json = JsonSerializer.Serialize(new
+        {
+            schema = ContractCompatibility.Schema,
+            runtime = "net11.0",
+            architecture = architecture ?? DeliverySession.Target.Architecture,
+            contract = new { name = identity.Name, version = identity.Version, mvid, source = "host deployment config" },
+        });
+        File.WriteAllText(Path.Combine(dir, ContractCompatibility.SidecarName), json);
     }
 
     static string SdkVersion()

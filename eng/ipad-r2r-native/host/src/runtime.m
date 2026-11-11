@@ -209,6 +209,15 @@ mono_ios_runtime_init (void)
     const char *payload = argument_value (argc, argv, "--payload");
     const char *nonce = argument_value (argc, argv, "--nonce");
     int probe = argument_flag (argc, argv, "--probe");
+    int delivery = argument_flag (argc, argv, "--delivery");
+    rn_start_mode start_mode = rn_start_mode_select (probe, delivery);
+
+    if (start_mode == RN_MODE_CONFLICT)
+    {
+        printf ("RUNE_IPAD_REJECT pid=%d reason=conflicting-mode flags=probe,delivery\n", getpid ());
+        fflush (stdout);
+        exit (122);
+    }
 
     char generated_nonce[33];
     if (!nonce || strlen (nonce) != 32)
@@ -225,8 +234,11 @@ mono_ios_runtime_init (void)
 
     setenv ("RUNECLR_PROBE_NONCE", nonce, 1);
     setenv ("RUNECLR_PROBE_PAYLOAD", payload ? payload : "", 1);
-    setenv ("RUNECLR_PROBE_MODE", probe ? "probe" : "payload", 1);
+    setenv ("RUNECLR_PROBE_MODE", rn_start_mode_name (start_mode), 1);
     setenv ("RUNECLR_DOCUMENTS", documents, 1);
+    char documents_physical[PATH_MAX] = {0};
+    if (realpath (documents, documents_physical) != NULL)
+        setenv ("RUNECLR_DOCUMENTS_PHYSICAL", documents_physical, 1);
 
     unsetenv ("COMPlus_InterpMode"); setenv ("DOTNET_InterpMode", "1", 1);
     unsetenv ("COMPlus_RuneCLRInterpretCollectible"); setenv ("DOTNET_RuneCLRInterpretCollectible", "1", 1);
@@ -234,13 +246,10 @@ mono_ios_runtime_init (void)
     unsetenv ("COMPlus_TieredCompilation"); setenv ("DOTNET_TieredCompilation", "0", 1);
     unsetenv ("COMPlus_SYSTEM_GLOBALIZATION_INVARIANT"); setenv ("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "1", 1);
     unsetenv ("COMPlus_InterpList"); setenv ("DOTNET_InterpList", "0", 1);
-    unsetenv ("COMPlus_RuneCLRPhaseAcquireLoad"); setenv ("DOTNET_RuneCLRPhaseAcquireLoad", "1", 1);
-    unsetenv ("COMPlus_RuneCLRDerivedLedger"); setenv ("DOTNET_RuneCLRDerivedLedger", "1", 1);
-    unsetenv ("COMPlus_RuneCLRBatchInterval"); setenv ("DOTNET_RuneCLRBatchInterval", "0", 1);
     unsetenv ("DOTNET_InterpDump"); unsetenv ("COMPlus_InterpDump");
 
     printf ("RUNE_IPAD_NATIVE pid=%d nonce=%s mode=%s payload=%s InterpMode=1 InterpretCollectible=1 ReadyToRun=1 Tiered=0\n",
-            getpid (), nonce, probe ? "probe" : "payload", payload ? payload : "");
+            getpid (), nonce, rn_start_mode_name (start_mode), payload ? payload : "");
     fflush (stdout);
 
     const char* bundle = get_bundle_path ();
@@ -282,7 +291,23 @@ mono_ios_runtime_init (void)
     char result_path[PATH_MAX] = {0};
     char run_id[RN_MAX_RUN_ID + 1] = {0};
 
-    if (!probe)
+    if (delivery)
+    {
+        const char *run_name = (payload && *payload) ? payload : "delivery";
+        rn_status result_status = rn_result_path (documents, run_name, result_path, sizeof (result_path));
+        rn_status run_status = rn_run_id (run_name, run_id);
+        if (result_status == RN_OK && run_status == RN_OK)
+            printf ("RUNECLR_DELIVERY_PATH_OK pid=%d runId=%s result=%s\n", getpid (), run_id, result_path);
+        else
+            printf ("RUNECLR_DELIVERY_PATH_REJECT pid=%d raw=%s\n", getpid (), run_name);
+        fflush (stdout);
+        if (result_status != RN_OK || run_status != RN_OK)
+            exit (123);
+        setenv ("RUNECLR_RESULT_PATH", result_path, 1);
+        setenv ("RUNECLR_RUN_ID", run_id, 1);
+        setenv ("RUNECLR_HOST_MODE", "delivery", 1);
+    }
+    else if (!probe)
     {
         rn_status payload_status = rn_payload_dir (documents, payload ? payload : "", payload_path, sizeof (payload_path));
         rn_status result_status = rn_result_path (documents, payload ? payload : "", result_path, sizeof (result_path));
