@@ -37,6 +37,12 @@ The archive branch keeps its original bytes and is untouched.
 
 - Stock desktop build `dotnet build RuneCLR.slnx -c Release`: 0 warnings, 0 errors.
 - Stock regression `tests/RuneCLR.Runtime.Tests`: 156/156 passed.
+- The same lifecycle harness on the matching private Release runtime: **156/156** in ordinary
+  mode and **156/156** with explicit `--require-interpreter`, in separate processes. These runs
+  use the unchanged host binaries containing the reporting fix `2387d81`; all five runtime
+  hashes match the frozen set below and the source stays clean at `7f5a0bc8`. Launch receipts,
+  logs and binary identities are recorded under `lead-patched-lifecycle/` in the integration
+  artifact. These are additional lifecycle regressions, separate from stock and deadline tests.
 - Epoch suite against the matching private runtime: **24 passed / 0 skipped / 0 failed**
   (host commits 17a41fb and the P3 reporting fix 2387d81).
 - `eng/verify-epoch-integration.py`: PASS with 658 pinned inputs and a 520-file private layout
