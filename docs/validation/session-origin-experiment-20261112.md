@@ -66,34 +66,43 @@ native/R2R body, device or unload claim is made.
 
 ## Source pins
 
-Host files (16) are byte-identical to the tested snapshot. The two documents were sanitized:
-drive-prefixed local paths were replaced with `<local-archival>/`; their tested and published
-hashes are listed separately and they are **not** byte-identical to the tested copies.
+Host source files (16) are published as raw byte-identical blobs: the published blob and the
+tested source have the same sha256.
 
-| file | sha256 |
-| --- | --- |
-| `RuneCLR.slnx` | `d87b2e02056d057dbc2be5c57039f8197dd5a571debc563e807fd4c37deb2dc3` |
-| `src/RuneCLR.Runtime/HostContractSession.cs` | `65f23cc0c2566120287d1181ee24dd229249b71f4e1ef9745c635748420343d8` |
-| `src/RuneCLR.Runtime/HostContractSessionOptions.cs` | `8cbeb46a2f3f37e9d9da9999990e3ea5fbf5f6ad822f2d70a51a9b7be5e5df71` |
-| `src/RuneCLR.Runtime/MapRunOptions.cs` | `7a414a868971824142fc81372395fe3273c06cb0839d789ce260befea5321b1d` |
-| `src/RuneCLR.Runtime/MapSession.cs` | `122481ee6ad36c1e9e3abc677245d2f07d1dbcb9106d73a6115ee593f2737114` |
-| `src/RuneCLR.Runtime/PrototypeReflectionPolicy.cs` | `ee8f30e33ff887924ac23692f0b2a81e70da35916fa4ada96c99539fda9d19a3` |
-| `eng/test-session-origin-provenance.py` | `c88f7571e4924308e09eb4d203ee2eaf191e55dd0f5e3fce441c58b2da010aab` |
-| `eng/verify-runtime-session-origin.py` | `62e4570902e5fa95e320c09d053af1249006f50e76271c1d9bf7feb285e457ea` |
-| `tests/RuneCLR.SessionOrigin.Tests/Program.cs` | `c1d8b8bfb8d0ef5c6a0dc9203ff8592dcffc5e58601fcd0065a659b9bcef6239` |
-| `tests/RuneCLR.SessionOrigin.Tests/RuneCLR.SessionOrigin.Tests.csproj` | `633f3bbaeb06793b67d2958b23a0bb2bf25bebd42051dbb646c38ab448e02e46` |
-| `tests/SessionOrigin.Author/OriginScript.cs` | `2a2820a3ccf45bec807bc353c3b993975dab62c5afff7c30828813227fc7d4bd` |
-| `tests/SessionOrigin.Author/SessionOrigin.Author.csproj` | `d8981b2c04dccdbf986fd79dbe8dd2bfa51841a4779e3ad45cfd1712c695224d` |
-| `tests/SessionOrigin.Chain/ChainStep.cs` | `5bd2438911047394b6484f41bf7e6bff87ac06467ae84d090324ee572c99de18` |
-| `tests/SessionOrigin.Chain/SessionOrigin.Chain.csproj` | `8d654c44b7bebb6b31a9f2f606927f45b5072193adc4eef8cce3f3cf3b278df3` |
-| `tests/SessionOrigin.Compiled/OriginHooks.cs` | `ae4f45c5227ab84dd07223bbb2e164d9b3dbb865700ec6b2d3d3987a40880258` |
-| `tests/SessionOrigin.Compiled/SessionOrigin.Compiled.csproj` | `e6fcb8e1e93a724d47a829cffd19d47840a5eb088e9ace43f3a34bbaf1524b07` |
-| `docs/development.md` (sanitized; tested `25a3d8e88864dd135c40cc8f35e8dbd6107e632bb02daedf2947014279ebe336`) | `ceae5459782d6abcb95f34795e58f879c7be2ea94ca9a2ce500aa2f13b2502b6` |
-| `docs/ugc-session-policy.md` (sanitized; tested `72acbc73add0a4091318c3de6ee4f214486fa6d71ceea929a617b5a32f17f699`) | `a789c83768456adcd9f4bc128c2a762430ab10f988380751de759433197a4634` |
-| `src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml` | `c28a8de2bc362b524c9cfd0db8a43ec7e19dc214382b316c055c9dcf52dcdf5d` |
-| `src/coreclr/System.Private.CoreLib/src/System/Reflection/RuneCLRReflectionPolicy.cs` | `1a4582aa690c794f3c7565560c694d1b52943d8c747f5e1d8771ea956772b56c` |
-| `src/coreclr/vm/assemblynative.cpp` | `5e6f61a0180f553d4685572a3219cd7d42d7e4e719158bf683d31a690bb28f28` |
-| `src/coreclr/vm/assemblynative.hpp` | `88bc13363f5d280fdfcbef1ad61ade76393a7d9df2e12cc90682e480b22b3bfc` |
-| `src/coreclr/vm/qcallentrypoints.cpp` | `3283add5979f1b44ac22c94cce3fe8062f2ebf9a0c40f3aac81cfa8f909b22cf` |
+The runtime files were tested as CRLF text, while this repository stores text with `text=auto`.
+Their published blobs are LF-normalized and therefore differ from the tested raw bytes; they are
+equal only after CRLF to LF normalization, and the historical acceptance binaries came from the
+original tested tree, not from this commit. Do not compare the published runtime blobs to
+`source-manifest.json` without normalizing newlines.
 
-The runtime files match `source-manifest.json` (base = head = `7cbdad39`, no extras, no deletions).
+The two documents were sanitized (drive-prefixed local paths replaced with `<local-archival>/`),
+so they are not byte-identical to the tested copies either; both hashes are listed.
+
+| file | published blob sha256 | tested source sha256 |
+| --- | --- | --- |
+| `RuneCLR.slnx` | `d87b2e02056d057dbc2be5c57039f8197dd5a571debc563e807fd4c37deb2dc3` | `d87b2e02056d057dbc2be5c57039f8197dd5a571debc563e807fd4c37deb2dc3` |
+| `src/RuneCLR.Runtime/HostContractSession.cs` | `65f23cc0c2566120287d1181ee24dd229249b71f4e1ef9745c635748420343d8` | `65f23cc0c2566120287d1181ee24dd229249b71f4e1ef9745c635748420343d8` |
+| `src/RuneCLR.Runtime/HostContractSessionOptions.cs` | `8cbeb46a2f3f37e9d9da9999990e3ea5fbf5f6ad822f2d70a51a9b7be5e5df71` | `8cbeb46a2f3f37e9d9da9999990e3ea5fbf5f6ad822f2d70a51a9b7be5e5df71` |
+| `src/RuneCLR.Runtime/MapRunOptions.cs` | `7a414a868971824142fc81372395fe3273c06cb0839d789ce260befea5321b1d` | `7a414a868971824142fc81372395fe3273c06cb0839d789ce260befea5321b1d` |
+| `src/RuneCLR.Runtime/MapSession.cs` | `122481ee6ad36c1e9e3abc677245d2f07d1dbcb9106d73a6115ee593f2737114` | `122481ee6ad36c1e9e3abc677245d2f07d1dbcb9106d73a6115ee593f2737114` |
+| `src/RuneCLR.Runtime/PrototypeReflectionPolicy.cs` | `ee8f30e33ff887924ac23692f0b2a81e70da35916fa4ada96c99539fda9d19a3` | `ee8f30e33ff887924ac23692f0b2a81e70da35916fa4ada96c99539fda9d19a3` |
+| `eng/test-session-origin-provenance.py` | `c88f7571e4924308e09eb4d203ee2eaf191e55dd0f5e3fce441c58b2da010aab` | `c88f7571e4924308e09eb4d203ee2eaf191e55dd0f5e3fce441c58b2da010aab` |
+| `eng/verify-runtime-session-origin.py` | `62e4570902e5fa95e320c09d053af1249006f50e76271c1d9bf7feb285e457ea` | `62e4570902e5fa95e320c09d053af1249006f50e76271c1d9bf7feb285e457ea` |
+| `tests/RuneCLR.SessionOrigin.Tests/Program.cs` | `c1d8b8bfb8d0ef5c6a0dc9203ff8592dcffc5e58601fcd0065a659b9bcef6239` | `c1d8b8bfb8d0ef5c6a0dc9203ff8592dcffc5e58601fcd0065a659b9bcef6239` |
+| `tests/RuneCLR.SessionOrigin.Tests/RuneCLR.SessionOrigin.Tests.csproj` | `633f3bbaeb06793b67d2958b23a0bb2bf25bebd42051dbb646c38ab448e02e46` | `633f3bbaeb06793b67d2958b23a0bb2bf25bebd42051dbb646c38ab448e02e46` |
+| `tests/SessionOrigin.Author/OriginScript.cs` | `2a2820a3ccf45bec807bc353c3b993975dab62c5afff7c30828813227fc7d4bd` | `2a2820a3ccf45bec807bc353c3b993975dab62c5afff7c30828813227fc7d4bd` |
+| `tests/SessionOrigin.Author/SessionOrigin.Author.csproj` | `d8981b2c04dccdbf986fd79dbe8dd2bfa51841a4779e3ad45cfd1712c695224d` | `d8981b2c04dccdbf986fd79dbe8dd2bfa51841a4779e3ad45cfd1712c695224d` |
+| `tests/SessionOrigin.Chain/ChainStep.cs` | `5bd2438911047394b6484f41bf7e6bff87ac06467ae84d090324ee572c99de18` | `5bd2438911047394b6484f41bf7e6bff87ac06467ae84d090324ee572c99de18` |
+| `tests/SessionOrigin.Chain/SessionOrigin.Chain.csproj` | `8d654c44b7bebb6b31a9f2f606927f45b5072193adc4eef8cce3f3cf3b278df3` | `8d654c44b7bebb6b31a9f2f606927f45b5072193adc4eef8cce3f3cf3b278df3` |
+| `tests/SessionOrigin.Compiled/OriginHooks.cs` | `ae4f45c5227ab84dd07223bbb2e164d9b3dbb865700ec6b2d3d3987a40880258` | `ae4f45c5227ab84dd07223bbb2e164d9b3dbb865700ec6b2d3d3987a40880258` |
+| `tests/SessionOrigin.Compiled/SessionOrigin.Compiled.csproj` | `e6fcb8e1e93a724d47a829cffd19d47840a5eb088e9ace43f3a34bbaf1524b07` | `e6fcb8e1e93a724d47a829cffd19d47840a5eb088e9ace43f3a34bbaf1524b07` |
+| `docs/development.md` | `ceae5459782d6abcb95f34795e58f879c7be2ea94ca9a2ce500aa2f13b2502b6` | `25a3d8e88864dd135c40cc8f35e8dbd6107e632bb02daedf2947014279ebe336 (sanitized)` |
+| `docs/ugc-session-policy.md` | `a789c83768456adcd9f4bc128c2a762430ab10f988380751de759433197a4634` | `72acbc73add0a4091318c3de6ee4f214486fa6d71ceea929a617b5a32f17f699 (sanitized)` |
+| `src/coreclr/System.Private.CoreLib/src/ILLink/ILLink.Descriptors.Shared.xml` | `3136a3865c7a4bc3dd3fabe34a4817c725c3ecd65fa325fc0f49ab9979046be3` | `c28a8de2bc362b524c9cfd0db8a43ec7e19dc214382b316c055c9dcf52dcdf5d (CRLF; normalized equal)` |
+| `src/coreclr/System.Private.CoreLib/src/System/Reflection/RuneCLRReflectionPolicy.cs` | `713758e7e8a2f68baed08413299a54389f00d89239041bf27f6ff946f6bfb933` | `1a4582aa690c794f3c7565560c694d1b52943d8c747f5e1d8771ea956772b56c (CRLF; normalized equal)` |
+| `src/coreclr/vm/assemblynative.cpp` | `2ea25a20bf5edc412957c99ebdf1f5e7347a87b3bf520425af98a8c525ef427d` | `5e6f61a0180f553d4685572a3219cd7d42d7e4e719158bf683d31a690bb28f28 (CRLF; normalized equal)` |
+| `src/coreclr/vm/assemblynative.hpp` | `a059e6015e97869f1d2054ccad720944d38d9be9cac88e3dddb1d5259e523fc5` | `88bc13363f5d280fdfcbef1ad61ade76393a7d9df2e12cc90682e480b22b3bfc (CRLF; normalized equal)` |
+| `src/coreclr/vm/qcallentrypoints.cpp` | `6cdf4da618474c5cb2cbdb5541acfad0a92b5b8386e92df5963e7bbc189b7f63` | `3283add5979f1b44ac22c94cce3fe8062f2ebf9a0c40f3aac81cfa8f909b22cf (CRLF; normalized equal)` |
+
+The runtime files match `source-manifest.json` (base = head = `7cbdad39`, no extras, no
+deletions) after newline normalization; the tested raw sha256 values are the ones in that manifest.
