@@ -96,6 +96,13 @@ def main():
     inputs.update(path for path in layout.rglob("*") if path.is_file())
     inputs.update(produced_paths[name] for name in outputs)
     pins = {str(path): digest(path) for path in sorted(inputs) if path.is_file()}
+    # Parse-to-pin consistency: the bytes parsed above must be the bytes pinned now.
+    pin_sha = pins.get(str(args.source_manifest.resolve()))
+    if pin_sha is None:
+        raise RuntimeError("Source manifest is missing from the input pins.")
+    if pin_sha != manifest_sha:
+        raise RuntimeError("Source manifest changed between parse and pin.")
+    loaded_sha = manifest_sha
     write = output / "pins-before.json"
     write.write_text(json.dumps(pins, indent=2) + NL, encoding="utf-8")
 
@@ -127,7 +134,9 @@ def main():
     for name, value in files.items():
         if digest(runtime / name) != value:
             raise RuntimeError("Declared runtime source drifted during the run: " + name)
-    if hashlib.sha256((output / "source-manifest.copy.json").read_bytes()).hexdigest() != manifest_sha:
+    if hashlib.sha256(args.source_manifest.read_bytes()).hexdigest() != loaded_sha:
+        raise RuntimeError("Original source manifest changed during the run.")
+    if hashlib.sha256((output / "source-manifest.copy.json").read_bytes()).hexdigest() != loaded_sha:
         raise RuntimeError("Consumed source manifest copy drifted.")
     (output / "pins-after.json").write_text(json.dumps(after, indent=2) + NL, encoding="utf-8")
     drift = [path for path in pins if pins[path] != after[path]]
