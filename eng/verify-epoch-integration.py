@@ -45,7 +45,11 @@ def main():
         raise ValueError("Output must be a new directory.")
     output.mkdir(parents=True)
 
-    manifest = json.loads(args.source_manifest.read_text(encoding="utf-8"))
+    manifest_bytes = args.source_manifest.read_bytes()
+    manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
+    manifest_length = len(manifest_bytes)
+    (output / "source-manifest.copy.json").write_bytes(manifest_bytes)
+    manifest = json.loads(manifest_bytes.decode("utf-8"))
     head = git(runtime, "rev-parse", "HEAD")
     if head != (manifest.get("head") or manifest.get("baseline_head")):
         raise ValueError("Runtime HEAD mismatch: " + head)
@@ -64,6 +68,7 @@ def main():
     outputs = {"System.Private.CoreLib.dll": "CoreLib", "coreclr.dll": "coreclr", "clrjit.dll": "clrjit",
                "clrinterpreter.dll": "clrinterpreter", "corerun.exe": "corerun"}
     artifact = {}
+    produced_paths = {}
     for name in outputs:
         produced, installed = build / name, shared / name
         if not produced.is_file():
@@ -79,6 +84,7 @@ def main():
         if digest(produced) != digest(installed):
             raise ValueError("Layout " + name + " does not equal the runtime build output.")
         artifact[name] = digest(produced)
+        produced_paths[name] = produced
 
     harness = root / "tests/RuneCLR.EpochDeadline.Tests/bin/Release/net11.0/RuneCLR.EpochDeadline.Tests.dll"
     inputs = {harness, Path(__file__).resolve(), root / "RuneCLR.slnx", root / "Directory.Build.props",
@@ -88,7 +94,7 @@ def main():
         inputs.update(path for path in folder.rglob("*") if path.is_file()
                       and not {"bin", "obj"}.intersection(path.relative_to(folder).parts))
     inputs.update(path for path in layout.rglob("*") if path.is_file())
-    inputs.update(build / name for name in outputs)
+    inputs.update(produced_paths[name] for name in outputs)
     pins = {str(path): digest(path) for path in sorted(inputs) if path.is_file()}
     write = output / "pins-before.json"
     write.write_text(json.dumps(pins, indent=2) + NL, encoding="utf-8")
@@ -110,11 +116,26 @@ def main():
         print("  " + (failures[0] if failures else "see log"))
 
     after = {str(path): digest(path) if path.is_file() else None for path in sorted(inputs)}
+    # Post-run re-validation: the runtime HEAD, its worktree state and the declared source files must be
+    # unchanged, and the consumed manifest copy must still hash to the bytes read at pin time.
+    if git(runtime, "rev-parse", "HEAD") != head:
+        raise RuntimeError("Runtime HEAD drifted during the run.")
+    status_after = subprocess.check_output(["git", "-C", str(runtime), "status", "--porcelain", "--untracked-files=normal"], text=True).splitlines()
+    changed_after = sorted(line[3:].strip() for line in status_after if line.strip())
+    if changed_after != sorted(files):
+        raise RuntimeError("Runtime working tree drifted during the run.")
+    for name, value in files.items():
+        if digest(runtime / name) != value:
+            raise RuntimeError("Declared runtime source drifted during the run: " + name)
+    if hashlib.sha256((output / "source-manifest.copy.json").read_bytes()).hexdigest() != manifest_sha:
+        raise RuntimeError("Consumed source manifest copy drifted.")
     (output / "pins-after.json").write_text(json.dumps(after, indent=2) + NL, encoding="utf-8")
     drift = [path for path in pins if pins[path] != after[path]]
     summary = {"harnessExit": process.returncode, "pinCount": len(pins), "drift": drift,
                "buildRID": args.build_rid, "artifact": artifact,
-               "sourceIdentity": {"head": head, "deltaFiles": len(files), "localUncommitted": True},
+               "sourceIdentity": {"head": head, "deltaFiles": len(files),
+                                  "localUncommitted": bool(files),
+                                  "manifestSha256": manifest_sha, "manifestBytes": manifest_length},
                "layoutFiles": sum(1 for p in layout.rglob("*") if p.is_file())}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + NL, encoding="utf-8")
     if drift:
