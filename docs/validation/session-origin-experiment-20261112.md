@@ -11,6 +11,8 @@ No public policy, default selection or API surface is changed by this snapshot.
 | `ReneeGA2020/RuneCLR` | `experiment/session-origin-20261112` | `bdbc7f52f82eda342c43559cbeabc2ac484fe484` |
 | `ReneeGA2020/runtime` | `runeclr/session-origin-20261112` | `7cbdad39669188c1f49f0a41216829d9a9005591` |
 
+Paired runtime commit: 35f6c0e84112de967089a6167df94d23bb7c3b16.
+
 The runtime commit is based on the published reflection-policy commit and is not rebased
 onto newer upstream. The host commit adds only the opt-in session-origin surface plus tests.
 
