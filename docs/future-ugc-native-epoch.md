@@ -56,4 +56,3 @@ stays the same: authors submit build inputs, never executable machine code.
 
 Parameters are deliberately unspecified and no experiment or schedule is created here. Whether to pursue
 this at all depends on real game requirements; it must not block the current engine integration work.
-
