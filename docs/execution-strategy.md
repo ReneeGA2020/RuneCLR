@@ -53,6 +53,10 @@ and a trusted compiler do not automatically make gameplay behavior safe.
 For a future JIT route, servers produce approved IL packages and the controlled
 runtime normally generates machine code on the execution device.
 
+For the wider future direction (controlled build plus a dedicated runtime epoch with compiled-code
+checkpoints and reliable termination), see [future-ugc-native-epoch.md](future-ugc-native-epoch.md).
+The current interpreter-only baseline described above is unchanged.
+
 ## Why this sequence
 
 The first priority is reliable map retirement and recovery from ordinary author
