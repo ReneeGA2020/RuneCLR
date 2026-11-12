@@ -15,6 +15,11 @@ public sealed record MapRunOptions
     // Experimental native IR-dispatch budget, not a complete execution-time sandbox.
     public long? PrototypeInstructionBudget { get; init; }
     public TimeSpan? PrototypeCallbackDeadline { get; init; }
+    // Sampling source for the callback deadline. Clock (the default) is the original v1 clock ABI.
+    // Epoch needs the runtime epoch capability, a process-wide trusted ticker and a process-latched
+    // period; a runtime without the capability fails before any author file, never downgrades.
+    public MapDeadlineMode PrototypeDeadlineMode { get; init; } = MapDeadlineMode.Clock;
+    public int PrototypeDeadlineEpochPeriodMicros { get; init; } = 10_000;
     public int PrototypeDeadlinePollInterval { get; init; } = 100;
     public long PrototypeCleanupInstructionBudget { get; init; } = 4_096;
     // Only MapRunner.Run uses TickCount; pumped sessions advance when the host calls Tick.
@@ -48,6 +53,15 @@ public sealed record MapRunOptions
             if (PrototypeDeadlinePollInterval is not (1 or 100 or 1000))
                 throw new ArgumentOutOfRangeException(nameof(PrototypeDeadlinePollInterval));
         }
+        if (!Enum.IsDefined(PrototypeDeadlineMode))
+            throw new ArgumentOutOfRangeException(nameof(PrototypeDeadlineMode));
+        if (PrototypeDeadlineMode == MapDeadlineMode.Epoch)
+        {
+            if (PrototypeCallbackDeadline is null)
+                throw new ArgumentException("Epoch deadline mode requires PrototypeCallbackDeadline.", nameof(PrototypeDeadlineMode));
+            if (PrototypeDeadlineEpochPeriodMicros is < 1 or > 1_000_000)
+                throw new ArgumentOutOfRangeException(nameof(PrototypeDeadlineEpochPeriodMicros));
+        }
         ArgumentOutOfRangeException.ThrowIfNegative(TickCount);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(TickDuration, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(OperationBudgetPerCallback);
@@ -57,6 +71,15 @@ public sealed record MapRunOptions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxWorkItems);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxResources);
     }
+}
+
+/// <summary>Sampling source for the prototype callback deadline.</summary>
+public enum MapDeadlineMode
+{
+    /// <summary>Original v1 clock mode; the default and the only mode old runtimes support.</summary>
+    Clock,
+    /// <summary>Opt-in shared-ticker epoch mode; requires the additive runtime capability.</summary>
+    Epoch
 }
 
 public enum MapRunOutcome
@@ -82,7 +105,14 @@ public sealed record MapRunReport(
 }
 
 public sealed record CallbackDeadlineSnapshot(long ClockFrequency, long ClockChecks, long AdmittedOperations,
-    bool Active, int PollInterval, long LastToken, int Reason);
+    bool Active, int PollInterval, long LastToken, int Reason)
+{
+    // Epoch evidence. Clock snapshots leave these at zero and never query the additive fields,
+    // so an old v1 runtime without fields 8..10 keeps working unchanged.
+    public int Mode { get; init; }
+    public long EpochBudgetTicks { get; init; }
+    public long CurrentGlobalEpoch { get; init; }
+}
 
 // Scalars copied before Unload; no session context, author metadata or exception is retained.
 public sealed record PrototypeBudgetSnapshot(
