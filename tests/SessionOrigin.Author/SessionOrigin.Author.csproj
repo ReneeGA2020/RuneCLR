@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../SessionOrigin.Compiled/SessionOrigin.Compiled.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Abstractions/RuneCLR.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

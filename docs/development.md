@@ -20,6 +20,16 @@ callback-epoch stacks are not part of it. Its Windows x64 build/test evidence
 does not establish iOS or device behavior - the accepted iPad results stay with
 their own recorded pins.
 
+## Session-origin integration branch (2026-11-12)
+
+The opt-in session-origin policy is prepared on the integration bases
+`feature/session-origin-integration-20261112` (RuneCLR `origin/main`) and
+`runeclr/session-origin-integration-20261112` (`runeclr/dev`). The design, opt-in
+contract and limits are in
+[validation/session-origin-integration-20261112.md](validation/session-origin-integration-20261112.md).
+The runtime `RuneCLR.EnableReflectionPolicyOriginScan` switch defaults to disabled,
+so a host that does not opt in keeps the existing reflection-policy behavior.
+
 ## Physical iPad device R2R experiment (2026-11-10)
 
 The [iPad device R2R experiment](ios-device-r2r-experiment.md) records the first

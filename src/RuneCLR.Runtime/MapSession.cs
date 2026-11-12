@@ -40,6 +40,7 @@ public sealed class MapSession : IDisposable
         _terminal = options.PrototypeInstructionBudget is not null || _deadline is not null ? TerminalPrototypeBridge.Bind(required!) : null;
         _policyVersion = required is null ? 0 : 1;
         if (options.PrototypeApiPolicy is not null) PrototypeReflectionPolicy.Prepare();
+        if (options.PrototypeRequireOriginScan) PrototypeReflectionPolicy.PrepareOriginScan();
         try
         {
             var resolver = new MapDependencyResolver(package, allowSessionAssemblyNames: options.PrototypeApiPolicy is not null);
