@@ -12,6 +12,8 @@ public sealed record MapRunOptions
     // Opt-in until every loading/entry path has matching runtime enforcement.
     public RuneCLR.Packages.IApiAccessPolicy? PrototypeApiPolicy { get; init; }
     public IReadOnlyList<System.Reflection.Assembly> PrototypeSharedAssemblies { get; init; } = [];
+    // Opt-in requirement that the runtime enforce policy from actual stack origin.
+    public bool PrototypeRequireOriginScan { get; init; }
     // Experimental native IR-dispatch budget, not a complete execution-time sandbox.
     public long? PrototypeInstructionBudget { get; init; }
     public TimeSpan? PrototypeCallbackDeadline { get; init; }
@@ -35,6 +37,9 @@ public sealed record MapRunOptions
         ArgumentNullException.ThrowIfNull(PrototypeSharedAssemblies);
         if (PrototypeSharedAssemblies.Count != 0 && PrototypeApiPolicy is null)
             throw new ArgumentException("Explicit shared assemblies require a UGC API policy.");
+        if (PrototypeRequireOriginScan &&
+            (PrototypeApiPolicy is null || ExecutionPolicy != MapExecutionPolicy.RequireInterpreter))
+            throw new ArgumentException("Prototype origin scanning requires RequireInterpreter and a UGC API policy.");
         if (PrototypeInstructionBudget is { } instructionBudget)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(instructionBudget, nameof(PrototypeInstructionBudget));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(PrototypeCleanupInstructionBudget);
