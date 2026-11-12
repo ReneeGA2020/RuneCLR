@@ -20,6 +20,21 @@ callback-epoch stacks are not part of it. Its Windows x64 build/test evidence
 does not establish iOS or device behavior - the accepted iPad results stay with
 their own recorded pins.
 
+## Optional callback deadline (2026-11-12)
+
+The [callback-epoch increment](experiments/optional-epoch-deadline-integration-20261112.md) pairs
+the opt-in epoch callback deadline with the runtime publication branch
+`runeclr/optional-callback-epoch-integration-final-20261112` (tested code `e637bd79`, parent
+`runeclr/dev` `474eb8ad`). The final host join on that delivery passes the epoch suite 24/24, the
+verifier with 659 pins and zero drift, and the lifecycle harness 156/156 both ordinary and with
+`--require-interpreter`; four focused upstream tests pass on the exact Release binary. It stays
+private and opt-in: the clock path is the default, configuration must happen before a context's
+first execution, and late activation is rejected. Author finalizers are not safe in a budgeted
+context: an isolated lane showed a post-`End` finalizer terminating the process on both the frozen
+7f and final 08 runtimes, so no pending author finalizer may remain in a budgeted context. The
+limits are recorded there: Windows x64 Release only, no device/AOT/Linux/Wasm or JIT/R2R
+instrumentation, a fail-closed budget rather than a sandbox, and a host-owned ticker.
+
 ## Session-origin integration branch (2026-11-12)
 
 The opt-in session-origin policy is prepared on the integration bases
@@ -29,6 +44,20 @@ contract and limits are in
 [validation/session-origin-integration-20261112.md](validation/session-origin-integration-20261112.md).
 The runtime `RuneCLR.EnableReflectionPolicyOriginScan` switch defaults to disabled,
 so a host that does not opt in keeps the existing reflection-policy behavior.
+
+## Combined opt-in acceptance (2026-11-13)
+
+The epoch callback-deadline host branch merges `origin/main` `aa31875` (the merged session-origin
+host PR) and is accepted together with both opt-ins on runtime
+`runeclr/optional-callback-epoch-integration-final-20261112` `fed410bbe368b465b6628338a6fc04d6c38a4f2e`
+(parent merge `234c0b7a…` over `runeclr/dev` `474eb8ad…`). On one private layout composed from that
+`windows.x64.Release` delivery the epoch suite passes 24/24, the epoch verifier 669 pins with zero
+drift, the session-origin fixed matrix 16/16 modes with 710 pins and zero drift, and the lifecycle
+harness 156/156 both ordinary and with `--require-interpreter`. Both switches stay off by default and
+the documented limits are unchanged; the
+[callback-epoch increment](experiments/optional-epoch-deadline-integration-20261112.md) records the
+combined evidence, the allowed-document provenance mode of `eng/verify-runtime-session-origin.py`,
+and the earlier published-base comparison that blocked the first attempt.
 
 ## Physical iPad device R2R experiment (2026-11-10)
 

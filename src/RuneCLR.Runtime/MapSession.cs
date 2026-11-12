@@ -18,6 +18,7 @@ public sealed class MapSession : IDisposable
     private AssemblyLoadContext? _loadContext;
     private TerminalPrototypeBridge? _terminal;
     private CallbackDeadlineBridge? _deadline;
+    private CallbackEpochTicker.Lease? _epochLease;
     private ReflectionPolicySession? _reflectionPolicy;
     private long _deadlineToken;
     private string? _deadlineFailure;
@@ -36,13 +37,24 @@ public sealed class MapSession : IDisposable
         // Capability failure is a host configuration error, before opening author files.
         var required = options.ExecutionPolicy == MapExecutionPolicy.RequireInterpreter
             ? RequiredInterpreterBridge.Bind() : null;
-        _deadline = options.PrototypeCallbackDeadline is not null ? deadlineBridge ?? CallbackDeadlineBridge.Bind() : null;
-        _terminal = options.PrototypeInstructionBudget is not null || _deadline is not null ? TerminalPrototypeBridge.Bind(required!) : null;
+        _deadline = options.PrototypeCallbackDeadline is not null
+            ? deadlineBridge ?? CallbackDeadlineBridge.Bind(options.PrototypeDeadlineMode,
+                options.PrototypeDeadlineEpochPeriodMicros)
+            : null;
+        // The callback-deadline ABI is independent of the instruction-terminal prototype: a deadline-only
+        // session must not require that unrelated native surface. Only an explicit instruction budget binds it.
+        _terminal = options.PrototypeInstructionBudget is not null ? TerminalPrototypeBridge.Bind(required!) : null;
         _policyVersion = required is null ? 0 : 1;
         if (options.PrototypeApiPolicy is not null) PrototypeReflectionPolicy.Prepare();
         if (options.PrototypeRequireOriginScan) PrototypeReflectionPolicy.PrepareOriginScan();
         try
         {
+            // Lease and bootstrap the shared ticker before any author file is opened or loaded.
+            // The native period acknowledgement happens later, inside the epoch factory (op 6);
+            // until then this latch is host-side and two sessions must agree on the period here.
+            if (_deadline is { Mode: MapDeadlineMode.Epoch })
+                _epochLease = CallbackEpochTicker.Acquire(options.PrototypeDeadlineEpochPeriodMicros,
+                    _deadline.TickEpoch, _deadline.ReadEpoch);
             var resolver = new MapDependencyResolver(package, allowSessionAssemblyNames: options.PrototypeApiPolicy is not null);
             var admission = options.PrototypeApiPolicy is { } policy
                 ? new UgcAssemblyAdmission(policy, package, options.PrototypeSharedAssemblies) : null;
@@ -55,10 +67,14 @@ public sealed class MapSession : IDisposable
         }
         catch
         {
-            _reflectionPolicy?.Dispose();
+            // Every cleanup step is isolated so the original constructor failure is rethrown, and
+            // the epoch lease is always released even when Dispose/Unload throw.
+            try { _reflectionPolicy?.Dispose(); } catch (Exception) { }
             _reflectionPolicy = null;
-            _loadContext?.Unload();
+            try { _loadContext?.Unload(); } catch (Exception) { }
             _loadContext = null;
+            try { _epochLease?.Dispose(); } catch (Exception) { }
+            _epochLease = null;
             throw;
         }
     }
@@ -332,7 +348,18 @@ public sealed class MapSession : IDisposable
                 {
                     _error = Append(_error, "The native prototype state snapshot could not be read.");
                 }
-                finally { _deadline = null; loadContext.Unload(); }
+                finally
+                {
+                    _deadline = null;
+                    try { loadContext.Unload(); }
+                    finally
+                    {
+                        // Author execution has returned; the final lease always stops and joins the
+                        // ticker, even when a native snapshot or Unload above throws.
+                        _epochLease?.Dispose();
+                        _epochLease = null;
+                    }
+                }
             }
         }
 
@@ -356,6 +383,7 @@ public sealed class MapSession : IDisposable
 
     private void CheckPrototypeState()
     {
+        CheckEpochTicker();
         if (_deadlineFailure is not null) throw new InvalidOperationException(_deadlineFailure);
         bool terminated;
         try { terminated = _terminal?.IsTerminated(_loadContext!) == true; }
@@ -365,11 +393,12 @@ public sealed class MapSession : IDisposable
             throw;
         }
         if (terminated)
-            throw new InvalidOperationException(_deadline is null ? TerminationError : DeadlineTerminationError);
+            throw new InvalidOperationException(DescribeTermination());
     }
 
     private void BeginDeadline()
     {
+        CheckEpochTicker();
         if (_deadlineFailure is not null) throw new InvalidOperationException(_deadlineFailure);
         if (_deadline is null) return;
         try
@@ -386,6 +415,7 @@ public sealed class MapSession : IDisposable
 
     private void EndDeadline()
     {
+        CheckEpochTicker();
         if (_deadlineToken == 0) return;
         var token = _deadlineToken;
         _deadlineToken = 0;
@@ -397,6 +427,30 @@ public sealed class MapSession : IDisposable
         catch (Exception)
         {
             FailDeadlineBridge("The native callback deadline activation could not be closed.");
+        }
+    }
+
+    // A persistent ticker fault is reported at host gates only; it never promises to rescue an
+    // infinite author body whose counter keeps advancing (or a ticker that stopped advancing).
+    private void CheckEpochTicker()
+    {
+        if (_epochLease is not { } lease || lease.FaultType is not { } fault) return;
+        FailDeadlineBridge($"The process epoch ticker failed ({fault}).");
+    }
+
+    // Report the mechanism that actually tripped: the deadline reason when a deadline budget was exceeded,
+    // otherwise the instruction-budget terminal state. A missing/retired deadline bridge falls back to the
+    // terminal text, and query failures keep the fail-closed terminal message.
+    private string DescribeTermination()
+    {
+        if (_deadline is null) return TerminationError;
+        try
+        {
+            return _deadline.Snapshot(_loadContext!).Reason != 0 ? DeadlineTerminationError : TerminationError;
+        }
+        catch (Exception)
+        {
+            return TerminationError;
         }
     }
 
@@ -413,7 +467,7 @@ public sealed class MapSession : IDisposable
         {
             try
             {
-                if (_terminal.IsTerminated(_loadContext!)) return _deadline is null ? TerminationError : DeadlineTerminationError;
+                if (_terminal.IsTerminated(_loadContext!)) return DescribeTermination();
             }
             catch (Exception)
             {
@@ -424,7 +478,7 @@ public sealed class MapSession : IDisposable
 
         if (exception is TargetInvocationException { InnerException: { } inner }) exception = inner;
         var typeName = exception.GetType().FullName ?? "Exception";
-        if (_terminal is not null || _reflectionPolicy is not null)
+        if (_terminal is not null || _deadline is not null || _reflectionPolicy is not null)
         {
             // Message/ToString may invoke author code even before native termination.
             return typeName.Length <= 512 ? typeName : typeName[..512];

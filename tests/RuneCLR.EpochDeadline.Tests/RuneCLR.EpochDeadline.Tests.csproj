@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Packages/RuneCLR.Packages.csproj" />
+    <ProjectReference Include="../EpochDeadline.Author/EpochDeadline.Author.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="StageEpochDeadlineAuthor" AfterTargets="Build">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../EpochDeadline.Author/bin/$(Configuration)/$(TargetFramework)/EpochDeadline.Author.dll" DestinationFolder="$(OutDir)epoch-author" />
+  </Target>
+</Project>

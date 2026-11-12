@@ -242,6 +242,178 @@ def committed_cases(base, driver):
     return failures
 
 
+def clean_commit_fixture(base, name="clean"):
+    """Synthetic runtime-shaped repository: source delta plus two tracked docs."""
+    repo = base / name
+    repo.mkdir()
+    run(repo, "init", "-q", "-b", "main")
+    for relative, content in (("src/coreclr/vm/f1.cpp", "base-1"),
+                              ("src/coreclr/vm/f2.cpp", "base-2"),
+                              ("docs/runeclr-dev.md", "base doc"),
+                              ("docs/stable.md", "stable doc"),
+                              ("a.txt", "stable")):
+        path = repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content + NL, encoding="utf-8")
+    run(repo, "add", "-A")
+    commit(repo, "base")
+    base_commit = run(repo, "rev-parse", "HEAD")
+    (repo / "src/coreclr/vm/f1.cpp").write_text("changed-1" + NL, encoding="utf-8")
+    (repo / "src/coreclr/vm/f3.cpp").write_text("added-3" + NL, encoding="utf-8")
+    (repo / "docs/runeclr-dev.md").write_text("changed doc" + NL, encoding="utf-8")
+    (repo / "docs/runeclr-callback-epoch.md").write_text("new doc" + NL, encoding="utf-8")
+    run(repo, "add", "-A")
+    commit(repo, "integration")
+    return repo, base_commit, run(repo, "rev-parse", "HEAD")
+
+
+def clean_commit_cases(base, driver):
+    """Explicit --runtime-base/--additional-allowed-path behaviour in clean-commit mode."""
+    failures = []
+    repo, base_commit, head = clean_commit_fixture(base)
+    docs = ("docs/runeclr-dev.md", "docs/runeclr-callback-epoch.md")
+    original_base = driver.RUNTIME_BASE
+    driver.RUNTIME_BASE = base_commit
+    try:
+        def accept_combined():
+            observed_head, changed = driver.verify_runtime_provenance(
+                repo, head, base=base_commit, allowed_paths=docs)
+            if observed_head != head:
+                raise ValueError("unexpected head " + observed_head)
+            if len(changed) != 4:
+                raise ValueError("expected four changed paths, got " + repr(changed))
+            if not any(path.startswith("src/") for path in changed):
+                raise ValueError("combined delta lost its source files")
+            if sorted(path for path in changed if not path.startswith("src/")) != sorted(docs):
+                raise ValueError("combined delta lost its allowed docs")
+
+        failures.append(expect_accept("clean-commit explicit base with exactly the two canonical docs",
+                                      accept_combined))
+
+        failures.append(expect_reject(
+            "clean-commit default comparison still rejects docs",
+            lambda: driver.verify_runtime_provenance(repo, head),
+            "outside src/"))
+
+        failures.append(expect_reject(
+            "clean-commit explicit base without the allowlist rejects docs",
+            lambda: driver.verify_runtime_provenance(repo, head, base=base_commit),
+            "outside src/"))
+
+        failures.append(expect_reject(
+            "clean-commit unlisted doc",
+            lambda: driver.verify_runtime_provenance(repo, head, base=base_commit, allowed_paths=docs[:1]),
+            "outside src/"))
+
+        for label, allowed_path in (("source file", "src/coreclr/vm/f1.cpp"),
+                                    ("wildcard", "docs/*.md"),
+                                    ("directory", "docs"),
+                                    ("missing doc", "docs/missing.md"),
+                                    ("unchanged doc", "docs/stable.md")):
+            failures.append(expect_reject(
+                "clean-commit allowed path " + label,
+                lambda allowed_path=allowed_path: driver.verify_runtime_provenance(
+                    repo, head, base=base_commit, allowed_paths=(allowed_path,)),
+                "additional allowed path"))
+
+        failures.append(expect_reject(
+            "clean-commit short base",
+            lambda: driver.verify_runtime_provenance(repo, head, base="474eb8a"),
+            "full 40-character commit id"))
+
+        failures.append(expect_reject(
+            "clean-commit unknown base",
+            lambda: driver.verify_runtime_provenance(repo, head, base="f" * 40),
+            "is not a commit in the runtime repository"))
+
+        tree = run(repo, "rev-parse", base_commit + "^{tree}")
+        unrelated = run(repo, "commit-tree", tree, "-m", "unrelated root")
+        failures.append(expect_reject(
+            "clean-commit non-ancestor base",
+            lambda: driver.verify_runtime_provenance(repo, head, base=unrelated),
+            "is not descended from base"))
+
+        failures.append(expect_reject(
+            "clean-commit wrong expected head",
+            lambda: driver.verify_runtime_provenance(repo, "0" * 40, base=base_commit),
+            "Runtime HEAD must be"))
+
+        (repo / "docs/runeclr-dev.md").write_text("drifted doc" + NL, encoding="utf-8")
+        failures.append(expect_reject(
+            "clean-commit allowed doc drift after acceptance",
+            lambda: driver.verify_runtime_provenance(repo, head, base=base_commit, allowed_paths=docs),
+            "must be clean"))
+        (repo / "docs/runeclr-dev.md").write_text("changed doc" + NL, encoding="utf-8")
+
+        (repo / "src/coreclr/vm/f1.cpp").write_text("drifted source" + NL, encoding="utf-8")
+        failures.append(expect_reject(
+            "clean-commit source drift after acceptance",
+            lambda: driver.verify_runtime_provenance(repo, head, base=base_commit, allowed_paths=docs),
+            "must be clean"))
+        (repo / "src/coreclr/vm/f1.cpp").write_text("changed-1" + NL, encoding="utf-8")
+
+        failures.append(expect_accept(
+            "clean-commit restored worktree still accepted",
+            lambda: driver.verify_runtime_provenance(repo, head, base=base_commit, allowed_paths=docs)))
+    finally:
+        driver.RUNTIME_BASE = original_base
+
+    docs_only = base / "docs-only"
+    docs_only.mkdir()
+    run(docs_only, "init", "-q", "-b", "main")
+    (docs_only / "src").mkdir()
+    (docs_only / "docs").mkdir()
+    (docs_only / "src/main.cpp").write_text("base" + NL, encoding="utf-8")
+    (docs_only / "docs/stable.md").write_text("base doc" + NL, encoding="utf-8")
+    run(docs_only, "add", "-A")
+    commit(docs_only, "base")
+    docs_base = run(docs_only, "rev-parse", "HEAD")
+    (docs_only / "docs/stable.md").write_text("updated doc" + NL, encoding="utf-8")
+    run(docs_only, "add", "-A")
+    commit(docs_only, "docs only")
+    docs_head = run(docs_only, "rev-parse", "HEAD")
+    failures.append(expect_reject(
+        "clean-commit delta without any source file",
+        lambda: driver.verify_runtime_provenance(docs_only, docs_head, base=docs_base,
+                                                 allowed_paths=("docs/stable.md",)),
+        "no source delta under src/"))
+    return failures
+
+
+def cli_cases(base):
+    """The new clean-commit flags must be rejected in the other provenance modes."""
+    failures = []
+    root = Path(__file__).resolve().parents[1]
+    driver_path = str(root / "eng/verify-runtime-session-origin.py")
+    output = str(base / "cli-output")
+    global CASES
+    CASES += 1
+    command = [sys.executable, driver_path, "--runtime-root", str(base), "--layout", str(base),
+               "--output", output, "--runtime-committed-source", str(base / "receipt.json"),
+               "--runtime-base", "0" * 40]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode == 0:
+        failures.append("CLI accepted --runtime-base together with --runtime-committed-source")
+    elif "only valid in clean-commit" not in result.stderr:
+        failures.append("CLI incompatible-mode rejection had an unexpected message: "
+                        + result.stderr.strip()[-200:])
+    else:
+        print("PASS reject CLI --runtime-base with --runtime-committed-source")
+
+    CASES += 1
+    result = subprocess.run([sys.executable, driver_path, "--runtime-root", str(base),
+                             "--layout", str(base), "--output", output,
+                             "--runtime-base", "474eb8a"], capture_output=True, text=True)
+    if result.returncode == 0:
+        failures.append("CLI accepted a short --runtime-base")
+    elif "full 40-character commit id" not in result.stderr:
+        failures.append("CLI short-base rejection had an unexpected message: "
+                        + result.stderr.strip()[-200:])
+    else:
+        print("PASS reject CLI short --runtime-base")
+    return failures
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--workdir", type=Path)
@@ -323,6 +495,8 @@ def main():
     (build / "clrinterpreter.dll").write_bytes(b"built-clrinterpreter.dll")
 
     failures.extend(committed_cases(base, driver))
+    failures.extend(clean_commit_cases(base, driver))
+    failures.extend(cli_cases(base))
     failures = [failure for failure in failures if failure]
     print("CASES", CASES, "FAILURES", len(failures))
     for failure in failures:

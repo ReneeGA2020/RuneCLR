@@ -40,6 +40,8 @@
     <Project Path="tests/RuneCLR.TrustedReleaseRecovery.Tests/RuneCLR.TrustedReleaseRecovery.Tests.csproj" />
     <Project Path="tests/RuneCLR.Packaging.Tests/RuneCLR.Packaging.Tests.csproj" />
     <Project Path="tests/RuneCLR.PackageExecution.Tests/RuneCLR.PackageExecution.Tests.csproj" />
+    <Project Path="tests/EpochDeadline.Author/EpochDeadline.Author.csproj" />
+    <Project Path="tests/RuneCLR.EpochDeadline.Tests/RuneCLR.EpochDeadline.Tests.csproj" />
     <Project Path="tests/RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" />
     <Project Path="tests/TrustedUpdate.Good/TrustedUpdate.Good.csproj" />
     <Project Path="tests/TrustedUpdate.Throwing/TrustedUpdate.Throwing.csproj" />
