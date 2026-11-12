@@ -40,11 +40,53 @@ The archive branch keeps its original bytes and is untouched.
 - Epoch suite against the matching private runtime: **24 passed / 0 skipped / 0 failed**
   (host commits 17a41fb and the P3 reporting fix 2387d81).
 - `eng/verify-epoch-integration.py`: PASS with 658 pinned inputs and a 520-file private layout
-  (verifier commit 0f2f135; run evidence `run13`).
+  (verifier commit 0f2f135; run evidence `run13`). The same runtime layout was re-run as `run14`
+  on the fixture landing: 24 passed / 0 skipped / 0 failed, the same 658 pins and 520 files. The
+  later one-line relative-manifest pin fix does not change absolute-path runs.
 
 Historical figures are kept separate: the earlier stock-runtime run was 5 passed / 19 skipped
 because no matching runtime was present, and the 2026-11-10 campaign numbers came from the
 archived binaries. Those are history, not the current result.
+
+## Tooling regressions
+
+`eng/test-epoch-integration-provenance.py` builds throwaway Git/host/layout fixtures and drives the
+real `main()` of `eng/verify-epoch-integration.py` with a fixture-only stub for the harness child;
+git, digest and input-pinning code all run for real. Run from the repository root:
+
+```sh
+python3 eng/test-epoch-integration-provenance.py
+```
+
+Result for this candidate: **11 passed / 0 skipped / 0 failed**, confirmed both with the default
+host root and with an explicit `--host-root`. The cases are: a dirty declared-source positive and a
+clean committed-worktree positive (both also require the produced IL CoreLib to be pinned); IL
+produced-file drift; a manifest change between parse and pin; a manifest change during the run; a
+corrupted consumed manifest copy; runtime HEAD drift; untracked runtime-source status drift; a
+relative `--source-manifest` resolved under a deliberate working directory and pinned under its
+resolved key; and stdout appended after the run (stdout is not an input, so that is harmless).
+
+The suite exposed one remaining path bug in the base verifier: the pin set still used the raw
+`--source-manifest` argument, so a relative path failed the parse-to-pin equality even though the
+path had already been normalised for parsing. The fix reuses that normalisation and is a single
+line; absolute paths pin exactly the same set as before.
+
+## Focused upstream regression on the frozen runtime
+
+A private flat Core_Root was assembled from the frozen Release layout without modifying any
+layout, binary, host branch or SDK. Four official tests each reported **Expected 100 / Actual 100,
+exit 0**: `ContextualReflection`, `CollectibleStatics`, `GenericVirtualMethod` and
+`InterpreterTester`. The five Core_Root binaries were identical before and after the runs: coreclr
+`ed76bfa6…`, clrjit `23e3411d…`, clrinterpreter `905bb9bb…`, corerun `24ffba3e…`,
+System.Private.CoreLib `6f181812…` (under IL/). The test assemblies came from the official
+474-based test source and were not recompiled for these runs.
+
+`InterpreterTester` is the official wrapper and sets `DOTNET_Interpreter=RunInterpreterTests`
+internally. That runner configuration alone is not an independent per-method interpreted-mode
+trace: the same app also exits 100 with the switch off, and `DOTNET_InterpList`/`DOTNET_InterpDump`
+produced no method lines in this build. The pass is therefore compatibility evidence for the
+documented configuration, not proof of interpreted method entry, and it is not an epoch timing or
+overhead measurement.
 
 ## Runtime expectation (paired branch)
 

@@ -5,8 +5,8 @@ Self-contained stdlib test: builds throwaway git/host/layout fixtures, imports t
 verifier module from --host-root and drives its real main() path with a fixture-only
 subprocess.run stub for the harness child. Git, digest and input-pinning code all run for real.
 
-Installed later as eng/test-epoch-integration-provenance.py; default host root is
-Path(__file__).resolve().parents[1]. No native matrix is executed here.
+This is the committed fixture set at eng/test-epoch-integration-provenance.py; the default
+host root is Path(__file__).resolve().parents[1]. No native matrix is executed here.
 """
 import argparse
 import contextlib
@@ -14,6 +14,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -43,9 +44,10 @@ DIRTY_FILE = 'src/RuneCLR.Runtime/Committed.cs'
 
 
 class Fixture:
-    def __init__(self, base, il_fallback=True):
+    def __init__(self, base, il_fallback=True, dirty=True):
         self.base = Path(base)
         self.il_fallback = il_fallback
+        self.dirty = dirty
         self.host = self.base / 'host'
         self.runtime = self.base / 'runtime'
         self.layout = self.base / 'layout'
@@ -93,15 +95,16 @@ class Fixture:
         dirty.write_text('// baseline' + chr(10), encoding='utf-8')
         self.git('add', '-A')
         self.git('commit', '-q', '-m', 'fixture baseline')
-        dirty.write_text('// dirty' + chr(10), encoding='utf-8')
+        if self.dirty:
+            dirty.write_text('// dirty' + chr(10), encoding='utf-8')
         self.write_manifest()
 
     def head(self):
         return self.git('rev-parse', 'HEAD').stdout.strip()
 
     def manifest(self):
-        return {'head': self.head(),
-                'dirty_files': {DIRTY_FILE: digest(self.runtime / DIRTY_FILE)}}
+        files = {DIRTY_FILE: digest(self.runtime / DIRTY_FILE)} if self.dirty else {}
+        return {'head': self.head(), 'dirty_files': files}
 
     def write_manifest(self, extra_space=False):
         text = json.dumps(self.manifest(), indent=2)
@@ -115,7 +118,7 @@ class Fixture:
                 '--output', str(output)]
 
 
-def run_main(module, argv, on_harness=None):
+def run_main(module, argv, on_harness=None, cwd=None):
     """Drive the real main() with a fixture-only child-process stub for the harness."""
 
     def stub(command, cwd=None, env=None, stdout=None, stderr=None, timeout=None, check=False):
@@ -134,8 +137,11 @@ def run_main(module, argv, on_harness=None):
                                  CalledProcessError=real_subprocess.CalledProcessError)
 
     previous_argv = sys.argv
+    previous_cwd = Path.cwd()
     sys.argv = ['verify-epoch-integration.py'] + list(argv)
     module.subprocess = shim
+    if cwd is not None:
+        os.chdir(cwd)
     text = io.StringIO()
     try:
         with contextlib.redirect_stdout(text):
@@ -146,17 +152,17 @@ def run_main(module, argv, on_harness=None):
     finally:
         module.subprocess = real_subprocess
         sys.argv = previous_argv
+        if cwd is not None:
+            os.chdir(previous_cwd)
 
 
 def rejected(result, *keywords):
     ok, error, _ = result
     lowered = error.lower()
     return (not ok) and any(keyword.lower() in lowered for keyword in keywords)
-    ok, error, _ = result
-    return (not ok) and keyword.lower() in error.lower()
 
 
-def case_positive(fixture, module):
+def case_positive_dirty(fixture, module):
     output = fixture.base / 'out-positive'
     ok, error, text = run_main(module, fixture.argv(output))
     if not ok:
@@ -165,7 +171,7 @@ def case_positive(fixture, module):
     il = str(fixture.build / 'IL/System.Private.CoreLib.dll')
     if il not in pins:
         return False, 'accepted, but the produced IL CoreLib is not pinned (known gap)'
-    return True, 'accepted and the IL produced file is pinned'
+    return True, 'dirty declared source accepted and the IL produced file is pinned'
 
 
 def case_il_produced_drift(fixture, module):
@@ -260,14 +266,80 @@ def case_stdout_append(fixture, module):
     return True, 'stdout is not pinned and appending after the run is harmless'
 
 
+def case_positive_clean(fixture, module):
+    output = fixture.base / 'out-clean'
+    ok, error, _ = run_main(module, fixture.argv(output))
+    if not ok:
+        return False, 'clean positive run rejected: ' + error
+    pins = json.loads((output / 'pins-before.json').read_text(encoding='utf-8'))
+    il = str(fixture.build / 'IL/System.Private.CoreLib.dll')
+    if il not in pins:
+        return False, 'accepted, but the produced IL CoreLib is not pinned'
+    summary = json.loads((output / 'summary.json').read_text(encoding='utf-8'))
+    if summary.get('drift'):
+        return False, 'unexpected drift in a clean run: ' + repr(summary['drift'])
+    return True, 'clean committed worktree accepted and the IL produced file is pinned'
+
+
+def case_consumed_copy_corrupt(fixture, module):
+    output = fixture.base / 'out-consumed-corrupt'
+    copy = output / 'source-manifest.copy.json'
+
+    def corrupt():
+        if copy.is_file():
+            copy.write_bytes(copy.read_bytes() + b'!')
+
+    result = run_main(module, fixture.argv(output), on_harness=corrupt)
+    if rejected(result, 'consumed', 'copy drifted'):
+        return True, 'consumed copy corrupted during the run was rejected'
+    if result[0]:
+        return False, 'consumed copy corrupted during the run but the run was accepted'
+    return False, 'rejected for an unexpected reason: ' + result[1]
+
+
+def case_runtime_status_drift(fixture, module):
+    output = fixture.base / 'out-status-drift'
+
+    def drift():
+        (fixture.runtime / 'src/RuneCLR.Runtime/Untracked.cs').write_text('// untracked' + chr(10), encoding='utf-8')
+
+    result = run_main(module, fixture.argv(output), on_harness=drift)
+    if rejected(result, 'working tree drifted', 'status'):
+        return True, 'untracked source status drift during the run was rejected'
+    if result[0]:
+        return False, 'untracked source appeared during the run but the run was accepted'
+    return False, 'rejected for an unexpected reason: ' + result[1]
+
+
+def case_relative_manifest(fixture, module):
+    output = fixture.base / 'out-relative'
+    argv = ['--host-root', str(fixture.host), '--layout', str(fixture.layout),
+            '--runtime-root', str(fixture.runtime), '--source-manifest', fixture.manifest_path.name,
+            '--output', str(output)]
+    ok, error, _ = run_main(module, argv, cwd=fixture.base)
+    if not ok:
+        return False, 'relative --source-manifest run rejected: ' + error
+    pins = json.loads((output / 'pins-before.json').read_text(encoding='utf-8'))
+    resolved = str(fixture.manifest_path.resolve())
+    if resolved not in pins:
+        return False, 'the resolved manifest path is not pinned'
+    if pins[resolved] != digest(fixture.manifest_path):
+        return False, 'the pinned manifest hash differs from the manifest bytes'
+    return True, 'relative --source-manifest resolved and pinned under a deliberate cwd'
+
+
 CASES = [
-    ('positive-clean-il-fallback', case_positive),
-    ('il-produced-drift', case_il_produced_drift),
-    ('manifest-parse-pin-change', case_manifest_between_parse_and_pin),
-    ('manifest-during-run', case_manifest_during_run),
-    ('consumed-copy', case_consumed_copy),
-    ('runtime-head-drift', case_runtime_head_drift),
-    ('stdout-append', case_stdout_append),
+    ('positive-dirty-il-fallback', case_positive_dirty, {}),
+    ('positive-clean-commit', case_positive_clean, {'dirty': False}),
+    ('il-produced-drift', case_il_produced_drift, {}),
+    ('manifest-parse-pin-change', case_manifest_between_parse_and_pin, {}),
+    ('manifest-during-run', case_manifest_during_run, {}),
+    ('consumed-copy', case_consumed_copy, {}),
+    ('consumed-copy-corrupt', case_consumed_copy_corrupt, {}),
+    ('runtime-head-drift', case_runtime_head_drift, {}),
+    ('runtime-status-drift', case_runtime_status_drift, {}),
+    ('relative-source-manifest', case_relative_manifest, {}),
+    ('stdout-append', case_stdout_append, {}),
 ]
 
 
@@ -286,10 +358,10 @@ def main():
     failures = 0
     skipped = 0
     try:
-        for name, case in CASES:
+        for name, case, fixture_options in CASES:
             fixture_root = base / name
             fixture_root.mkdir(parents=True, exist_ok=True)
-            fixture = Fixture(fixture_root)
+            fixture = Fixture(fixture_root, **fixture_options)
             try:
                 outcome, detail = case(fixture, module)
             except Exception as error:

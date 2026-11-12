@@ -91,7 +91,7 @@ def main():
 
     harness = root / "tests/RuneCLR.EpochDeadline.Tests/bin/Release/net11.0/RuneCLR.EpochDeadline.Tests.dll"
     inputs = {harness, Path(__file__).resolve(), root / "RuneCLR.slnx", root / "Directory.Build.props",
-              args.source_manifest}
+              source_manifest}
     inputs.update(path for path in harness.parent.rglob("*") if path.is_file())
     for folder in (root / "src", root / "tests"):
         inputs.update(path for path in folder.rglob("*") if path.is_file()
