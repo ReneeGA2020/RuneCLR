@@ -54,80 +54,77 @@ Three distinct relations, not one:
   `assemblynative.hpp`, `ILLink.Descriptors.Shared.xml`); `qcallentrypoints.cpp` differs because the
   registration is re-applied onto the newer dev upstream; `RuneCLRReflectionPolicy.cs` differs by the
   deliberate default-off change. The archived experiment is not overwritten.
-- Host: 14 of 16 archived source/test files are byte-identical; `PrototypeReflectionPolicy.cs`
-  (fail-closed message) and `eng/verify-runtime-session-origin.py` (default-off mode and startup
-  switch wiring) changed intentionally.
+- Host: 12 of 16 archived source/test files are byte-identical. Four changed intentionally:
+  `PrototypeReflectionPolicy.cs` (fail-closed message), `eng/verify-runtime-session-origin.py`
+  (default-off mode and startup switch wiring), and the two session-origin fixture project files,
+  whose line endings were normalized to LF for the integration (integration-only change; the
+  archived snapshot bytes stay on the archive branch).
 
-Upstream targeted tests from `dotnet/runtime` are owned by a separate worker and are still pending;
-this branch does not claim them.
+Upstream focused tests (dotnet/runtime, matching Checked runtime, default origin-scan off):
+ContextualReflection, CollectibleAssemblies/Statics and CollectibleAssemblies/GenericVirtualMethod
+pass (expected 100, actual 100). A switch-on ContextualReflection run also succeeds; because those
+upstream tests do not attach a RuneCLR session, that run shows only switch parsing, not enforcement.
+Enforcement evidence remains the committed host matrix below. The full run identity and logs are in
+the focused-upstream report recorded with the session-origin integration evidence.
 
 ## Measured on 2026-11-12
 
-- Runtime build: `build.cmd -subset clr -configuration Checked -arch x64` on
-  `474eb8ad7230122cc0d34318b25d673da63fd138` plus the five source files below;
-  SDK `12.0.100-alpha.1.26480.102`, CMake 4.2.1, MSVC 19.44.35229.0; build exit 0.
-- Private binary identities: `coreclr.dll`
-  `42933493ffeb20c2b97baca808afc7d5f3d1cadeaa48354e2502a5f77134d7d9`,
-  `clrjit.dll` `dd432f9e7f4383be0e352a76ed592a47cb0b1831d89371fe1e25e2c666b13898`,
-  `clrinterpreter.dll` `83b2f6bbb25f95e01904788b7fb9d8d44a3b594e96bde2b626d8869350ef56b3`,
-  `corerun.exe` `cda4877d19e629ba8175cc55fa4553e4006f87cc53e26a3c054f93a62198b7ee`,
-  `System.Private.CoreLib.dll` `578089837a4d6695e0b581827bb50e21d8e005a546e926c136511d9bb5311fae`.
-- Private layout: fresh Checked native output and CoreLib over the `runeclr/dev`
-  Release managed framework (same source pin); the matrix verifies the native
-  outputs and CoreLib against the fresh build hashes.
-- Matrix: `SESSION_ORIGIN_FIXED LOCAL_UNCOMMITTED_SOURCE_MANIFEST PASS`,
-  16 modes, 696 pins, runtime head `474eb8ad` plus the five uncommitted source
-  files; `default-off` reports capability 0, `capability-on` reports bit 0, and both
-  host gates reject before author loading with `PlatformNotSupportedException`.
-- Host stock runtime: `REFLECTION_POLICY_STOCK_TESTS PASS` and the lifecycle suite
-  `156/156`.
+Toolchain and binary identities:
+- Runtime build: `build.cmd -subset clr -configuration Checked -arch x64` on `474eb8ad` plus the five
+  source files; SDK 12.0.100-alpha.1.26480.102, CMake 4.2.1, MSVC 19.44.35229.0; build exit 0.
+- Private binaries: coreclr `42933493...`, clrjit `dd432f9e...`, clrinterpreter `83b2f6bb...`,
+  corerun `cda4877d...`, CoreLib `57808983...`.
+- Host toolchain: `dotnet` 11.0.100 (ambient SDK; no global.json). Rebuilt host outputs embed the
+  source revision; earlier outputs are history.
+- Private layout reuses the dev Release managed framework (same source pin); the matrix verifies
+  the native outputs and CoreLib against the fresh build hashes.
 
-- Host toolchain: `dotnet` version 11.0.100 (the repository has no
-  global.json; the SDK resolution was captured in local evidence and the build re-run explicitly). The rebuilt host
-  outputs embed the source revision `9505faa6...`; the pre-commit outputs embedded the previous
-  revision and are kept as history.
-- Post-commit re-run with the rebuilt harness: matrix 16 modes / 696 pins PASS, stock reflection
-  PASS, lifecycle 156/156 (evidence: matrix-postcommit.log and repro-matrix-postcommit/).
+### Runs (keyed by provenance, host commit and consumed source sha)
 
-- Committed-source run (2026-11-12, no HEAD switching): runtime clean at `2077f147`,
-  host clean at `24e5a8fa`; matrix
-  `SESSION_ORIGIN_FIXED COMMITTED_INTEGRATION_SOURCE PASS`, 16 modes, 695 pins,
-  drift 0 (matrix-committed.log, repro-matrix-committed/). The earlier dev+dirty run
-  (696 pins) is kept as history and is no longer the committed-source result.
+| provenance | host commit | consumed source | modes | pins | drift | output |
+| --- | --- | --- | --- | --- | --- | --- |
+| source-manifest (dirty build) | cbac2a6 + dirty | manifest `49609720...` | 16 | 696 | 0 | repro-matrix/ |
+| committed-integration | 49fc6df1 | receipt `c911c665...` | 16 | 695 | 0 | repro-matrix-committed/ |
+| committed-integration | 49fc6df1 | receipt `c911c665...` | 16 | 696 | 0 | repro-matrix-committed2/ |
+| committed-integration | 46c80a1b | receipt `c911c665...` | 16 | 696 | 0 | repro-matrix-final/ |
+
+The pin count is not the acceptance key: 695 vs 696 reflects whether the consumed receipt was
+included in the frozen inputs. The final row is the current result; earlier rows are kept as history.
+
+Receipt consistency versus build-log provenance: the receipt is a self-declared tooling input.
+This branch freezes its bytes (single read, before/after pin, in-output copy) and verifies the
+declared relations to the current commit and to the fresh binaries, but it cannot re-prove from the
+receipt alone that a specific build produced those binaries. That part rests on the recorded build
+log, the build-source head and the binary hashes. The mixed basis is deliberate: four runtime files
+were built from their raw (CRLF) bytes and RuneCLRReflectionPolicy.cs from its canonical (LF) form;
+the verifier records each as raw or normalized-canonical.
 
 ## Committed-source verification
 
 The verifier accepts the committed integration snapshot without moving HEAD:
 
-- `--runtime-committed-source <receipt>` requires a clean runtime worktree at the
-  receipt commit, that commit's exact parent, and a modification-only delta equal to the
-  receipt's five files.
-- The receipt records the build source (parent commit plus raw file hashes that were built),
-  the integration commit (canonical Git blob hashes) and the private runtime binary hashes.
-- Per file the working bytes must equal the recorded build source (raw) or, when the build
-  read the canonical form while the checkout materialises CRLF, normalise to the committed
-  blob (normalized-canonical). Any other difference is rejected.
+- `--runtime-committed-source <receipt>` requires a clean runtime worktree at the receipt
+  commit, that commit's exact parent, and a modification-only delta equal to the receipt's five files.
+- The receipt records the build source (parent commit plus raw file hashes that were built), the
+  integration commit (canonical Git blob hashes) and the private runtime binary hashes.
+- Per file the working bytes must equal the recorded build source (raw) or, when the build read the
+  canonical form while the checkout materialises CRLF, normalise to the committed blob
+  (normalized-canonical). Any other difference is rejected.
 - Fresh build outputs and CoreLib must match the receipt binaries.
 - The existing source-manifest (dirty build) and clean-commit modes are unchanged.
 
-Negative checks (negative-tests.py, 6/6): wrong build-source hash, wrong parent, internally
-inconsistent parent, wrong binary hash, an unexpected dirty file and a receipt rewritten
-mid-run are rejected; the first five fail before any mode runs.
+Tooling tests: `eng/test-session-origin-provenance.py` (24 cases) builds synthetic repositories and
+covers both provenance modes: a positive with four raw and one normalized-canonical file, and
+rejections for wrong build source, wrong parent, inconsistent parent, unexpected dirty tree, binary
+mismatch, receipt drift and receipt copy mismatch. The historical real-tree native negative remains
+in the artifact evidence.
 
-- Committed-source run with the receipt pinned as an input (2026-11-12): host clean at
-  `49fc6df1`, runtime clean at `2077f147`; matrix
-  `SESSION_ORIGIN_FIXED COMMITTED_INTEGRATION_SOURCE PASS`, 16 modes, 696 pins
-  (the extra pin is the consumed receipt), drift 0, consumed receipt sha256
-  `c911c665...98b1` with a copy in the run output (matrix-committed2.log,
-  repro-matrix-committed2/). The earlier 695-pin run is kept as history; it pinned one input
-  fewer and is superseded by this run.
-
-Receipt integrity: the verifier reads the receipt bytes once, parses those bytes and pins the
-same file before and after the run. The summary records the consumed sha256, byte count and
-the in-output copy (`consumed-source-receipt.json`). A receipt that changes between load and
-pin is rejected, and a change during the run (or a runtime commit/parent/worktree change)
-fails the run; the dirty source-manifest mode gets the same consumed-bytes identity and
-post-run re-check without relaxing its existing checks.
+Receipt integrity: the verifier reads the receipt bytes once, parses those bytes and pins the same
+file before and after the run. The summary records the consumed sha256, byte count and the in-output
+copy (`consumed-source-receipt.json`). A receipt that changes between load and pin is rejected, and a
+change during the run (or a runtime commit/parent/worktree change) fails the run; the dirty
+source-manifest mode gets the same consumed-bytes identity and post-run re-check without relaxing
+its existing checks.
 
 ## Limits
 
@@ -136,3 +133,8 @@ indirect coverage; the compiled-only suppressed child has no author frame;
 unmanaged entry, AOT/mobile, global all-load and the published walk-cost bound
 remain out of scope. No sandbox, native/R2R body, device or unload claim is made
 by this branch.
+
+Review-tool note: the verifier's `RUNTIME_BASE` (7cbdad39) is a historical ancestor check for
+provenance, not the PR base. PR base resolution is a separate explicit merge-base and diff check
+against the target branch (`origin/main` for the host, fork `runeclr/dev` for the runtime), because the
+verifier has no `--base` option. The two checks answer different questions.
