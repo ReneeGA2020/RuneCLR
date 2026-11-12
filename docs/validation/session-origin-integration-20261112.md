@@ -89,6 +89,31 @@ this branch does not claim them.
 - Post-commit re-run with the rebuilt harness: matrix 16 modes / 696 pins PASS, stock reflection
   PASS, lifecycle 156/156 (evidence: matrix-postcommit.log and repro-matrix-postcommit/).
 
+- Committed-source run (2026-11-12, no HEAD switching): runtime clean at `2077f147`,
+  host clean at `24e5a8fa`; matrix
+  `SESSION_ORIGIN_FIXED COMMITTED_INTEGRATION_SOURCE PASS`, 16 modes, 695 pins,
+  drift 0 (matrix-committed.log, repro-matrix-committed/). The earlier dev+dirty run
+  (696 pins) is kept as history and is no longer the committed-source result.
+
+## Committed-source verification
+
+The verifier accepts the committed integration snapshot without moving HEAD:
+
+- `--runtime-committed-source <receipt>` requires a clean runtime worktree at the
+  receipt commit, that commit's exact parent, and a modification-only delta equal to the
+  receipt's five files.
+- The receipt records the build source (parent commit plus raw file hashes that were built),
+  the integration commit (canonical Git blob hashes) and the private runtime binary hashes.
+- Per file the working bytes must equal the recorded build source (raw) or, when the build
+  read the canonical form while the checkout materialises CRLF, normalise to the committed
+  blob (normalized-canonical). Any other difference is rejected.
+- Fresh build outputs and CoreLib must match the receipt binaries.
+- The existing source-manifest (dirty build) and clean-commit modes are unchanged.
+
+Negative checks (negative-tests.py, 5/5): wrong build-source hash, wrong parent, internally
+inconsistent parent, wrong binary hash and an unexpected dirty file are rejected before any
+mode runs.
+
 ## Limits
 
 Native walker status 1 (saturation) and status 2 (walker error) have only
