@@ -36,7 +36,10 @@ public sealed class MapSession : IDisposable
         // Capability failure is a host configuration error, before opening author files.
         var required = options.ExecutionPolicy == MapExecutionPolicy.RequireInterpreter
             ? RequiredInterpreterBridge.Bind() : null;
-        _deadline = options.PrototypeCallbackDeadline is not null ? deadlineBridge ?? CallbackDeadlineBridge.Bind() : null;
+        _deadline = options.PrototypeCallbackDeadline is not null
+            ? deadlineBridge ?? CallbackDeadlineBridge.Bind(options.PrototypeDeadlineMode,
+                options.PrototypeDeadlineEpochPeriodMicros)
+            : null;
         _terminal = options.PrototypeInstructionBudget is not null || _deadline is not null ? TerminalPrototypeBridge.Bind(required!) : null;
         _policyVersion = required is null ? 0 : 1;
         if (options.PrototypeApiPolicy is not null) PrototypeReflectionPolicy.Prepare();

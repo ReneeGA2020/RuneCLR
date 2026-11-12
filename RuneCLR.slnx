@@ -36,6 +36,8 @@
     <Project Path="tests/RuneCLR.TrustedReleaseRecovery.Tests/RuneCLR.TrustedReleaseRecovery.Tests.csproj" />
     <Project Path="tests/RuneCLR.Packaging.Tests/RuneCLR.Packaging.Tests.csproj" />
     <Project Path="tests/RuneCLR.PackageExecution.Tests/RuneCLR.PackageExecution.Tests.csproj" />
+    <Project Path="tests/EpochBench.Author/EpochBench.Author.csproj" />
+    <Project Path="tests/RuneCLR.EpochBench/RuneCLR.EpochBench.csproj" />
     <Project Path="tests/RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" />
     <Project Path="tests/TrustedUpdate.Good/TrustedUpdate.Good.csproj" />
     <Project Path="tests/TrustedUpdate.Throwing/TrustedUpdate.Throwing.csproj" />

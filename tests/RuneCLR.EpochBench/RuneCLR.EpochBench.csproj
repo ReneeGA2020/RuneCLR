@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Packages/RuneCLR.Packages.csproj" />
+    <ProjectReference Include="../EpochBench.Author/EpochBench.Author.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="StageEpochAuthor" AfterTargets="Build">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../EpochBench.Author/bin/$(Configuration)/$(TargetFramework)/EpochBench.Author.dll" DestinationFolder="$(OutDir)bench" />
+  </Target>
+</Project>
