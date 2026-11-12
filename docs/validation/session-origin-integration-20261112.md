@@ -43,6 +43,24 @@ Measured results for this branch are recorded in the integration artifact
 (`session-origin-integration-20261112/`), together with the fresh source,
 runtime, toolchain and binary identities and the before/after pins.
 
+## Source provenance
+
+Three distinct relations, not one:
+
+- Tested working tree vs test manifest: runtime 5/5 raw sha256 equal (the matrix ran on those bytes).
+- Tested bytes vs the published runtime commit: 5/5 equal after CRLF to LF normalization; Git stores
+  text normalized (`text=auto`).
+- Integration vs the archived experiment commit: 3/5 byte-identical (`assemblynative.cpp`,
+  `assemblynative.hpp`, `ILLink.Descriptors.Shared.xml`); `qcallentrypoints.cpp` differs because the
+  registration is re-applied onto the newer dev upstream; `RuneCLRReflectionPolicy.cs` differs by the
+  deliberate default-off change. The archived experiment is not overwritten.
+- Host: 14 of 16 archived source/test files are byte-identical; `PrototypeReflectionPolicy.cs`
+  (fail-closed message) and `eng/verify-runtime-session-origin.py` (default-off mode and startup
+  switch wiring) changed intentionally.
+
+Upstream targeted tests from `dotnet/runtime` are owned by a separate worker and are still pending;
+this branch does not claim them.
+
 ## Measured on 2026-11-12
 
 - Runtime build: `build.cmd -subset clr -configuration Checked -arch x64` on
@@ -63,6 +81,13 @@ runtime, toolchain and binary identities and the before/after pins.
   host gates reject before author loading with `PlatformNotSupportedException`.
 - Host stock runtime: `REFLECTION_POLICY_STOCK_TESTS PASS` and the lifecycle suite
   `156/156`.
+
+- Host toolchain: `dotnet` version 11.0.100 (the repository has no
+  global.json; the SDK resolution was captured in local evidence and the build re-run explicitly). The rebuilt host
+  outputs embed the source revision `9505faa6...`; the pre-commit outputs embedded the previous
+  revision and are kept as history.
+- Post-commit re-run with the rebuilt harness: matrix 16 modes / 696 pins PASS, stock reflection
+  PASS, lifecycle 156/156 (evidence: matrix-postcommit.log and repro-matrix-postcommit/).
 
 ## Limits
 
