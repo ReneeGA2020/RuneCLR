@@ -110,9 +110,24 @@ The verifier accepts the committed integration snapshot without moving HEAD:
 - Fresh build outputs and CoreLib must match the receipt binaries.
 - The existing source-manifest (dirty build) and clean-commit modes are unchanged.
 
-Negative checks (negative-tests.py, 5/5): wrong build-source hash, wrong parent, internally
-inconsistent parent, wrong binary hash and an unexpected dirty file are rejected before any
-mode runs.
+Negative checks (negative-tests.py, 6/6): wrong build-source hash, wrong parent, internally
+inconsistent parent, wrong binary hash, an unexpected dirty file and a receipt rewritten
+mid-run are rejected; the first five fail before any mode runs.
+
+- Committed-source run with the receipt pinned as an input (2026-11-12): host clean at
+  `49fc6df1`, runtime clean at `2077f147`; matrix
+  `SESSION_ORIGIN_FIXED COMMITTED_INTEGRATION_SOURCE PASS`, 16 modes, 696 pins
+  (the extra pin is the consumed receipt), drift 0, consumed receipt sha256
+  `c911c665...98b1` with a copy in the run output (matrix-committed2.log,
+  repro-matrix-committed2/). The earlier 695-pin run is kept as history; it pinned one input
+  fewer and is superseded by this run.
+
+Receipt integrity: the verifier reads the receipt bytes once, parses those bytes and pins the
+same file before and after the run. The summary records the consumed sha256, byte count and
+the in-output copy (`consumed-source-receipt.json`). A receipt that changes between load and
+pin is rejected, and a change during the run (or a runtime commit/parent/worktree change)
+fails the run; the dirty source-manifest mode gets the same consumed-bytes identity and
+post-run re-check without relaxing its existing checks.
 
 ## Limits
 
