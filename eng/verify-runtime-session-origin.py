@@ -74,7 +74,8 @@ def runtime_corelib(runtime, build_rid=BUILD_RID):
 
 def load_source_manifest(path):
     """Read the explicit local-experiment manifest: {base, head, files{path: sha256}}."""
-    data = json.loads(path.read_text(encoding="utf-8"))
+    raw = path.read_bytes()
+    data = json.loads(raw.decode("utf-8"))
     if not isinstance(data, dict) or set(data) != {"base", "head", "files"}:
         raise ValueError("Source manifest must contain exactly base, head and files.")
     base, head, files = data["base"], data["head"], data["files"]
@@ -89,7 +90,8 @@ def load_source_manifest(path):
             raise ValueError("Source manifest entry is malformed: " + repr(name))
         if name.startswith("/") or chr(92) in name or ":" in name or ".." in name.split("/"):
             raise ValueError("Source manifest path escapes the runtime tree: " + name)
-    return {"base": base, "head": head, "files": dict(files)}
+    return {"base": base, "head": head, "files": dict(files),
+            "raw": raw, "sha256": hashlib.sha256(raw).hexdigest()}
 
 
 def worktree_delta(runtime):
@@ -143,7 +145,8 @@ COMMITTED_SCHEMA = "runeclr.session-origin.committed-source.v1"
 
 
 def load_committed_receipt(path):
-    data = json.loads(path.read_text(encoding="utf-8"))
+    raw = path.read_bytes()
+    data = json.loads(raw.decode("utf-8"))
     if not isinstance(data, dict) or data.get("schema") != COMMITTED_SCHEMA:
         raise ValueError("Unexpected committed-source receipt schema: " + repr(data.get("schema") if isinstance(data, dict) else None))
     build, integ, binaries = data.get("buildSource"), data.get("integration"), data.get("binaries")
@@ -179,7 +182,9 @@ def load_committed_receipt(path):
     relations = data.get("relations") or {}
     if not isinstance(relations, dict):
         raise ValueError("relations must be an object.")
-    return {"build": build, "integration": integ, "binaries": dict(binaries), "relations": dict(relations)}
+    return {"build": build, "integration": integ, "binaries": dict(binaries),
+            "relations": dict(relations), "raw": raw,
+            "sha256": hashlib.sha256(raw).hexdigest()}
 
 
 def verify_committed_source(runtime, receipt):
@@ -396,12 +401,25 @@ def main():
     inputs.update({root / "RuneCLR.slnx", root / "Directory.Build.props"})
     if manifest_file is not None:
         inputs.add(manifest_file)
+    if receipt_file is not None:
+        inputs.add(receipt_file)
     inputs.update(runtime / name for name in published.RUNTIME_FILES)
     inputs.update(runtime / name for name in runtime_changed)
     inputs.update(path for path in layout.rglob("*") if path.is_file())
     pins = {str(path): digest(path) for path in sorted(inputs)}
+    if provenance == "committed-integration" and pins.get(str(receipt_file)) != committed_receipt["sha256"]:
+        raise ValueError("Committed-source receipt changed between load and pin.")
+    if provenance == "source-manifest" and pins.get(str(manifest_file)) != manifest["sha256"]:
+        raise ValueError("Source manifest changed between load and pin.")
 
     output.mkdir(parents=True)
+    consumed_copy = None
+    if provenance == "committed-integration":
+        consumed_copy = output / "consumed-source-receipt.json"
+        consumed_copy.write_bytes(committed_receipt["raw"])
+    elif provenance == "source-manifest":
+        consumed_copy = output / "consumed-source-manifest.json"
+        consumed_copy.write_bytes(manifest["raw"])
     environment = dict(os.environ)
     for key in list(environment):
         if key.startswith(("DOTNET_", "COMPlus_")):
@@ -589,6 +607,40 @@ def main():
 
     after = {str(path): digest(path) if path.is_file() else None for path in sorted(inputs)}
     drift = [path for path in pins if pins[path] != after[path]]
+
+    consumed_identity = None
+    if provenance == "committed-integration":
+        consumed_identity = {"kind": "committed-source-receipt", "path": str(receipt_file),
+                             "sha256": committed_receipt["sha256"],
+                             "bytes": len(committed_receipt["raw"]),
+                             "copy": str(consumed_copy)}
+    elif provenance == "source-manifest":
+        consumed_identity = {"kind": "source-manifest", "path": str(manifest_file),
+                             "sha256": manifest["sha256"],
+                             "bytes": len(manifest["raw"]),
+                             "copy": str(consumed_copy)}
+    if consumed_identity is not None:
+        try:
+            current_source = consumed_identity["path"]
+            current_sha = hashlib.sha256(Path(current_source).read_bytes()).hexdigest()
+        except OSError as error:
+            failures.append("consumed source receipt is unreadable after the run: " + str(error))
+        else:
+            if current_sha != consumed_identity["sha256"]:
+                failures.append("consumed source receipt changed during the run")
+        if consumed_copy is not None:
+            if hashlib.sha256(consumed_copy.read_bytes()).hexdigest() != consumed_identity["sha256"]:
+                failures.append("consumed source receipt copy does not match the parsed bytes")
+    if provenance == "committed-integration":
+        try:
+            verify_committed_source(runtime, committed_receipt)
+        except ValueError as error:
+            failures.append("runtime state changed during the run: " + str(error))
+    elif provenance == "source-manifest":
+        try:
+            verify_source_manifest(runtime, manifest)
+        except ValueError as error:
+            failures.append("runtime source state changed during the run: " + str(error))
     result["modes"] = {name: {"exit": mode["exit"], "parsed": mode["parsed"] is not None,
                               "stdout": mode["stdout"], "stderr": mode["stderr"]}
                        for name, mode in modes.items()}
@@ -605,6 +657,7 @@ def main():
     result["buildSourceHead"] = committed_receipt["build"]["head"] if committed_receipt else None
     result["integrationCommit"] = committed_receipt["integration"]["commit"] if committed_receipt else None
     result["sourceRelations"] = source_relations
+    result["consumedSource"] = consumed_identity
     result["runtimeSourceManifest"] = str(manifest_file) if manifest_file is not None else None
     result["localUncommitted"] = provenance == "source-manifest"
     result["publishedAcceptance"] = provenance == "clean-commit"
