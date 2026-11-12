@@ -29,9 +29,11 @@ the opt-in epoch callback deadline with the runtime publication branch
 verifier with 659 pins and zero drift, and the lifecycle harness 156/156 both ordinary and with
 `--require-interpreter`; four focused upstream tests pass on the exact Release binary. It stays
 private and opt-in: the clock path is the default, configuration must happen before a context's
-first execution, and late activation is rejected. The limits are recorded there: Windows x64
-Release only, no device/AOT/Linux/Wasm or JIT/R2R instrumentation, a fail-closed budget rather than
-a sandbox, and a host-owned ticker.
+first execution, and late activation is rejected. Author finalizers are not safe in a budgeted
+context: an isolated lane showed a post-`End` finalizer terminating the process on both the frozen
+7f and final 08 runtimes, so no pending author finalizer may remain in a budgeted context. The
+limits are recorded there: Windows x64 Release only, no device/AOT/Linux/Wasm or JIT/R2R
+instrumentation, a fail-closed budget rather than a sandbox, and a host-owned ticker.
 
 ## Physical iPad device R2R experiment (2026-11-10)
 

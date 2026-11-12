@@ -132,6 +132,28 @@ the tested code pin is `e637bd79…` and the publication branch adds documentati
   `905bb9bb…`, corerun `24ffba3e…`, clrjit `23e3411d…`) and its run13/run14 numbers are
   historical.
 
+## Author finalizer limitation (process-fatal)
+
+An isolated artifact lane tested a configured CLOCK context (60 s budget, poll interval 1, cleanup
+budget 1000): an author object allocated inside `Begin`/`End` was kept alive through `End` and
+released afterwards. Its finalizer ran on the finalizer thread outside any active callback, was
+denied at its first interpreter checkpoint, and the resulting unhandled
+`System.OperationCanceledException` terminated the process (exit 0xE0434352). The finalizer wrote
+no marker at all; the same lane fails identically on the frozen 7f runtime, while the same payload
+without a deadline runs both finalizer markers and exits 0.
+
+This is not successful cleanup or recovery. The empty marker shows the failure happened before the
+finalizer's first observable instruction; the first-checkpoint/owner-active explanation is source
+reasoning, not a dynamically traced opcode. The lane did not test a finalizer inside an active
+callback, did not test epoch mode, and does not show that every finalizer is blocked. It is a
+pre-existing limitation, not a regression of this host integration.
+
+Guidance: do not keep pending author finalizers in a budgeted context. Explicit disposal alone does
+not prevent finalization; a type that relies on cleanup must either release its resources inside the
+active callback with no pending finalizer, or suppress finalization correctly as part of its
+disposal design. Generic `Dispose`/`using` and unloading the context are not guaranteed to avoid
+this failure. The prototype cannot safely recover from this ordinary author mistake.
+
 ## Limits
 
 - One active callback per session and a single owner thread; a competing callback or thread fails
@@ -139,8 +161,9 @@ the tested code pin is `e637bd79…` and the publication branch adds documentati
 - Windows x64 Release interpreter only. No Linux, Wasm, device, AOT, unmanaged-entry, global
   all-load or JIT/R2R instrumentation evidence; the Debug configuration is proven to compile, not
   to execute this backend.
-- Native blocking cannot be interrupted, including a `Sleep` inside a finally block; finalizers run
-  outside the deadline. This is a fail-closed budget, not a sandbox.
+- Native blocking cannot be interrupted, including a `Sleep` inside a finally block. Author
+  finalizers in a budgeted context are process-fatal (see above); this is a fail-closed budget, not
+  a sandbox.
 - The minimal epoch runtime has no instruction quota or terminal bridge; the both-feature case is
   only validated at its pre-author missing-capability check.
 - The host must keep the ticker alive and dispose it from an ordinary thread; the trusted tick/read
