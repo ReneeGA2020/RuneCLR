@@ -85,4 +85,3 @@ Unresolved. The 5.33x (poll interval 1) and 3.18x (poll interval 100) figures ar
 microbenchmark scope (arithmetic lane versus the unconfigured interpreter), not a CPU gate and not
 an acceptance for the roughly 2x budget tolerance. Conflicting measurements across runtime builds
 mean a dedicated matched audit is still pending; no default-OFF cost conclusion is drawn here.
-
