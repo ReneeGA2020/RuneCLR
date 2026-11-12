@@ -113,6 +113,10 @@ def main():
                         help="native host sources (default: package host/src)")
     parser.add_argument("--update-source-root", type=Path, default=None,
                         help="managed host fixture sources (default: package source/update-src)")
+    parser.add_argument("--source-archive", type=Path, default=None,
+                        help="final portable source archive this build was cut from")
+    parser.add_argument("--source-manifest", type=Path, default=None,
+                        help="manifest pinning that archive members")
     parser.add_argument("--trusted-source-root", type=Path, default=None,
                         help="RuneCLR.TrustedUpdate sources (default: package source/trusted-update-src)")
     args = parser.parse_args()
@@ -169,9 +173,11 @@ def main():
         'crossgen2': str(crossgen2), 'crossgen2Sha256': sha(crossgen2), 'toolchain': toolchain,
         'hostIl': {p.name: sha(p) for p in pinned_il},
         'sources': {n: sha(sources / n) for n in source_names},
+                'sourceArchive': ({'path': str(args.source_archive.resolve()), 'sha256': sha(args.source_archive)}
+                          if args.source_archive else None),
+        'sourceManifest': ({'path': str(args.source_manifest.resolve()), 'sha256': sha(args.source_manifest)}
+                           if args.source_manifest else None),
         'generatedGlobalUsings': generated_usings_pin,
-        'managedSources': {**{str(pp.relative_to(update_src)): sha(pp) for pp in sorted(update_src.rglob('*.cs'))},
-                            **{str(pp.relative_to(trusted_src)): sha(pp) for pp in sorted(trusted_src.rglob('*.cs'))}},
         'managedSources': {**{str(pp.relative_to(update_src)): sha(pp) for pp in sorted(update_src.rglob('*.cs'))},
                             **{str(pp.relative_to(trusted_src)): sha(pp) for pp in sorted(trusted_src.rglob('*.cs'))}},
     }
@@ -266,6 +272,11 @@ def main():
             'UILaunchScreen': {},
             'UISupportedInterfaceOrientations': ['UIInterfaceOrientationPortrait'],
             'UIApplicationSceneManifest': {'UIApplicationSupportsMultipleScenes': False},
+            # Minimal local-network support for the delivery flow: allow http only to local
+            # addresses (no global ATS disable) and give the permission prompt a reason.
+            'NSAppTransportSecurity': {'NSAllowsLocalNetworking': True},
+            'NSLocalNetworkUsageDescription':
+                'Fetches signed hot-update packages from a local development server.',
         }
         (app / 'Info.plist').write_bytes(plistlib.dumps(plist))
 
@@ -309,7 +320,7 @@ def main():
         result['error'] = str(error)
         (out / 'failure.txt').write_text(traceback.format_exc())
     pins_after = {
-        'generatedGlobalUsings': generated_usings_pin,
+                'generatedGlobalUsings': generated_usings_pin,
         'schema': 'runeclr.ipados.r2r.host-inputs.v1', 'capturedUtc': utc(),
         'frameworkInputs': inputs, 'frameworkLayout': inventory(framework / 'layout'),
         'crossgen2Sha256': sha(crossgen2), 'toolchain': toolchain, 'hostIl': {p.name: sha(p) for p in pinned_il},
