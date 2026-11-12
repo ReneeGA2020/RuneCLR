@@ -45,7 +45,10 @@ def main():
         raise ValueError("Output must be a new directory.")
     output.mkdir(parents=True)
 
-    manifest_bytes = args.source_manifest.read_bytes()
+    # Normalise the manifest path once: the pins use resolved paths, so a relative --source-manifest
+    # must resolve to the same key or the parse-to-pin equality would report a false missing pin.
+    source_manifest = args.source_manifest.resolve()
+    manifest_bytes = source_manifest.read_bytes()
     manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
     manifest_length = len(manifest_bytes)
     (output / "source-manifest.copy.json").write_bytes(manifest_bytes)
@@ -97,7 +100,7 @@ def main():
     inputs.update(produced_paths[name] for name in outputs)
     pins = {str(path): digest(path) for path in sorted(inputs) if path.is_file()}
     # Parse-to-pin consistency: the bytes parsed above must be the bytes pinned now.
-    pin_sha = pins.get(str(args.source_manifest.resolve()))
+    pin_sha = pins.get(str(source_manifest))
     if pin_sha is None:
         raise RuntimeError("Source manifest is missing from the input pins.")
     if pin_sha != manifest_sha:
@@ -134,7 +137,7 @@ def main():
     for name, value in files.items():
         if digest(runtime / name) != value:
             raise RuntimeError("Declared runtime source drifted during the run: " + name)
-    if hashlib.sha256(args.source_manifest.read_bytes()).hexdigest() != loaded_sha:
+    if hashlib.sha256(source_manifest.read_bytes()).hexdigest() != loaded_sha:
         raise RuntimeError("Original source manifest changed during the run.")
     if hashlib.sha256((output / "source-manifest.copy.json").read_bytes()).hexdigest() != loaded_sha:
         raise RuntimeError("Consumed source manifest copy drifted.")
