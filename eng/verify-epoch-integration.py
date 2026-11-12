@@ -67,6 +67,12 @@ def main():
     for name in outputs:
         produced, installed = build / name, shared / name
         if not produced.is_file():
+            # This build publishes the CoreLib as IL/<name> (no crossgen copy in the
+            # clr.runtime+clr.corelib+libs subset); accept that exact produced file.
+            alternate = build / "IL" / name
+            if alternate.is_file():
+                produced = alternate
+        if not produced.is_file():
             raise ValueError("Runtime artifact output absent (build not terminal): " + str(produced))
         if not installed.is_file():
             raise ValueError("Layout is missing " + name)

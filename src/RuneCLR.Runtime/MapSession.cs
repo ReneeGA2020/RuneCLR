@@ -41,7 +41,9 @@ public sealed class MapSession : IDisposable
             ? deadlineBridge ?? CallbackDeadlineBridge.Bind(options.PrototypeDeadlineMode,
                 options.PrototypeDeadlineEpochPeriodMicros)
             : null;
-        _terminal = options.PrototypeInstructionBudget is not null || _deadline is not null ? TerminalPrototypeBridge.Bind(required!) : null;
+        // The callback-deadline ABI is independent of the instruction-terminal prototype: a deadline-only
+        // session must not require that unrelated native surface. Only an explicit instruction budget binds it.
+        _terminal = options.PrototypeInstructionBudget is not null ? TerminalPrototypeBridge.Bind(required!) : null;
         _policyVersion = required is null ? 0 : 1;
         if (options.PrototypeApiPolicy is not null) PrototypeReflectionPolicy.Prepare();
         try
@@ -459,7 +461,7 @@ public sealed class MapSession : IDisposable
 
         if (exception is TargetInvocationException { InnerException: { } inner }) exception = inner;
         var typeName = exception.GetType().FullName ?? "Exception";
-        if (_terminal is not null || _reflectionPolicy is not null)
+        if (_terminal is not null || _deadline is not null || _reflectionPolicy is not null)
         {
             // Message/ToString may invoke author code even before native termination.
             return typeName.Length <= 512 ? typeName : typeName[..512];
