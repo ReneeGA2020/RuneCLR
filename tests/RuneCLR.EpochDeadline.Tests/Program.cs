@@ -555,10 +555,58 @@ internal static class Program
 
     private static void InjectedFaultVisibility()
     {
-        // Requires an internal test hook for the timer facade; coordinate with the Lead.
+        // Real regression: each fault case runs in its own child process (the hook is process-wide
+        // and a latched fault is permanent), under the same private host/runtime as this test.
         if (!DeadlineApi.FaultHookAvailable) throw new SkipException("no internal timer fault hook is available");
-        throw new SkipException("fault hook present but not yet bound");
+        foreach (var kind in new[] { "arm", "wait" })
+        {
+            var r1 = RunFaultChild("--fault", kind);
+            Check(r1.Exit == 0, "fault " + kind + " child exit=" + r1.Exit + " :: " + r1.Output);
+            var r2 = RunFaultChild("--fault-stop", kind);
+            Check(r2.Exit == 0, "fault-stop " + kind + " child exit=" + r2.Exit + " :: " + r2.Output);
+        }
     }
+
+    private static (int Exit, string Output) RunFaultChild(string mode, string kind)
+    {
+        var host = Environment.ProcessPath ?? "dotnet";
+        var assembly = typeof(Program).Assembly.Location;
+        var info = new System.Diagnostics.ProcessStartInfo(host)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            WorkingDirectory = AppContext.BaseDirectory,
+            // Resolve the same private runtime the parent is running on (the muxer lives beside
+            // shared/Microsoft.NETCore.App/<version>); an inherited DOTNET_ROOT may point elsewhere.
+            Environment =
+            {
+                ["DOTNET_ROOT"] = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_ROOT"))
+                    ? System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", ".."))
+                    : Environment.GetEnvironmentVariable("DOTNET_ROOT")!,
+                ["DOTNET_MULTILEVEL_LOOKUP"] = "0",
+            },
+        };
+        info.ArgumentList.Add("exec");
+        info.ArgumentList.Add("--fx-version");
+        info.ArgumentList.Add("12.0.0");
+        if (!string.Equals(System.IO.Path.GetFileNameWithoutExtension(host),
+                System.IO.Path.GetFileNameWithoutExtension(assembly), StringComparison.OrdinalIgnoreCase))
+            info.ArgumentList.Add(assembly);
+        info.ArgumentList.Add(mode);
+        info.ArgumentList.Add(kind);
+        using var process = System.Diagnostics.Process.Start(info)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(60000))
+        {
+            try { process.Kill(true); } catch { }
+            throw new InvalidOperationException("fault child watchdog");
+        }
+        var output = (stdout.GetAwaiter().GetResult() + " " + stderr.GetAwaiter().GetResult()).Trim();
+        return (process.ExitCode, output.Length > 400 ? output[..400] : output);
+    }
+
 
     private static WeakReference RunAndCaptureContext(string entry)
     {
