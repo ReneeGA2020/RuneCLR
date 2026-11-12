@@ -139,6 +139,111 @@ def verify_source_manifest(runtime, manifest):
     return head, sorted(manifest["files"])
 
 
+COMMITTED_SCHEMA = "runeclr.session-origin.committed-source.v1"
+
+
+def load_committed_receipt(path):
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("schema") != COMMITTED_SCHEMA:
+        raise ValueError("Unexpected committed-source receipt schema: " + repr(data.get("schema") if isinstance(data, dict) else None))
+    build, integ, binaries = data.get("buildSource"), data.get("integration"), data.get("binaries")
+    for name, value in (("buildSource", build), ("integration", integ), ("binaries", binaries)):
+        if not isinstance(value, dict):
+            raise ValueError("Committed-source receipt is missing " + name + ".")
+    for key in ("head", "files"):
+        if key not in build:
+            raise ValueError("buildSource is missing " + key + ".")
+    for key in ("commit", "parent", "files"):
+        if key not in integ:
+            raise ValueError("integration is missing " + key + ".")
+    if not isinstance(build["files"], dict) or not build["files"]:
+        raise ValueError("buildSource.files must be a non-empty object.")
+    if set(build["files"]) != set(integ["files"]):
+        raise ValueError("buildSource and integration file sets differ.")
+    for path in build["files"]:
+        if not isinstance(path, str) or path.startswith("/") or chr(92) in path or ":" in path or ".." in path.split("/"):
+            raise ValueError("Committed-source path escapes the runtime tree: " + repr(path))
+        for table in (build["files"], integ["files"]):
+            if not isinstance(table[path], str) or len(table[path]) != 64:
+                raise ValueError("Committed-source hash is malformed for " + path)
+    if not isinstance(binaries, dict) or not binaries:
+        raise ValueError("Committed-source binaries must be a non-empty object.")
+    for name, value in binaries.items():
+        if not isinstance(name, str) or not isinstance(value, str) or len(value) != 64:
+            raise ValueError("Committed-source binary entry is malformed: " + repr(name))
+    for field, value in (("head", build["head"]), ("commit", integ["commit"]), ("parent", integ["parent"])):
+        if not isinstance(value, str) or len(value) != 40:
+            raise ValueError("Committed-source " + field + " must be a full commit id.")
+    if integ["parent"] != build["head"]:
+        raise ValueError("integration.parent must equal buildSource.head.")
+    relations = data.get("relations") or {}
+    if not isinstance(relations, dict):
+        raise ValueError("relations must be an object.")
+    return {"build": build, "integration": integ, "binaries": dict(binaries), "relations": dict(relations)}
+
+
+def verify_committed_source(runtime, receipt):
+    """Require the exact committed integration snapshot with a recorded build source.
+
+    The build ran at buildSource.head plus the recorded raw files. The commit is the
+    canonical (LF) form of the same files, parented on that exact build head. The
+    worktree must be clean; working bytes count as the raw build form only when their
+    hash matches the receipt, otherwise their newline-normalised form must equal the
+    committed blob and the relation must be declared as normalized.
+    """
+    status = git_raw(runtime, "status", "--porcelain=v1", "--untracked-files=all")
+    if status.strip():
+        raise ValueError("Runtime worktree must be clean for committed-source mode; found: " + status.replace(NL, " | "))
+    head = git(runtime, "rev-parse", "HEAD")
+    integ = receipt["integration"]
+    if head != integ["commit"]:
+        raise ValueError("Runtime HEAD must equal the receipt commit " + integ["commit"] + "; found " + head + ".")
+    parent = git(runtime, "rev-parse", "HEAD^")
+    if parent != integ["parent"]:
+        raise ValueError("Runtime parent must equal the receipt parent " + integ["parent"] + "; found " + parent + ".")
+    if subprocess.run(["git", "-C", str(runtime), "merge-base", "--is-ancestor", RUNTIME_BASE, head]).returncode:
+        raise ValueError("Runtime HEAD " + head + " is not descended from published base " + RUNTIME_BASE + ".")
+    declared = set(integ["files"])
+    changed = {}
+    for line in git(runtime, "diff", "--name-status", parent + ".." + head).splitlines():
+        if not line:
+            continue
+        code, name = line.split(chr(9), 1)
+        changed[name] = code
+    if set(changed) != declared:
+        extra = sorted(set(changed) - declared)
+        absent = sorted(declared - set(changed))
+        raise ValueError("Committed delta does not match the receipt: extra=" + repr(extra) + " absent=" + repr(absent))
+    relations = {}
+    for path in sorted(declared):
+        if changed[path] != "M":
+            raise ValueError("Committed file is not a modification: " + path + " (" + changed[path] + ")")
+        blob = subprocess.run(["git", "-C", str(runtime), "show", head + ":" + path], capture_output=True).stdout
+        if hashlib.sha256(blob).hexdigest() != integ["files"][path]:
+            raise ValueError("Committed blob hash mismatch for " + path + ".")
+        parent_blob = subprocess.run(["git", "-C", str(runtime), "show", parent + ":" + path], capture_output=True).stdout
+        if parent_blob == blob:
+            raise ValueError("Committed file does not differ from its parent: " + path)
+        work = (runtime / path).read_bytes()
+        normalized = work.replace(b"\r\n", b"\n")
+        if normalized != blob:
+            raise ValueError("Working bytes are not the committed content modulo newlines: " + path)
+        raw_sha = hashlib.sha256(work).hexdigest()
+        src_sha = receipt["build"]["files"][path]
+        declared_rel = receipt["relations"].get(path)
+        if raw_sha == src_sha:
+            relation = "raw"
+        elif src_sha == integ["files"][path]:
+            # The build read the canonical (LF) form while the checkout materialises CRLF.
+            relation = "normalized-canonical"
+        else:
+            raise ValueError("Working bytes do not match the recorded build source: " + path)
+        if declared_rel is not None and declared_rel != relation:
+            raise ValueError("Source relation mismatch for " + path + ": declared " + str(declared_rel) + ", observed " + relation + ".")
+        relations[path] = relation
+    return head, sorted(declared), relations
+
+
 def verify_native_identity(runtime_build, layout, framework, corelib):
     """Require the layout native files to equal the fresh runtime build outputs."""
     shared = layout / "shared/Microsoft.NETCore.App" / framework
@@ -205,6 +310,7 @@ def main():
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--runtime-commit", default="")
     parser.add_argument("--runtime-source-manifest", type=Path)
+    parser.add_argument("--runtime-committed-source", type=Path)
     parser.add_argument("--build-rid", default=BUILD_RID)
     parser.add_argument("--build-layout", action="store_true")
     parser.add_argument("--expect-fixed", action="store_true")
@@ -220,7 +326,19 @@ def main():
         raise ValueError("Output must be a new directory.")
 
     manifest_file = None
-    if args.runtime_source_manifest:
+    receipt_file = None
+    committed_receipt = None
+    source_relations = None
+    if args.runtime_committed_source:
+        if args.runtime_source_manifest or args.runtime_commit:
+            raise ValueError("--runtime-committed-source is mutually exclusive with --runtime-source-manifest/--runtime-commit.")
+        receipt_file = args.runtime_committed_source.resolve()
+        if published.within(receipt_file, runtime) or published.within(receipt_file, root):
+            raise ValueError("The committed-source receipt must live outside the source and runtime trees.")
+        committed_receipt = load_committed_receipt(receipt_file)
+        runtime_head, runtime_changed, source_relations = verify_committed_source(runtime, committed_receipt)
+        provenance = "committed-integration"
+    elif args.runtime_source_manifest:
         if args.runtime_commit:
             raise ValueError("--runtime-source-manifest and --runtime-commit are mutually exclusive.")
         manifest_file = args.runtime_source_manifest.resolve()
@@ -247,6 +365,13 @@ def main():
     if not private_host.exists():
         raise ValueError("Private layout host is absent: " + str(private_host))
     native = verify_native_identity(runtime_build, layout, args.framework_version, corelib)
+    if provenance == "committed-integration":
+        if set(committed_receipt["binaries"]) != set(native):
+            raise ValueError("Committed-source receipt binary set does not match the fresh build outputs: "
+                             + repr(sorted(committed_receipt["binaries"])) + " vs " + repr(sorted(native)))
+        for name, expected in sorted(committed_receipt["binaries"].items()):
+            if native[name] != expected:
+                raise ValueError("Binary hash mismatch for " + name + ": expected " + expected + ", found " + native[name] + ".")
 
     harness = root / "tests/RuneCLR.SessionOrigin.Tests/bin/Release/net11.0/RuneCLR.SessionOrigin.Tests.dll"
     fixtures = harness.parent / "session-origin"
@@ -475,6 +600,11 @@ def main():
     result["runtimeChangedFiles"] = runtime_changed
     result["layoutBuilt"] = bool(args.build_layout)
     result["provenance"] = provenance
+    result["committedIntegration"] = provenance == "committed-integration"
+    result["committedReceipt"] = str(receipt_file) if receipt_file is not None else None
+    result["buildSourceHead"] = committed_receipt["build"]["head"] if committed_receipt else None
+    result["integrationCommit"] = committed_receipt["integration"]["commit"] if committed_receipt else None
+    result["sourceRelations"] = source_relations
     result["runtimeSourceManifest"] = str(manifest_file) if manifest_file is not None else None
     result["localUncommitted"] = provenance == "source-manifest"
     result["publishedAcceptance"] = provenance == "clean-commit"
@@ -489,6 +619,8 @@ def main():
     label = ("SESSION_ORIGIN_FIXED" if args.expect_fixed else "SESSION_ORIGIN_BASELINE")
     if provenance == "source-manifest":
         label += " LOCAL_UNCOMMITTED_SOURCE_MANIFEST (not published acceptance)"
+    elif provenance == "committed-integration":
+        label += " COMMITTED_INTEGRATION_SOURCE (build source recorded)"
     print(label + " PASS; modes=" + str(len(modes)) + "; pins=" + str(len(pins)) +
           "; runtimeHead=" + runtime_head)
 
