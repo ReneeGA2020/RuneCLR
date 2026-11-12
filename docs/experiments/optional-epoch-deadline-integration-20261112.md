@@ -118,14 +118,15 @@ the tested code pin is `e637bd79…` and the publication branch adds documentati
 ## Provenance
 
 - Paired native publication branch: `runeclr/optional-callback-epoch-integration-final-20261112`
-  in `ReneeGA2020/runtime`, tested code `e637bd79…`, parent `runeclr/dev` `474eb8ad`. Delivery
+  in `ReneeGA2020/runtime`, tested code `e637bd79…`, base `runeclr/dev` `474eb8ad`. Delivery
   identity for the measured run: coreclr `08e031af…`, CoreLib `30020d07…`, clrinterpreter
   `f4d5ea48…`, corerun `09017fa3…`, clrjit `4b15f3ae…`; the delivery manifest and per-file hashes
   ship with the evidence.
 - The source is the clean `e637` worktree (manifest `{head e637bd79, files {}}`). The inspected
-  Release build log stamps `1ac56d5` because that build predates `e637`; `e637` changes only
-  preprocessor guards and comments with 0 differing active Release lines, and its Windows
-  Debug/Checked compile is separate. The documentation commit on the publication branch is not a
+  Release build log stamps `1ac56d5` because that build predates `e637`; `e637` consolidates
+  preprocessor guards and updates comments and the test fixture, with 0 differing active Windows
+  Release interpreter implementation lines. Its Windows Debug compile is separate; Checked backend
+  selection has source proof only. The documentation commit on the publication branch is not a
   new build.
 - The earlier 7f5a0bc8 frozen set (coreclr `ed76bfa6…`, CoreLib `6f181812…`, clrinterpreter
   `905bb9bb…`, corerun `24ffba3e…`, clrjit `23e3411d…`) and its run13/run14 numbers are
