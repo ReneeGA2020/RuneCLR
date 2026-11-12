@@ -5,6 +5,7 @@ Builds tiny throwaway git repositories and layout/build fixtures; no runtime or
 product sources are read or written. The published verifier is not involved.
 """
 import argparse
+import copy
 import hashlib
 import importlib.util
 import json
@@ -16,6 +17,7 @@ import tempfile
 
 NL = chr(10)
 BACKSLASH = chr(92)
+CASES = 0
 
 
 def load_driver(root):
@@ -65,6 +67,8 @@ def manifest_for(repo, base_commit, names):
 
 
 def expect_reject(label, call, contains):
+    global CASES
+    CASES += 1
     try:
         call()
     except ValueError as error:
@@ -76,6 +80,8 @@ def expect_reject(label, call, contains):
 
 
 def expect_accept(label, call):
+    global CASES
+    CASES += 1
     try:
         call()
     except Exception as error:
@@ -96,6 +102,144 @@ def native_fixture(base):
     (build / "IL/System.Private.CoreLib.dll").write_bytes(b"built-corelib")
     (shared / "System.Private.CoreLib.dll").write_bytes(b"built-corelib")
     return build, layout, build / "IL/System.Private.CoreLib.dll"
+
+
+
+def committed_fixture(base):
+    """Synthetic repository: base commit, five-file integration commit, four raw and one canonical build form."""
+    repo = base / "committed"
+    repo.mkdir()
+    run(repo, "init", "-q", "-b", "main")
+    run(repo, "config", "core.autocrlf", "true")
+    names = ["src/f1.cs", "src/f2.cs", "src/f3.cs", "src/f4.cs", "src/f5.cs"]
+    for index, name in enumerate(names):
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (repo / name).write_bytes(("base-" + str(index) + NL).encode())
+    run(repo, "add", "-A")
+    commit(repo, "base")
+    base_commit = run(repo, "rev-parse", "HEAD")
+    for index, name in enumerate(names[:4]):
+        (repo / name).write_bytes(("built-" + str(index) + chr(13) + NL).encode())
+    (repo / names[4]).write_bytes(("built-" + str(4) + NL).encode())
+    run(repo, "add", "-A")
+    commit(repo, "integration")
+    integration = run(repo, "rev-parse", "HEAD")
+    # the canonical build form for the fifth file, materialised as CRLF by the checkout;
+    # refreshing the index clears git's stat-cache entry without changing the blob
+    (repo / names[4]).write_bytes(("built-" + str(4) + chr(13) + NL).encode())
+    run(repo, "add", "--", names[4])
+    if run(repo, "status", "--porcelain", "--untracked-files=all"):
+        raise RuntimeError("fixture worktree is unexpectedly dirty")
+    canonical = {}
+    build = {}
+    relations = {}
+    for index, name in enumerate(names):
+        blob = subprocess.run(["git", "-C", str(repo), "show", integration + ":" + name], capture_output=True).stdout
+        canonical[name] = hashlib.sha256(blob).hexdigest()
+        if index < 4:
+            build[name] = digest_bytes(repo / name)
+            relations[name] = "raw"
+        else:
+            build[name] = hashlib.sha256(("built-" + str(4) + NL).encode()).hexdigest()
+            relations[name] = "normalized-canonical"
+    receipt = {"schema": "runeclr.session-origin.committed-source.v1",
+               "buildSource": {"head": base_commit, "files": build},
+               "integration": {"commit": integration, "parent": base_commit, "files": canonical},
+               "binaries": {"coreclr.dll": "a" * 64, "clrjit.dll": "b" * 64,
+                            "clrinterpreter.dll": "c" * 64, "corerun.exe": "d" * 64,
+                            "System.Private.CoreLib.dll": "e" * 64},
+               "relations": relations}
+    return repo, receipt, integration
+
+
+def committed_cases(base, driver):
+    failures = []
+    repo, receipt, integration = committed_fixture(base)
+    receipt_path = base / "committed-receipt.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    loaded = driver.load_committed_receipt(receipt_path)
+    original_base = driver.RUNTIME_BASE
+    driver.RUNTIME_BASE = receipt["buildSource"]["head"]
+    try:
+        def accept_shape():
+            head, changed, relations = driver.verify_committed_source(repo, loaded)
+            if head != integration or len(changed) != 5:
+                raise ValueError("unexpected head or changed set")
+            raw = [p for p, r in relations.items() if r == "raw"]
+            normalized = [p for p, r in relations.items() if r == "normalized-canonical"]
+            if len(raw) != 4 or len(normalized) != 1:
+                raise ValueError("expected four raw and one normalized-canonical relation, got " + repr(relations))
+        failures.append(expect_accept("committed source with four raw and one normalized-canonical file", accept_shape))
+
+        wrong_source = copy.deepcopy(loaded)
+        first = sorted(wrong_source["build"]["files"])[0]
+        wrong_source["build"]["files"][first] = "0" * 64
+        failures.append(expect_reject("committed wrong build source",
+                                      lambda: driver.verify_committed_source(repo, wrong_source),
+                                      "do not match the recorded build source"))
+
+        wrong_parent = copy.deepcopy(loaded)
+        wrong_parent["integration"]["parent"] = "1" * 40
+        wrong_parent["build"]["head"] = "1" * 40
+        failures.append(expect_reject("committed wrong parent",
+                                      lambda: driver.verify_committed_source(repo, wrong_parent),
+                                      "must equal the receipt parent"))
+
+        inconsistent = json.loads(json.dumps(receipt))
+        inconsistent["integration"]["parent"] = "2" * 40
+        receipt_path = base / "inconsistent.json"
+        receipt_path.write_text(json.dumps(inconsistent), encoding="utf-8")
+        failures.append(expect_reject("committed inconsistent parent",
+                                      lambda: driver.load_committed_receipt(receipt_path),
+                                      "must equal buildSource.head"))
+
+        (repo / "UNTRACKED.txt").write_text("dirty" + NL, encoding="utf-8")
+        failures.append(expect_reject("committed unexpected dirty tree",
+                                      lambda: driver.verify_committed_source(repo, loaded),
+                                      "must be clean"))
+        (repo / "UNTRACKED.txt").unlink()
+
+        observed = dict(receipt["binaries"])
+        expected = dict(observed)
+        expected["coreclr.dll"] = "f" * 64
+        global CASES
+        CASES += 1
+        problems = driver.check_binary_identity(observed, expected)
+        failures.append(None if any("Binary hash mismatch for coreclr.dll" in p for p in problems)
+                        else "committed binary mismatch was not detected")
+        if not any("Binary hash mismatch for coreclr.dll" in p for p in problems):
+            print("FAIL binary mismatch detection")
+        else:
+            print("PASS reject committed binary mismatch")
+
+        drift_path = base / "receipt-drift.json"
+        drift_path.write_text(json.dumps(receipt), encoding="utf-8")
+        consumed = driver.load_committed_receipt(drift_path)
+        copy_path = base / "receipt-copy.json"
+        copy_path.write_bytes(consumed["raw"])
+        drift_path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+        CASES += 1
+        drift = driver.check_consumed_source(drift_path, consumed["sha256"], copy_path)
+        failures.append(None if any("changed during the run" in p for p in drift)
+                        else "receipt drift was not detected")
+        if not any("changed during the run" in p for p in drift):
+            print("FAIL receipt drift detection")
+        else:
+            print("PASS reject receipt drift")
+
+        other_copy = base / "receipt-copy-other.json"
+        other_copy.write_text("different" + NL, encoding="utf-8")
+        CASES += 1
+        mismatch = driver.check_consumed_source(drift_path, consumed["sha256"], other_copy)
+        failures.append(None if any("copy does not match" in p for p in mismatch)
+                        else "receipt copy mismatch was not detected")
+        if not any("copy does not match" in p for p in mismatch):
+            print("FAIL receipt copy mismatch detection")
+        else:
+            print("PASS reject receipt copy mismatch")
+    finally:
+        driver.RUNTIME_BASE = original_base
+    return failures
 
 
 def main():
@@ -178,8 +322,9 @@ def main():
                                   "build output is absent"))
     (build / "clrinterpreter.dll").write_bytes(b"built-clrinterpreter.dll")
 
+    failures.extend(committed_cases(base, driver))
     failures = [failure for failure in failures if failure]
-    print("CASES", 16, "FAILURES", len(failures))
+    print("CASES", CASES, "FAILURES", len(failures))
     for failure in failures:
         print("FAILED", failure)
     if failures:

@@ -141,6 +141,40 @@ def verify_source_manifest(runtime, manifest):
     return head, sorted(manifest["files"])
 
 
+def check_consumed_source(path, consumed_sha256, copy_path=None):
+    """Return problems when the consumed receipt/manifest bytes no longer match."""
+    problems = []
+    try:
+        current = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError as error:
+        problems.append("consumed source receipt is unreadable after the run: " + str(error))
+        current = None
+    if current is not None and current != consumed_sha256:
+        problems.append("consumed source receipt changed during the run")
+    if copy_path is not None:
+        try:
+            copy_sha = hashlib.sha256(Path(copy_path).read_bytes()).hexdigest()
+        except OSError as error:
+            problems.append("consumed source receipt copy is unreadable: " + str(error))
+        else:
+            if copy_sha != consumed_sha256:
+                problems.append("consumed source receipt copy does not match the parsed bytes")
+    return problems
+
+
+def check_binary_identity(observed, expected):
+    """Return problems when the fresh build outputs differ from the receipt binaries."""
+    problems = []
+    if set(observed) != set(expected):
+        problems.append("Committed-source receipt binary set does not match the fresh build outputs: "
+                        + repr(sorted(expected)) + " vs " + repr(sorted(observed)))
+    for name in sorted(set(observed) & set(expected)):
+        if observed[name] != expected[name]:
+            problems.append("Binary hash mismatch for " + name + ": expected " + expected[name] + ", found " + observed[name] + ".")
+    return problems
+
+
+
 COMMITTED_SCHEMA = "runeclr.session-origin.committed-source.v1"
 
 
@@ -371,12 +405,9 @@ def main():
         raise ValueError("Private layout host is absent: " + str(private_host))
     native = verify_native_identity(runtime_build, layout, args.framework_version, corelib)
     if provenance == "committed-integration":
-        if set(committed_receipt["binaries"]) != set(native):
-            raise ValueError("Committed-source receipt binary set does not match the fresh build outputs: "
-                             + repr(sorted(committed_receipt["binaries"])) + " vs " + repr(sorted(native)))
-        for name, expected in sorted(committed_receipt["binaries"].items()):
-            if native[name] != expected:
-                raise ValueError("Binary hash mismatch for " + name + ": expected " + expected + ", found " + native[name] + ".")
+        binary_problems = check_binary_identity(native, committed_receipt["binaries"])
+        if binary_problems:
+            raise ValueError(binary_problems[0])
 
     harness = root / "tests/RuneCLR.SessionOrigin.Tests/bin/Release/net11.0/RuneCLR.SessionOrigin.Tests.dll"
     fixtures = harness.parent / "session-origin"
@@ -620,17 +651,8 @@ def main():
                              "bytes": len(manifest["raw"]),
                              "copy": str(consumed_copy)}
     if consumed_identity is not None:
-        try:
-            current_source = consumed_identity["path"]
-            current_sha = hashlib.sha256(Path(current_source).read_bytes()).hexdigest()
-        except OSError as error:
-            failures.append("consumed source receipt is unreadable after the run: " + str(error))
-        else:
-            if current_sha != consumed_identity["sha256"]:
-                failures.append("consumed source receipt changed during the run")
-        if consumed_copy is not None:
-            if hashlib.sha256(consumed_copy.read_bytes()).hexdigest() != consumed_identity["sha256"]:
-                failures.append("consumed source receipt copy does not match the parsed bytes")
+        failures.extend(check_consumed_source(consumed_identity["path"], consumed_identity["sha256"],
+                                              consumed_copy))
     if provenance == "committed-integration":
         try:
             verify_committed_source(runtime, committed_receipt)
