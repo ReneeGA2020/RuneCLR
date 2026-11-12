@@ -20,6 +20,19 @@ callback-epoch stacks are not part of it. Its Windows x64 build/test evidence
 does not establish iOS or device behavior - the accepted iPad results stay with
 their own recorded pins.
 
+## Optional callback deadline (2026-11-12)
+
+The [callback-epoch increment](experiments/optional-epoch-deadline-integration-20261112.md) pairs
+the opt-in epoch callback deadline with the runtime publication branch
+`runeclr/optional-callback-epoch-integration-final-20261112` (tested code `e637bd79`, parent
+`runeclr/dev` `474eb8ad`). The final host join on that delivery passes the epoch suite 24/24, the
+verifier with 659 pins and zero drift, and the lifecycle harness 156/156 both ordinary and with
+`--require-interpreter`; four focused upstream tests pass on the exact Release binary. It stays
+private and opt-in: the clock path is the default, configuration must happen before a context's
+first execution, and late activation is rejected. The limits are recorded there: Windows x64
+Release only, no device/AOT/Linux/Wasm or JIT/R2R instrumentation, a fail-closed budget rather than
+a sandbox, and a host-owned ticker.
+
 ## Physical iPad device R2R experiment (2026-11-10)
 
 The [iPad device R2R experiment](ios-device-r2r-experiment.md) records the first
