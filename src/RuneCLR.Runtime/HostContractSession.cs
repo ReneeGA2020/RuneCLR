@@ -100,6 +100,7 @@ public sealed class HostContractSession : IDisposable
             _ = RequiredInterpreterBridge.Bind();
             PrototypeReflectionPolicy.Prepare();
         }
+        if (options.PrototypeRequireOriginScan) PrototypeReflectionPolicy.PrepareOriginScan();
     }
 
     private static void RequireManifestMetadata(PackageManifest manifest)

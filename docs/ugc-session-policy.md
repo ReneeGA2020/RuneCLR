@@ -96,9 +96,9 @@ runtimeHead as 7cbdad..., with parent/base 5972a869... and 22 declared files.
 - The driver seals 732 input pins, zero drift. Earlier failed/incomplete replays
   remain preserved and are not promoted to final acceptance.
 
-Current archival/local evidence root: E:/RuneCLR-hostcontract-policy-evidence-20261102.
-Earlier MapSession/runtime receipts are under E:/RuneCLR-session-binding-evidence-20261102.
-Accepted replay: E:/RuneCLR-publication-20261102/repro-published-runtime.
+Current archival/local evidence root: <local-archival>/RuneCLR-hostcontract-policy-evidence-20261102.
+Earlier MapSession/runtime receipts are under <local-archival>/RuneCLR-session-binding-evidence-20261102.
+Accepted replay: <local-archival>/RuneCLR-publication-20261102/repro-published-runtime.
 summary.json SHA-256:
 66dac68fec68b9d451d77dc5a978954e4fa1f70db210a1fadbf61ccd2d885d2f.
 execution-proof.json: 0596a071bbb52b937e476b6aafe82a937a296aaa8a8f5c94ea3b0b6a29cfd1f6.
@@ -121,6 +121,46 @@ published branch/commit above, layout-hostcontract-exact-final and a fresh outpu
 directory. The default driver requires the exact published commit, its exact
 base parent, a clean worktree and the exact 22-file delta; old dirty-base
 experiments are historical only. Paths are local identifiers.
+
+## Suppressed-flow origin enforcement (2026-11-03, local uncommitted)
+
+Opting into PrototypeRequireOriginScan on MapRunOptions or
+HostContractSessionOptions makes the runtime resolve the policy owner from the
+actual executing frames, so ExecutionContext.SuppressFlow around a Task or a new
+Thread no longer hides an author frame. The runtime reports capability bit 0
+through RuneCLR_GetReflectionPolicyCapabilities; the bridge version stays 4.
+
+- The switch RuneCLR.EnableReflectionPolicyOriginScan is read once while
+  System.Reflection.RuneCLRReflectionPolicy initializes during runtime startup.
+  An off process must configure it before startup (runtimeconfig configProperties);
+  AppContext.SetSwitch inside Main cannot change the latched value, which is what
+  the toggle control proves.
+- Required mode refuses before author loading when the capability is absent or the
+  process started with the scan off: PlatformNotSupportedException precedes the
+  author file read, and an accepting gate instead fails on the intentionally
+  missing file (FileNotFoundException), which is how the tests separate accept
+  from refuse.
+- Deny-wins across owner sources: ambient activation, attached sessions and the
+  executing stack are combined, retired owners leave fail-closed tombstones, and
+  two conflicting owners refuse the target. Saturated walks (more than 16 distinct
+  non-default ALCs) refuse with System.NotSupportedException before any effect.
+- Measured locally on the uncommitted runtime experiment (head 7cbdad39, five
+  uncommitted sources, manifest sha256
+  5805d37f01c596e034d094fec01c6427c9965e819feae7c40e9490b9695b6a05): 15 mode
+  checks pass with 398 pinned inputs and zero drift, ChildProbe is
+  interpreter-compiled with no author JIT declaration, and trusted
+  SessionOrigin.Compiled helpers stay JIT compiled. Bounded compatibility on the
+  same layout: reflection 123 groups, required-interpreter Runtime 156/156, four
+  targeted upstream methods.
+- Cost note from the independent source review (not re-measured here): a
+  suppressed-frame gate currently costs several stack walks (HasScope, then the
+  owner scan, plus a terminator walk), roughly 35-60 microseconds at one owner and
+  higher near the 16-owner limit; a single snapshot result would remove the
+  re-walk. This is a cost bound, not a correctness claim.
+
+This receipt is local and uncommitted. It does not extend the published
+7cbdad39 reflection-policy receipt above, which remains the authoritative
+published result for the earlier slice.
 
 ## Review corrections
 

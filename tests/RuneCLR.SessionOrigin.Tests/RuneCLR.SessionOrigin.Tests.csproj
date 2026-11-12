@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Packages/RuneCLR.Packages.csproj" />
+    <ProjectReference Include="../SessionOrigin.Compiled/SessionOrigin.Compiled.csproj" />
+    <ProjectReference Include="../SessionOrigin.Author/SessionOrigin.Author.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../ReflectionPolicy.DeniedDependency/ReflectionPolicy.DeniedDependency.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../SessionOrigin.Chain/SessionOrigin.Chain.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="StageSessionOrigin" AfterTargets="Build">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../SessionOrigin.Author/bin/$(Configuration)/$(TargetFramework)/SessionOrigin.Author.dll" DestinationFolder="$(OutDir)session-origin" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../SessionOrigin.Compiled/bin/$(Configuration)/$(TargetFramework)/SessionOrigin.Compiled.dll" DestinationFolder="$(OutDir)session-origin" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../ReflectionPolicy.DeniedDependency/bin/$(Configuration)/$(TargetFramework)/ReflectionPolicy.DeniedDependency.dll" DestinationFolder="$(OutDir)session-origin" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../SessionOrigin.Chain/bin/$(Configuration)/$(TargetFramework)/SessionOrigin.Chain.dll" DestinationFolder="$(OutDir)session-origin" />
+  </Target>
+</Project>

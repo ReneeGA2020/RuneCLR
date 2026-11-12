@@ -1,5 +1,57 @@
 # Development handoff
 
+## Suppressed-flow session origin enforcement (2026-11-03, local uncommitted)
+
+The opt-in [session policy](ugc-session-policy.md) now enforces API, reflection
+and managed-loading policy when ordinary managed Task/Thread work suppresses
+ExecutionContext flow, and refuses the required mode when the runtime cannot
+bind the origin-scan capability. This is a local acceptance of an uncommitted
+runtime experiment, not a published runtime.
+
+- Runtime worktree <local-archival>/runtime-session-origin-20261103 stays at
+  7cbdad39669188c1f49f0a41216829d9a9005591 with five uncommitted sources
+  (reflection policy, ILLink descriptors, assemblynative.cpp/.hpp,
+  qcallentrypoints.cpp). Source manifest
+  <local-archival>/RuneCLR-session-origin-evidence-20261103/runtime-impl-l12z-20261103/source-manifest.json
+  sha256 5805d37f01c596e034d094fec01c6427c9965e819feae7c40e9490b9695b6a05 is
+  verified exactly: base and head, no extras, no deletions, every hash, and each
+  entry differs from the base commit.
+- Fresh Checked outputs used by the replay: CoreLib
+  16e368134f0291710202d3d1d3050e13641ead8292464fc1fb8ca5c663d41866,
+  coreclr c2a612f71108c49aa8d8971d5f31224860cbd5f57783365314666351b4e2b85f,
+  corerun 5d06f43620d40a248b9806f3068d2fa6068b2186ef02d391a80feabdaf595edc,
+  clrjit 850a065c7831e9c08b372509553f7d4a35a0045480de89c7d8267bc3974c4f1a,
+  clrinterpreter 786c202bb655df12d45fdfc5de189fe24d6caac9ab0c95c2afd98b49abad978f.
+- The private layout is composed, not shipped: the build's Core_Root-like
+  privatedir (facades and native outputs), a host from the worktree .dotnet, and a
+  read-only copy of Microsoft.NETCore.App.deps.json. The driver requires the
+  layout coreclr.dll, clrjit.dll, clrinterpreter.dll, corerun.exe and CoreLib to
+  equal the fresh build outputs, so a copied layout cannot pass.
+- eng/verify-runtime-session-origin.py --expect-fixed passes 15 mode checks with
+  398 input pins and zero drift: normal/suppressed Thread and Task, compiled
+  helper, hidden and inlined author frames, retirement, conflicting owners,
+  17-deep foreign-ALC saturation (leaf refused with System.NotSupportedException),
+  disposal under a live author frame, capability on/off, Map and HostContract
+  gates on/off, post-latch toggle, and invalid option combinations.
+- Interpreter evidence: the author OriginScript:ChildProbe() and the session
+  scripts are interpreter-compiled with no "JIT compiled SessionOrigin.Author."
+  line at all, while eleven SessionOrigin.Compiled.OriginHooks members are JIT
+  compiled. Logs: interp-proof-final.stdout.log and session-origin-proof-final.jit
+  under <local-archival>/RuneCLR-session-origin-evidence-20261103/session-origin-modes-dw517j-20261103.
+- Bounded compatibility on the same layout: reflection 123 groups (stock and
+  disabled controls included), required-interpreter Runtime 156/156 (the 157
+  figure only exists through the verify.ps1 late-map wrapper), and the four
+  targeted upstream methods.
+- The origin-scan switch is read once when RuneCLRReflectionPolicy initializes
+  during runtime startup. A switch-off process must set it before the runtime
+  starts (runtimeconfig configProperties); AppContext.SetSwitch from Main is too
+  late and leaves the capability latched on.
+- Still open and explicitly not covered: native walker status 2 (no thread,
+  aborted walk, unmaterialisable owner) has no executable injection; the
+  compiled-only suppressed child has no author frame (its reflected probe
+  currently escapes and is recorded as a boundary, not required); unmanaged
+  entry, escaped delegates, AOT/mobile and whole-process all-load coverage.
+
 ## Automatic MapSession API policy and managed loading (2026-11-02)
 
 The opt-in [session-policy increment](ugc-session-policy.md) adds an opt-in
@@ -128,7 +180,7 @@ cases; no private-runtime interception or include/exclude acceptance is claimed.
 The artifact-only r2 function-pointer body-witness candidate has one isolated
 stock-SDK compile and a bounded two-process stock smoke; neither is execution
 attribution. The compile root
-D:/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-compile-20261021-x3yd3fe4
+<local-archival>/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-compile-20261021-x3yd3fe4
 records exactly one stock Host build command (exit 0, zero warnings/errors) with
 no module execution. The Lead r2 compile review passes 268 checks and
 recomputes all 97 original input seals. Separately, metadata-only inspect-il
@@ -138,7 +190,7 @@ not part of the 268-count provenance. See the
 r2 compile validation (archival/local evidence: `../artifacts/lead-generic-body-fnptr-r2-compile-review-20261021/VALIDATION.md`).
 
 The retained smoke root
-D:/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-stock-smoke-20261021-x3yd3fe4
+<local-archival>/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-stock-smoke-20261021-x3yd3fe4
 contains exactly two released stock Host processes: default-off PID 33988 and
 enabled PID 29052, both integer exit 0 and boolean timeout false. Pre-spawn
 argv/cwd/environment match the process records; stdout equals the report bytes
@@ -165,7 +217,7 @@ snapshot were later removed and three logs added, while all consumed
 lane/Host/module/leaf/pin entries remain hash-stable. See the
 Lead smoke validation (archival/local evidence: `../artifacts/lead-generic-body-fnptr-r2-smoke-review-20261021/VALIDATION.md`)
 and
-D:/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-smoke-audit-l12z-20261021/REVIEW.md
+<local-archival>/RuneCLR-artifacts/trusted-game-generic-body-fnptr-r2-smoke-audit-l12z-20261021/REVIEW.md
 (SHA-256 750724b1f0242d83f172a8544453116273d9b56a18aafa795d91352bbed4564d).
 
 The later module-invocation witness stock smoke is a separate campaign, not a
@@ -192,7 +244,7 @@ CurrentScenario read and runtime module dispatch are not independently proven,
 and no module PC/IR/native/interpreter/R2R/fallback, unload, iOS/device or
 overall acceptance follows. See the stock acceptance (archival/local evidence: `../artifacts/lead-module-invocation-witness-review-20261021/stock-independent-acceptance.json`)
 and
-D:/RuneCLR-artifacts/trusted-game-generic-module-witness-stock-audit-l12z-20261021/REVIEW.md
+<local-archival>/RuneCLR-artifacts/trusted-game-generic-module-witness-stock-audit-l12z-20261021/REVIEW.md
 (SHA-256 9ad56c924abd549f52529224c09100268375baa39ff3ccc3f114139ae8c9d6d5).
 
 The r6 entry campaign remains FAILED-CLOSED: exactly two stock-SDK Publishers
@@ -212,9 +264,9 @@ decoded as 3a0ad5117f5f3fb0. That kept reusable acceptance NO-GO at that point; 
 correction remained unaccepted and was not inspected. The maintained
 28-test text IR reader is separate from the artifact 46-PASS suite, which is
 also not reusable validation. See
-D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-execution-audit-bocx5e-20261021/REVIEW.md
+<local-archival>/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-execution-audit-bocx5e-20261021/REVIEW.md
 and
-D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-offline-repair-review-bocx5e-20261021/REVIEW.md.
+<local-archival>/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-offline-repair-review-bocx5e-20261021/REVIEW.md.
 
 The original r7 entry campaign is terminal FAILED and is not promoted: two
 stock Publishers plus stageA and stageB forced-control Hosts all exited 0;
@@ -239,7 +291,7 @@ ModuleInvocationWitness.cs 227:36 and 254:49, where the simple name Module binds
 to the namespace instead of System.Reflection.Module. No Host run, source
 correction or live edit occurred in that campaign, and the Lead verified the raw
 logs and absent outputs. Report
-D:/RuneCLR-artifacts/trusted-game-generic-module-witness-compile-20261021-x3yd3fe4/REPORT.md
+<local-archival>/RuneCLR-artifacts/trusted-game-generic-module-witness-compile-20261021-x3yd3fe4/REPORT.md
 (SHA-256 b39c4a09be1135b90b5f3c01e112ceee247ead1f3d37400920386d5beceac2f5).
 The corrected artifact-only derivative changes exactly those two parameter types
 to System.Reflection.Module. Its cumulative compile record is three stock build
@@ -328,7 +380,7 @@ these offline checks.
 
 ## Generic R2R Build, Report And Map Evidence (2026-10-21)
 
-The retained root D:/RuneCLR-artifacts/trusted-game-generics-r2r-build-20261021-x3yd3fe4
+The retained root <local-archival>/RuneCLR-artifacts/trusted-game-generics-r2r-build-20261021-x3yd3fe4
 records exactly three managed builds, five independent non-composite crossgen
 images and zero Host executions. New A/B module images were built after the
 Host; Host/Contracts/TrustedUpdate outputs stayed frozen during the late module
@@ -341,7 +393,7 @@ PE MVIDs, R2R headers, maps and layout independence, with zero new products.
 
 The parent report's five R2R section tables used an 8-byte stride and omitted
 sizes. Corrected 12-byte type/RVA/size tables are accepted only in the fresh
-derivative D:/RuneCLR-artifacts/trusted-game-generics-r2r-report-repair-20261021-x3yd3fe4;
+derivative <local-archival>/RuneCLR-artifacts/trusted-game-generics-r2r-report-repair-20261021-x3yd3fe4;
 the Lead reran seven parser tests and 377 repair checks, all 226 parent files
 still match the preservation manifest, and no product was rerun. Useful repair
 artifacts are
@@ -423,7 +475,7 @@ The old prep-r4/plan-r5 review remains historical NO-GO evidence for entry
 execution. It found unsealed expected Host shared Contracts/TrustedUpdate and
 Host deps/runtimeconfig identities and a misaligned plan-mutation harness; no
 entry products were executed. The old review is
-D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r4-r5-review-bocx5e-20261021/REVIEW.md.
+<local-archival>/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r4-r5-review-bocx5e-20261021/REVIEW.md.
 
 The later prep-r5/plan-r6 package passed Lead offline review: 40 input files,
 82 checks, 97 retained checks and 16 aligned gate-specific mutations, covering
@@ -436,7 +488,7 @@ Checked forced-control Hosts, stageA multiplier 1, stageB multiplier 2, recoverB
 multiplier 2. Zero builds, crossgens, retries or devices; stop at first failure.
 See the Lead release (archival/local evidence: `../artifacts/lead-entry-r6-release-20261021/RELEASE.md`).
 The independent review is
-D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-prep-r6-review-bocx5e-20261021/REVIEW.md.
+<local-archival>/RuneCLR-artifacts/trusted-game-entry-proof-continuation-prep-r6-review-bocx5e-20261021/REVIEW.md.
 
 The released execution has now terminated FAILED-CLOSED. Exactly two stock-SDK
 Publishers and the stageA forced-control Host ran and exited 0; stageB and
@@ -456,7 +508,7 @@ byte-order bug (r3 remained unaccepted at that point), and independent public-si
 verification passes 36 checks without proving a B Host. Acceptance is false:
 stageB/recoverB behavior and the expected B 2,6,12 results were not observed.
 The retained control report is
-D:/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-execution-control-dw517j-20261021/REPORT.md.
+<local-archival>/RuneCLR-artifacts/trusted-game-entry-proof-continuation-r6-execution-control-dw517j-20261021/REPORT.md.
 A runner pass alone is not raw attribution acceptance. The subsequent raw audit
 and public-signature check cover only their bounded scopes; the old
 results-filename refusal and weak IR prefix/signature matching remain explicit
@@ -1715,9 +1767,9 @@ reproduction driver records this distinction and returns 2 for the known blocker
 after its execution/regression controls pass. No iOS delivery claim is added,
 and no runtime patch was made.
 
-On 2026-10-16, `py -3 eng/verify-trusted-composition.py --runtime E:/runtime --output artifacts/trusted-composition-20261016-desktop --allow-known-collectible-blocker` completed with standard output `PASS five functional/execution controls; BLOCKED combined collectible R2R acceptance`. Its `result.json` recorded `controlsPassed=true`, `milestoneComplete=false`, and `status=blocked-collectible-r2r`; the `r2r-native` report had `Passed=true` and the IL-only helper was interpreted. The object-identity sessions used version sequence `A,B,A,A,A` with `HostTouches=9`, `InterfaceCalls=9`, `DelegateCalls=9`, `GenericCalls=18`, and `HostIdentity=true`. Loader controls recorded `passed=true`, `rejected=2`, `recoveryContextsCollected=10`, and `originalInputsUnchanged=true`. The runtime was `runeclr/interpreter-baseline` at `0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de`. This is not native R2R for collectible modules and is not iOS or physical-device evidence; launcher exit status is not a business-success signal.
+On 2026-10-16, `py -3 eng/verify-trusted-composition.py --runtime <local-archival>/runtime --output artifacts/trusted-composition-20261016-desktop --allow-known-collectible-blocker` completed with standard output `PASS five functional/execution controls; BLOCKED combined collectible R2R acceptance`. Its `result.json` recorded `controlsPassed=true`, `milestoneComplete=false`, and `status=blocked-collectible-r2r`; the `r2r-native` report had `Passed=true` and the IL-only helper was interpreted. The object-identity sessions used version sequence `A,B,A,A,A` with `HostTouches=9`, `InterfaceCalls=9`, `DelegateCalls=9`, `GenericCalls=18`, and `HostIdentity=true`. Loader controls recorded `passed=true`, `rejected=2`, `recoveryContextsCollected=10`, and `originalInputsUnchanged=true`. The runtime was `runeclr/interpreter-baseline` at `0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de`. This is not native R2R for collectible modules and is not iOS or physical-device evidence; launcher exit status is not a business-success signal.
 The collectible rejection is ReadyToRunInfo::Initialize in src/coreclr/vm/readytoruninfo.cpp, which logs Ready to Run disabled - collectible module and returns NULL; ReadyToRun, InterpMode, and ReadyToRunExcludeList do not enable collectible modules alone. On that measured result, RuneCLR does not pursue unloadable hot-update R2R: an update that must be unloaded stays interpreted, and ordinary first-party execution does not repeatedly unload old assemblies.
-The experimental ReadyToRunCollectible switch was not retained; E:/runtime stays the clean pinned commit 0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de, and the installed dotnet was not replaced.
+The experimental ReadyToRunCollectible switch was not retained; <local-archival>/runtime stays the clean pinned commit 0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de, and the installed dotnet was not replaced.
 
 On 2026-10-16, simulator directory `rerun-a9164cd-20261016-10` was checked with `python3 eng/verify-ios-trusted-update.py`. The verifier exited 0 with `passed=true` and `nativeExecutionProven=true`. A and B both recorded `RUNECLR_EXIT=0` and `TRUSTED_UPDATE_SUCCESS result=216`. This is an iOS simulator receipt, not a physical-device result.
 A later clean checkout of c268026 reproduced that result as rerun-c268026-20261016-01. verify-ios-trusted-update.py exited 0 with passed=true and nativeExecutionProven=true. A and B both recorded RUNECLR_EXIT=0. Host.cs in that tree has no failure-type diagnostics. This is still an iOS 27 simulator receipt, not a physical-device result.
@@ -2255,7 +2307,7 @@ files,64 launch lanes and832 expected collections. Forty synthetic corruption
 controls pass; preparation/selftest alone do not constitute measured timings.
 A fresh unchanged-driver preparation on2026-10-15 passes the same input/plan
 and control counts at
-`D:/RuneCLR-Android/representative-budget/performance-preparation-20261015-attempt1`.
+`<local-archival>/RuneCLR-Android/representative-budget/performance-preparation-20261015-attempt1`.
 Its single64-process representative measurement run and original/independent
 raw reviews now pass832 collections and576 callback/576 session samples.
 Configured entity/API callbacks with exact derived accounting take9.61-9.83%

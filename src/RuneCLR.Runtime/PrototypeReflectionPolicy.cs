@@ -13,6 +13,7 @@ public static class PrototypeReflectionPolicy
     private delegate IDisposable CreateSession(Action<MemberInfo, object?, object?[]?, int> check,
         AssemblyLoadContext context, Action<byte[], string?> admit, out Func<IDisposable> activate);
     private static readonly Lazy<CreateSession> SessionEntry = new(BindSession);
+    private static readonly Lazy<Func<int>> OriginScanCapability = new(BindOriginScan);
 
     public static IDisposable Enter(IApiAccessPolicy policy)
     {
@@ -26,6 +27,39 @@ public static class PrototypeReflectionPolicy
         if (!AppContext.TryGetSwitch("RuneCLR.EnableReflectionPolicy", out bool enabled) || !enabled)
             throw new PlatformNotSupportedException("The RuneCLR reflection-policy experiment is disabled.");
         _ = SessionEntry.Value;
+    }
+
+    internal static void PrepareOriginScan()
+    {
+        int capabilities;
+        try { capabilities = OriginScanCapability.Value(); }
+        catch (PlatformNotSupportedException) { throw; }
+        catch (Exception error)
+        {
+            throw new PlatformNotSupportedException(
+                "The runtime reflection-policy origin-scan capability cannot be queried.", error);
+        }
+        if ((capabilities & 1) == 0)
+            throw new PlatformNotSupportedException("The runtime reflection-policy origin-scan capability is unavailable.");
+    }
+
+    private static Func<int> BindOriginScan()
+    {
+        try
+        {
+            var type = typeof(MethodInfo).Assembly.GetType("System.Reflection.RuneCLRReflectionPolicy", false)
+                ?? throw new PlatformNotSupportedException(
+                    "The runtime does not provide the reflection-policy origin-scan capability.");
+            var method = RequiredInterpreterBridge.Method(type, "RuneCLR_GetReflectionPolicyCapabilities",
+                isStatic: true, typeof(int));
+            return method.CreateDelegate<Func<int>>();
+        }
+        catch (PlatformNotSupportedException) { throw; }
+        catch (Exception error)
+        {
+            throw new PlatformNotSupportedException(
+                "The runtime reflection-policy origin-scan capability cannot be bound.", error);
+        }
     }
 
     internal static ReflectionPolicySession Create(IApiAccessPolicy policy, AssemblyLoadContext context, Action<byte[], string?> admit)
