@@ -45,22 +45,54 @@ def git_raw(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args], text=True)
 
 
-def verify_runtime_provenance(runtime, expected):
-    """Require a clean worktree carrying only in-tree runtime source changes."""
+HEX = set("0123456789abcdef")
+
+
+def verify_runtime_provenance(runtime, expected, base=None, allowed_paths=()):
+    """Require a clean worktree carrying only in-tree runtime source changes.
+
+    base: explicit ancestor commit to diff against. It defaults to the published base so
+    the historical reproductions keep their original comparison.
+    allowed_paths: exact canonical tracked docs/<name>.md paths that may appear outside
+    src/. Wildcards, directories and other folders are rejected.
+    """
+    base = base or RUNTIME_BASE
+    explicit = base != RUNTIME_BASE or bool(allowed_paths)
+    if base != RUNTIME_BASE and (len(base) != 40 or not set(base.lower()) <= HEX):
+        raise ValueError("Runtime base must be a full 40-character commit id; found " + repr(base) + ".")
     status = git(runtime, "status", "--porcelain", "--untracked-files=normal")
     if status:
         raise ValueError("Runtime worktree must be clean; found: " + status.replace(NL, " | "))
     head = git(runtime, "rev-parse", "HEAD")
     if expected and head != expected:
         raise ValueError("Runtime HEAD must be " + expected + "; found " + head + ".")
-    if subprocess.run(["git", "-C", str(runtime), "merge-base", "--is-ancestor", RUNTIME_BASE, head]).returncode:
-        raise ValueError("Runtime HEAD " + head + " is not descended from published base " + RUNTIME_BASE + ".")
-    changed = [line for line in git(runtime, "diff", "--name-only", RUNTIME_BASE + ".." + head).splitlines() if line]
-    outside = [path for path in changed if not path.startswith("src/")]
+    if subprocess.run(["git", "-C", str(runtime), "cat-file", "-e", base + "^{commit}"],
+                      capture_output=True).returncode:
+        raise ValueError("Runtime base " + base + " is not a commit in the runtime repository.")
+    if subprocess.run(["git", "-C", str(runtime), "merge-base", "--is-ancestor", base, head]).returncode:
+        raise ValueError("Runtime HEAD " + head + " is not descended from base " + base + ".")
+    changed = [line for line in git(runtime, "diff", "--name-only", base + ".." + head).splitlines() if line]
+    allowed = []
+    for path_name in allowed_paths:
+        parts = path_name.split("/")
+        if (len(parts) != 2 or parts[0] != "docs" or not parts[1].endswith(".md")
+                or parts[1].startswith(".") or any(mark in path_name for mark in "*?[")):
+            raise ValueError("Additional allowed path must be an exact docs/<name>.md file; found "
+                             + repr(path_name) + ".")
+        if subprocess.run(["git", "-C", str(runtime), "cat-file", "-e", "HEAD:" + path_name],
+                          capture_output=True).returncode:
+            raise ValueError("Additional allowed path is not tracked at runtime HEAD: " + path_name)
+        if path_name not in changed:
+            raise ValueError("Additional allowed path is not part of the delta over the base: " + path_name)
+        allowed.append(path_name)
+    outside = [changed_path for changed_path in changed
+               if not changed_path.startswith("src/") and changed_path not in set(allowed)]
     if outside:
         raise ValueError("Runtime changes outside src/: " + ", ".join(outside))
-    if not changed and head != RUNTIME_BASE:
+    if not changed and head != base:
         raise ValueError("Runtime HEAD carries no source delta over the published base.")
+    if explicit and not any(changed_path.startswith("src/") for changed_path in changed):
+        raise ValueError("Runtime HEAD carries no source delta under src/ over base " + base + ".")
     return head, changed
 
 
@@ -353,7 +385,16 @@ def main():
     parser.add_argument("--build-rid", default=BUILD_RID)
     parser.add_argument("--build-layout", action="store_true")
     parser.add_argument("--expect-fixed", action="store_true")
+    parser.add_argument("--runtime-base", default="")
+    parser.add_argument("--additional-allowed-path", action="append", default=[])
     args = parser.parse_args()
+    runtime_base = args.runtime_base.strip() or None
+    allowed_paths = tuple(args.additional_allowed_path)
+    if runtime_base is not None and (len(runtime_base) != 40 or not set(runtime_base.lower()) <= HEX):
+        raise ValueError("--runtime-base must be a full 40-character commit id; found " + repr(runtime_base) + ".")
+    if (runtime_base or allowed_paths) and (args.runtime_committed_source or args.runtime_source_manifest):
+        raise ValueError("--runtime-base/--additional-allowed-path are only valid in clean-commit provenance mode, "
+                         "not with the committed-source or source-manifest modes.")
 
     root = Path(__file__).resolve().parents[1]
     runtime = args.runtime_root.resolve()
@@ -387,7 +428,10 @@ def main():
         runtime_head, runtime_changed = verify_source_manifest(runtime, manifest)
         provenance = "source-manifest"
     else:
-        runtime_head, runtime_changed = verify_runtime_provenance(runtime, args.runtime_commit)
+        if (runtime_base or allowed_paths) and not args.runtime_commit:
+            raise ValueError("--runtime-base/--additional-allowed-path require --runtime-commit naming the expected HEAD.")
+        runtime_head, runtime_changed = verify_runtime_provenance(
+            runtime, args.runtime_commit, base=runtime_base, allowed_paths=allowed_paths)
         provenance = "clean-commit"
 
     if args.build_layout:
@@ -663,13 +707,21 @@ def main():
             verify_source_manifest(runtime, manifest)
         except ValueError as error:
             failures.append("runtime source state changed during the run: " + str(error))
+    else:
+        try:
+            verify_runtime_provenance(runtime, args.runtime_commit, base=runtime_base,
+                                      allowed_paths=allowed_paths)
+        except ValueError as error:
+            failures.append("runtime state changed during the run: " + str(error))
     result["modes"] = {name: {"exit": mode["exit"], "parsed": mode["parsed"] is not None,
                               "stdout": mode["stdout"], "stderr": mode["stderr"]}
                        for name, mode in modes.items()}
     result["failures"] = failures
     result["inputCount"] = len(pins)
     result["drift"] = drift
-    result["runtimeBase"] = RUNTIME_BASE
+    result["runtimeBase"] = runtime_base or RUNTIME_BASE
+    result["runtimeAllowlist"] = list(allowed_paths)
+    result["runtimeExpectedHead"] = args.runtime_commit or None
     result["runtimeHead"] = runtime_head
     result["runtimeChangedFiles"] = runtime_changed
     result["layoutBuilt"] = bool(args.build_layout)

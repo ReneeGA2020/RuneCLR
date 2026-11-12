@@ -195,3 +195,38 @@ round and no CPU pinning; they are medians in milliseconds unless stated.
   lacked a helper that only the native test assembly had); only the driver was fixed
   (`a49635576a84…`). Runtime source, HEAD and the delivery were untouched, and the blocked attempt
   is not counted as a measurement.
+
+## Combined host/runtime acceptance (2026-11-13)
+
+The host branch merges `origin/main` `aa31875` (the merged session-origin host PR) into this work,
+and both opt-ins are now accepted together on one runtime: the publication branch
+`runeclr/optional-callback-epoch-integration-final-20261112` at
+`fed410bbe368b465b6628338a6fc04d6c38a4f2e` (parent merge `234c0b7a…` over `runeclr/dev`
+`474eb8ad…`), built as a `windows.x64.Release` delivery. The private host layout is composed from
+that delivery (coreclr `48289d63…`, clrinterpreter `6b861fc7…`, clrjit `197834f4…`, corerun
+`30a8dd9a…`, CoreLib `e9a94ae0…`) with bootstrap hosting components only; no installed runtime is
+replaced.
+
+- Epoch suite **24 passed / 0 skipped / 0 failed**, and `eng/verify-epoch-integration.py` passes with
+  **669 pinned inputs**, a **523-file** private layout and zero drift.
+- Session-origin fixed matrix **16/16 modes** at `--runtime-base 474eb8ad…` `--runtime-commit
+  fed410b…`, with **710 pinned inputs**, zero drift, and the five hashes above. The delta over the
+  base is 15 files under `src/` plus the two canonical documents `docs/runeclr-dev.md` and
+  `docs/runeclr-callback-epoch.md`.
+- Lifecycle harness **156/156** ordinary and **156/156** with `--require-interpreter`.
+
+Both opt-ins stay off by default (`MapDeadlineMode.Clock`,
+`RuneCLR.EnableReflectionPolicyOriginScan=false`) and the configuration contract is unchanged:
+configuration must happen on a fresh interpreter-required context before the first execution.
+Existing limits carry over unchanged: Windows x64 Release interpreter only, no device / AOT / Linux /
+Wasm or JIT/R2R instrumentation claims, a fail-closed budget rather than a sandbox, and author
+finalizers unsafe in a budgeted context.
+
+`eng/verify-runtime-session-origin.py` gained an explicit clean-commit mode for this comparison:
+`--runtime-base` names a full ancestor commit while the default stays the published base, and each
+repeatable `--additional-allowed-path` must be an exact tracked `docs/<name>.md` path that is part of
+the delta. Unlisted, non-document, wildcard, untracked and unchanged paths are rejected, every
+changed source and allowed document stays pinned, and the same base, allowlist and expected HEAD are
+revalidated after the run. The earlier blocked attempt is explained by the tool inheriting the
+published reflection base `7cbdad39…`, which made the combined delta look like hundreds of unrelated
+files; `eng/test-session-origin-provenance.py` now covers the accepted and rejected shapes.

@@ -45,6 +45,20 @@ contract and limits are in
 The runtime `RuneCLR.EnableReflectionPolicyOriginScan` switch defaults to disabled,
 so a host that does not opt in keeps the existing reflection-policy behavior.
 
+## Combined opt-in acceptance (2026-11-13)
+
+The epoch callback-deadline host branch merges `origin/main` `aa31875` (the merged session-origin
+host PR) and is accepted together with both opt-ins on runtime
+`runeclr/optional-callback-epoch-integration-final-20261112` `fed410bbe368b465b6628338a6fc04d6c38a4f2e`
+(parent merge `234c0b7a…` over `runeclr/dev` `474eb8ad…`). On one private layout composed from that
+`windows.x64.Release` delivery the epoch suite passes 24/24, the epoch verifier 669 pins with zero
+drift, the session-origin fixed matrix 16/16 modes with 710 pins and zero drift, and the lifecycle
+harness 156/156 both ordinary and with `--require-interpreter`. Both switches stay off by default and
+the documented limits are unchanged; the
+[callback-epoch increment](experiments/optional-epoch-deadline-integration-20261112.md) records the
+combined evidence, the allowed-document provenance mode of `eng/verify-runtime-session-origin.py`,
+and the earlier published-base comparison that blocked the first attempt.
+
 ## Physical iPad device R2R experiment (2026-11-10)
 
 The [iPad device R2R experiment](ios-device-r2r-experiment.md) records the first
