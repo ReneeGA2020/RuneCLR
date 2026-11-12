@@ -150,3 +150,27 @@ rn_result_path (const char *documents, const char *payload,
     int written = snprintf (out, out_size, "%s/results/%s.json", documents, run_id);
     return (written > 0 && (size_t)written < out_size) ? RN_OK : RN_ERR_LONG;
 }
+
+rn_start_mode
+rn_start_mode_select (int probe, int delivery)
+{
+    if (probe && delivery)
+        return RN_MODE_CONFLICT;
+    if (delivery)
+        return RN_MODE_DELIVERY;
+    if (probe)
+        return RN_MODE_PROBE;
+    return RN_MODE_PAYLOAD;
+}
+
+const char *
+rn_start_mode_name (rn_start_mode mode)
+{
+    switch (mode)
+    {
+        case RN_MODE_PROBE: return "probe";
+        case RN_MODE_DELIVERY: return "delivery";
+        case RN_MODE_CONFLICT: return "conflict";
+        default: return "payload";
+    }
+}

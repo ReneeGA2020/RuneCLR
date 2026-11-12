@@ -29,4 +29,17 @@ rn_status rn_payload_dir(const char *documents, const char *payload,
 rn_status rn_result_path(const char *documents, const char *payload,
                          char *out, size_t out_size);
 
+/* Startup mode from the two independent flags. --probe and --delivery are
+ * mutually exclusive; the caller must reject RN_MODE_CONFLICT before initializing
+ * CoreCLR or running any managed code. */
+typedef enum {
+    RN_MODE_PAYLOAD = 0,
+    RN_MODE_PROBE = 1,
+    RN_MODE_DELIVERY = 2,
+    RN_MODE_CONFLICT = 3
+} rn_start_mode;
+
+rn_start_mode rn_start_mode_select (int probe, int delivery);
+const char *rn_start_mode_name (rn_start_mode mode);
+
 #endif

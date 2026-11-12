@@ -149,6 +149,13 @@ main (void)
            strcmp (result, expected_result) == 0, result);
     check ("result-dot-rejected", rn_result_path (documents, "..", result, sizeof (result)) == RN_ERR_DOT, NULL);
 
+    check ("mode-payload", rn_start_mode_select (0, 0) == RN_MODE_PAYLOAD &&
+           strcmp (rn_start_mode_name (RN_MODE_PAYLOAD), "payload") == 0, NULL);
+    check ("mode-probe", rn_start_mode_select (1, 0) == RN_MODE_PROBE &&
+           strcmp (rn_start_mode_name (RN_MODE_PROBE), "probe") == 0, NULL);
+    check ("mode-delivery", rn_start_mode_select (0, 1) == RN_MODE_DELIVERY &&
+           strcmp (rn_start_mode_name (RN_MODE_DELIVERY), "delivery") == 0, NULL);
+    check ("mode-conflict-is-rejected", rn_start_mode_select (1, 1) == RN_MODE_CONFLICT, NULL);
     printf ("RESULT %s failures=%d scratch=%s\n", failures == 0 ? "PASS" : "FAIL", failures, scratch);
     return failures == 0 ? 0 : 1;
 }

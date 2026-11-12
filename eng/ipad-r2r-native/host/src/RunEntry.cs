@@ -69,7 +69,7 @@ public static class ProbeEntry
             contractMvid = contract.ManifestModule.ModuleVersionId.ToString();
             contractFromDefault = AssemblyLoadContext.GetLoadContext(contract) == AssemblyLoadContext.Default;
             Console.SetOut(buffer);
-            driverExit = TrustedUpdate.Driver.Run();
+            driverExit = string.Equals(Environment.GetEnvironmentVariable("RUNECLR_HOST_MODE"),                "delivery", StringComparison.Ordinal)                ? TrustedUpdate.DeliveryHost.Run()                : TrustedUpdate.Driver.Run();
         }
         catch (Exception failure)
         {

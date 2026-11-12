@@ -23,7 +23,26 @@ public static class TrustedReleaseRecovery
         TrustedUpdateTarget target,
         string allowedReleasesRoot,
         string recoveryReceiptPath,
-        TrustedUpdateActivator activator)
+        TrustedUpdateActivator activator) =>
+        TryStart(offer, hostSubjectPublicKeyInfo, target, allowedReleasesRoot, recoveryReceiptPath, activator, null);
+
+    /// <summary>
+    /// Same as <see cref="TryStart(TrustedReleaseOffer?, ReadOnlyMemory{byte}, TrustedUpdateTarget, string, string, TrustedUpdateActivator)"/>
+    /// with one optional pre-activation check. It runs after <see cref="TrustedRelease.Verify"/>
+    /// for the offered candidate and again for the last-known-good candidate restored from
+    /// the receipt, and before <c>TryStartHostLoaded</c>. Returning false rejects that
+    /// candidate: the process gate stays free, no author code runs, and an offered failure
+    /// still falls back to the receipt candidate. The check never receives a package key,
+    /// and this overload does not change the older callers' behaviour.
+    /// </summary>
+    public static TrustedReleaseRecoveryStart TryStart(
+        TrustedReleaseOffer? offer,
+        ReadOnlyMemory<byte> hostSubjectPublicKeyInfo,
+        TrustedUpdateTarget target,
+        string allowedReleasesRoot,
+        string recoveryReceiptPath,
+        TrustedUpdateActivator activator,
+        Func<string, TrustedUpdateCandidate, bool>? candidateCheck)
     {
         ArgumentNullException.ThrowIfNull(activator);
         if (hostSubjectPublicKeyInfo.Length != TrustedRelease.SpkiBytes)
@@ -35,10 +54,10 @@ public static class TrustedReleaseRecovery
         var selector = new TrustedUpdateProcess();
         if (offer is not null)
         {
-            var offered = TryOffer(offer, spki, target, releasesRoot, receiptPath, selector, activator);
+            var offered = TryOffer(offer, spki, target, releasesRoot, receiptPath, selector, activator, candidateCheck);
             if (offered.Stop)
                 return offered.Start;
-            return TryRecover(releasesRoot, receiptPath, spki, target, selector, activator, offered.Start.Candidate);
+            return TryRecover(releasesRoot, receiptPath, spki, target, selector, activator, offered.Start.Candidate, candidateCheck);
         }
 
         return TryRecover(
@@ -48,7 +67,8 @@ public static class TrustedReleaseRecovery
             target,
             selector,
             activator,
-            Candidate(TrustedReleaseFailure.None, TrustedUpdateFailure.None, TrustedUpdateFailure.None, "absent"));
+            Candidate(TrustedReleaseFailure.None, TrustedUpdateFailure.None, TrustedUpdateFailure.None, "absent"),
+            candidateCheck);
     }
 
     static Attempt TryOffer(
@@ -58,7 +78,8 @@ public static class TrustedReleaseRecovery
         string releasesRoot,
         string receiptPath,
         TrustedUpdateProcess selector,
-        TrustedUpdateActivator activator)
+        TrustedUpdateActivator activator,
+        Func<string, TrustedUpdateCandidate, bool>? candidateCheck)
     {
         if (string.IsNullOrWhiteSpace(offer.ContentRoot))
             return Continue(Candidate(TrustedReleaseFailure.InvalidPath, TrustedUpdateFailure.None, TrustedUpdateFailure.None, "root"));
@@ -84,6 +105,9 @@ public static class TrustedReleaseRecovery
         var verified = TrustedRelease.Verify(contentRoot, document, spki);
         if (!verified.Succeeded || verified.Candidate is null || verified.Approval is null)
             return Continue(Candidate(verified.Failure, TrustedUpdateFailure.None, TrustedUpdateFailure.None, verified.Detail));
+
+        if (!RunCandidateCheck(candidateCheck, contentRoot, verified.Candidate))
+            return Continue(Candidate(TrustedReleaseFailure.None, TrustedUpdateFailure.InvalidCandidate, TrustedUpdateFailure.None, "compat"));
 
         var planned = selector.TryPlanCandidate(verified.Candidate, target, verified.Approval, contentRoot);
         if (planned.Failure == TrustedUpdateFailure.ProcessSelectionLocked)
@@ -158,7 +182,8 @@ public static class TrustedReleaseRecovery
         TrustedUpdateTarget target,
         TrustedUpdateProcess selector,
         TrustedUpdateActivator activator,
-        TrustedReleaseRecoveryReason candidate)
+        TrustedReleaseRecoveryReason candidate,
+        Func<string, TrustedUpdateCandidate, bool>? candidateCheck)
     {
         if (!TryReadReceipt(receiptPath, out var relative, out var document, out var recovery))
             return new TrustedReleaseRecoveryStart(false, null, TrustedUpdateStartSource.None, 0, "", candidate, recovery, TrustedReleasePersistenceFailure.None, "");
@@ -168,6 +193,9 @@ public static class TrustedReleaseRecovery
         var verified = TrustedRelease.Verify(contentRoot, document, spki);
         if (!verified.Succeeded || verified.Candidate is null || verified.Approval is null)
             return new TrustedReleaseRecoveryStart(false, null, TrustedUpdateStartSource.None, 0, "", candidate, Recovery(verified.Failure, TrustedUpdateFailure.None, TrustedUpdateFailure.None, verified.Detail), TrustedReleasePersistenceFailure.None, "");
+
+        if (!RunCandidateCheck(candidateCheck, contentRoot, verified.Candidate))
+            return new TrustedReleaseRecoveryStart(false, null, TrustedUpdateStartSource.None, 0, "", candidate, Recovery(TrustedReleaseFailure.None, TrustedUpdateFailure.LastKnownGoodUnusable, TrustedUpdateFailure.None, "compat"), TrustedReleasePersistenceFailure.None, "");
 
         var planned = selector.TryPlanCandidate(verified.Candidate, target, verified.Approval, contentRoot);
         if (planned.Failure == TrustedUpdateFailure.ProcessSelectionLocked)
@@ -687,6 +715,29 @@ public static class TrustedReleaseRecovery
         }
         catch (Exception ex) when (IsOperational(ex))
         {
+        }
+    }
+
+    /// <summary>
+    /// A host check is ordinary host code. A normal exception from it is treated like
+    /// a rejected candidate: no process gate, no activator call, and the exception
+    /// object is not retained or turned into author-visible text. Process-fatal
+    /// exceptions are not caught here.
+    /// </summary>
+    static bool RunCandidateCheck(
+        Func<string, TrustedUpdateCandidate, bool>? candidateCheck,
+        string contentRoot,
+        TrustedUpdateCandidate candidate)
+    {
+        if (candidateCheck is null)
+            return true;
+        try
+        {
+            return candidateCheck(contentRoot, candidate);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
+        {
+            return false;
         }
     }
 

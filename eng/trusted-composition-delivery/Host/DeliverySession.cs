@@ -25,6 +25,7 @@ sealed class DeliveryFacts
     public bool Identity;
     public int Calls;
     public string Detail = "";
+    public string Compatibility = "";
     public string Stage = "";
     public string Candidate = "";
     public string Recovery = "";
@@ -190,8 +191,43 @@ static class DeliverySession
         TrustedReleaseOffer? offer = offerRoot is null || document is null
             ? null
             : new TrustedReleaseOffer(offerRoot, document);
+        if (offer is not null)
+        {
+            var verified = TrustedRelease.Verify(offerRoot!, document!, spki);
+            if (verified.Succeeded && verified.Candidate is not null)
+            {
+                var require = ContractCompatibility.Required();
+                if (!ContractCompatibility.Check(offerRoot!, verified.Candidate, Target, ContractCompatibility.DeploymentContractPath(), require, out var status, out var compatibility))
+                {
+                    facts.Compatibility = status + ":" + compatibility;
+                    facts.Detail = facts.Detail.Length == 0 ? "compat:" + compatibility : facts.Detail + ";compat:" + compatibility;
+                    facts.Stage = facts.Stage + "/" + compatibility;
+                    offer = null;
+                }
+                else
+                {
+                    facts.Compatibility = status + ":" + compatibility;
+                }
+            }
+            else
+            {
+                facts.Compatibility = "unverified";
+            }
+        }
+
+        Func<string, TrustedUpdateCandidate, bool>? candidateCheck = null;
+        if (ContractCompatibility.Required())
+        {
+            candidateCheck = (root, candidate) =>
+            {
+                var allowed = ContractCompatibility.Check(root, candidate, Target, ContractCompatibility.DeploymentContractPath(), require: true, out var checkStatus, out var checkDetail);
+                facts.Compatibility = checkStatus + ":" + checkDetail;
+                return allowed;
+            };
+        }
+
         var result = TrustedReleaseRecovery.TryStart(offer, spki, Target, releasesRoot, receiptPath, (candidate, source, _) =>
-            Activate(candidate, source, fail, facts));
+            Activate(candidate, source, fail, facts), candidateCheck);
         facts.Activated = result.Activated;
         facts.Version = result.SelectedVersion ?? "";
         if (result.Source != TrustedUpdateStartSource.None || facts.Calls == 0)
@@ -315,8 +351,12 @@ static class DeliverySession
                 paths.Add(file.Path);
         }
 
+        var contractName = typeof(TrustedComposition.Contract.IUpdateModule).Assembly.GetName().Name;
         foreach (var path in paths)
         {
+            if (string.Equals(Path.GetFileName(path), ContractCompatibility.SidecarName, StringComparison.Ordinal))
+                continue;
+
             AssemblyName actual;
             try
             {
@@ -331,6 +371,12 @@ static class DeliverySession
             if (string.IsNullOrWhiteSpace(actual.Name))
             {
                 detail = "assembly-identity";
+                return false;
+            }
+
+            if (string.Equals(actual.Name, contractName, StringComparison.OrdinalIgnoreCase))
+            {
+                detail = "contract-in-payload";
                 return false;
             }
 

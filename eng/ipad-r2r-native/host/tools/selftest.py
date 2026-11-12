@@ -146,6 +146,15 @@ def app_digest(app):
                                   for e in entries).encode()).hexdigest()
 
 
+def mvid_tests(generator):
+    raw = '24716ef334ba1e4c9843fc900fd2de39'
+    check('canonical-mvid-guid-d',
+          generator.canonical_mvid(raw) == 'f36e7124-ba34-4c1e-9843-fc900fd2de39',
+          generator.canonical_mvid(raw))
+    check('canonical-mvid-not-raw-order',
+          generator.canonical_mvid(raw) != '24716ef3-34ba-1e4c-9843-fc900fd2de39')
+
+
 def receipt_tests(work, generator):
     app = work / 'fake-host.app'
     app.mkdir(exist_ok=True)
@@ -249,6 +258,20 @@ def component_tests(work, generator, sample=None):
               'owner=' + str(real['ownerComposite']))
 
 
+def build_host_source_fixture():
+    src = (TOOLS / "build_host.py").read_text(encoding="utf-8")
+    directives = ["global using System;", "global using System.Collections.Generic;",
+                  "global using System.IO;", "global using System.Linq;",
+                  "global using System.Net.Http;", "global using System.Net.Http.Json;",
+                  "global using System.Threading;", "global using System.Threading.Tasks;"]
+    check("build-host-implicit-usings-file",
+          "global-usings.g.cs" in src and all(d in src for d in directives))
+    check("build-host-nullable-managed-only", src.count("-nullable:enable") == 3)
+    contract = [l for l in src.splitlines() if chr(39) + "Contract.cs" + chr(39) in l]
+    check("build-host-contract-compile-unchanged",
+          bool(contract) and "global_usings" not in contract[0] and "-nullable" not in contract[0])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dotnet', default='dotnet', help='dotnet 11+ host')
@@ -265,8 +288,10 @@ def main():
         if harness and stamps:
             run_entry_tests(work, args.dotnet, harness, stamps)
         generator = load_generator()
+        mvid_tests(generator)
         receipt_tests(work, generator)
         component_tests(work, generator, args.component_sample)
+        build_host_source_fixture()
     finally:
         if not args.keep:
             shutil.rmtree(work, ignore_errors=True)

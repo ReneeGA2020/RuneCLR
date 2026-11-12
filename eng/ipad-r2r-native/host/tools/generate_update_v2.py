@@ -97,6 +97,23 @@ def run_logged(argv, out, name):
     return exit_code
 
 
+def canonical_mvid(raw):
+    """Canonical Guid "D" text from the 16 raw metadata #GUID bytes.
+
+    The bytes are stored in metadata-heap order (the first three fields are little-endian);
+    formatting them as-is is a different Guid, so decode first. Raw comparisons elsewhere keep
+    using the raw bytes; this helper only produces the host-facing text form.
+    """
+    if isinstance(raw, str):
+        raw = bytes.fromhex(raw)
+    if not isinstance(raw, (bytes, bytearray)) or len(raw) != 16:
+        raise ValueError('raw MVID must be 16 bytes')
+    a = int.from_bytes(raw[0:4], 'little')
+    b = int.from_bytes(raw[4:6], 'little')
+    c = int.from_bytes(raw[6:8], 'little')
+    return '%08x-%04x-%04x-%s-%s' % (a, b, c, raw[8:10].hex(), raw[10:16].hex())
+
+
 def compile_logged(out, name, sources, refs, target_path, sdk, csc):
     argv = [sdk, csc, '-nologo', '-noconfig', '-nostdlib+', '-optimize+', '-deterministic+',
             '-target:library', '-out:' + str(target_path)]
@@ -310,6 +327,14 @@ def main():
     refs += [contract, host_app / 'RuneCLR.TrustedUpdate.dll']
 
     source_hashes = {name: sha(args.sources / name) for name in SOURCE_FILES + (VERSION_FILE[args.version],)}
+    sdk_version = subprocess.run([str(sdk), '--version'], capture_output=True, text=True).stdout.strip()
+    toolchain = {
+        'dotnet': str(sdk), 'dotnetSha256': sha(sdk) if sdk.is_file() else None,
+        'sdkVersion': sdk_version,
+        'csc': str(csc), 'cscSha256': sha(csc) if csc.is_file() else None,
+        'crossgen2': str(crossgen2), 'crossgen2Sha256': sha(crossgen2) if crossgen2.is_file() else None,
+        'capturedUtc': utc(),
+    }
     stamp = out / 'RunStamp.cs'
     stamp.write_text(
         'internal static class RunStamp {\n'
@@ -381,8 +406,11 @@ def main():
                      'componentSha256': sha(contract),
                      'rawIlSha256': None,
                      'mvid': contract_mvid,
+                     'mvidCanonical': canonical_mvid(contract_mvid),
+                     'mvidSource': 'raw-metadata-heap-bytes',
                      'source': 'installed host Default ALC'},
         'sources': source_hashes, 'compiler': str(csc), 'compilerSha256': sha(csc),
+        'toolchain': toolchain,
         'crossgenArgs': options,
         'owner': {'name': owner.name, 'rawSha256': manifest[owner.name]['sha256'],
                   'bytes': manifest[owner.name]['bytes'], 'uuid': fields['uuid'],

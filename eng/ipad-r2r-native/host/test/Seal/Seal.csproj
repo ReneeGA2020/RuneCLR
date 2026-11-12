@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <AssemblyName>SealRelease</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>SealRelease</RootNamespace>
+    <!-- Core TrustedUpdate sources with the 7-parameter TryStart overload, and the portable
+         delivery bridge sources. Default is repo-relative; override on the command line. -->
+    <CoreTrustedUpdateRoot Condition="'$(CoreTrustedUpdateRoot)' == ''">../../../../../src/RuneCLR.TrustedUpdate</CoreTrustedUpdateRoot>
+    <DeliverySourceRoot Condition="'$(DeliverySourceRoot)' == ''">../../delivery</DeliverySourceRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(CoreTrustedUpdateRoot)/*.cs" />
+    <Compile Include="$(DeliverySourceRoot)/BoundedHttpFetch.cs" />
+    <Compile Include="$(DeliverySourceRoot)/ContractCompatibility.cs" />
+    <Compile Include="$(DeliverySourceRoot)/DeliveryContracts.cs" />
+    <Compile Include="$(DeliverySourceRoot)/IpadDeliveryBridge.cs" />
+    <Compile Include="$(DeliverySourceRoot)/IpadDeliveryBridge.Deliver.cs" />
+    <Compile Include="$(DeliverySourceRoot)/PackageSealer.cs" />
+  </ItemGroup>
+</Project>
