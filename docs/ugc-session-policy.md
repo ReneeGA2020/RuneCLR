@@ -210,3 +210,11 @@ non-Windows builds and physical iOS need separate validation.
 
 No hostile-code sandbox, serializer/database compatibility, native/R2R execution
 or physical-device claim is added.
+
+## Session-origin integration (2026-11-12)
+
+An opt-in session-origin capability is prepared on top of this policy in the
+integration branches; see
+[validation/session-origin-integration-20261112.md](validation/session-origin-integration-20261112.md).
+The runtime `RuneCLR.EnableReflectionPolicyOriginScan` switch defaults to
+disabled, so the policy described here is unchanged for existing hosts.

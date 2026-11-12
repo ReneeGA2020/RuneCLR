@@ -35,6 +35,16 @@ context: an isolated lane showed a post-`End` finalizer terminating the process 
 limits are recorded there: Windows x64 Release only, no device/AOT/Linux/Wasm or JIT/R2R
 instrumentation, a fail-closed budget rather than a sandbox, and a host-owned ticker.
 
+## Session-origin integration branch (2026-11-12)
+
+The opt-in session-origin policy is prepared on the integration bases
+`feature/session-origin-integration-20261112` (RuneCLR `origin/main`) and
+`runeclr/session-origin-integration-20261112` (`runeclr/dev`). The design, opt-in
+contract and limits are in
+[validation/session-origin-integration-20261112.md](validation/session-origin-integration-20261112.md).
+The runtime `RuneCLR.EnableReflectionPolicyOriginScan` switch defaults to disabled,
+so a host that does not opt in keeps the existing reflection-policy behavior.
+
 ## Physical iPad device R2R experiment (2026-11-10)
 
 The [iPad device R2R experiment](ios-device-r2r-experiment.md) records the first

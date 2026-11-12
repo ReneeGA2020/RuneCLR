@@ -46,6 +46,7 @@ public sealed class MapSession : IDisposable
         _terminal = options.PrototypeInstructionBudget is not null ? TerminalPrototypeBridge.Bind(required!) : null;
         _policyVersion = required is null ? 0 : 1;
         if (options.PrototypeApiPolicy is not null) PrototypeReflectionPolicy.Prepare();
+        if (options.PrototypeRequireOriginScan) PrototypeReflectionPolicy.PrepareOriginScan();
         try
         {
             // Lease and bootstrap the shared ticker before any author file is opened or loaded.
