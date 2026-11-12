@@ -392,7 +392,7 @@ public sealed class MapSession : IDisposable
             throw;
         }
         if (terminated)
-            throw new InvalidOperationException(_deadline is null ? TerminationError : DeadlineTerminationError);
+            throw new InvalidOperationException(DescribeTermination());
     }
 
     private void BeginDeadline()
@@ -437,6 +437,22 @@ public sealed class MapSession : IDisposable
         FailDeadlineBridge($"The process epoch ticker failed ({fault}).");
     }
 
+    // Report the mechanism that actually tripped: the deadline reason when a deadline budget was exceeded,
+    // otherwise the instruction-budget terminal state. A missing/retired deadline bridge falls back to the
+    // terminal text, and query failures keep the fail-closed terminal message.
+    private string DescribeTermination()
+    {
+        if (_deadline is null) return TerminationError;
+        try
+        {
+            return _deadline.Snapshot(_loadContext!).Reason != 0 ? DeadlineTerminationError : TerminationError;
+        }
+        catch (Exception)
+        {
+            return TerminationError;
+        }
+    }
+
     private void FailDeadlineBridge(string message)
     {
         _deadlineFailure ??= message;
@@ -450,7 +466,7 @@ public sealed class MapSession : IDisposable
         {
             try
             {
-                if (_terminal.IsTerminated(_loadContext!)) return _deadline is null ? TerminationError : DeadlineTerminationError;
+                if (_terminal.IsTerminated(_loadContext!)) return DescribeTermination();
             }
             catch (Exception)
             {
