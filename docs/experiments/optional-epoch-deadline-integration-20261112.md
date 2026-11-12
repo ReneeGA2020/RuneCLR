@@ -1,47 +1,88 @@
 # Optional epoch callback deadline — host integration (2026-11-12)
 
 This branch integrates the reviewed 2026-11-10 epoch callback-deadline experiment onto the
-current RuneCLR `origin/main` (cbac2a657793dca7f22b1e1feff4aab26b898b4e). It replaces the
-archive branch `experiment/optional-epoch-deadline-20261112` (base bdbc7f52) as the host
-integration line; that branch stays untouched as the sealed source snapshot.
+current RuneCLR `origin/main` (cbac2a657793dca7f22b1e1feff4aab26b898b4e) and pairs it with the
+matching native runtime branch `runeclr/optional-callback-epoch-integration-20261112`
+(commit 7f5a0bc8c6d58a46d2dff91571cad04b2b3a9416, parent `runeclr/dev` 474eb8ad).
 
 ## What is integrated
 
 - `MapDeadlineMode` (`Clock` default, `Epoch` opt-in) plus the epoch period on `MapRunOptions`.
-- `CallbackEpochTicker` (process-wide lease, single shared ticker) and
-  `CallbackEpochDiagnostics`, ported unchanged from the reviewed experiment.
-- `CallbackDeadlineBridge` gains the additive epoch factory, tick/read delegates and the
-  capability check; `MapSession` leases the ticker before any author file is opened and releases
-  it after the author stack has returned.
-- Epoch tests and the acceptance script from the experiment.
+- `CallbackEpochTicker` (process-wide lease, one shared ticker) and `CallbackEpochDiagnostics`.
+- `CallbackDeadlineBridge` gains the additive epoch factory, tick/read delegates and the capability
+  check; `MapSession` leases the ticker before any author file is opened and releases it after the
+  author stack has returned.
+- Epoch tests and the verifier under `eng/verify-epoch-integration.py`.
 
-The clock path is unchanged and remains the default. Epoch mode is explicit: a runtime without
-the additive capability (version-1 clock ABI plus capability bit 2 plus the epoch factory/tick/
-read entry points) fails before author files are opened, never silently downgrades.
+The clock path is unchanged and remains the default.
 
-## Difference from the archive snapshot
+## Behaviour beyond the archive snapshot
 
-- The only source edit beyond the reviewed experiment is whitespace: the trailing blank line at
-  the end of `CallbackEpochTicker.cs` (the archive has a CRLF blank line at EOF) is removed so
-  this branch is `git diff --check` clean. The archive branch keeps its original bytes.
-- No other behaviour changes.
+This is not a whitespace-only port. Compared with the archived experiment the host now has
+intentional behaviour changes:
 
-## Verification status
+- The callback-deadline ABI is independent of the old instruction-terminal prototype. A
+  deadline-only session binds only the deadline bridge; a session with an explicit instruction
+  budget still binds the terminal bridge, and both-feature sessions bind both. Previously a
+  deadline session required the terminal API, which a minimal deadline-only runtime does not have.
+- Termination reporting picks the mechanism that actually tripped: the deadline snapshot reason
+  when a deadline budget was exceeded, otherwise the instruction-terminal state. Author failures
+  still report the exception type only, and the session still fails closed.
+- The ticker-fault case is a real regression (child processes for arm/wait and live-lease/last-stop)
+  instead of a placeholder skip.
 
-- Stock desktop build: `dotnet build RuneCLR.slnx -c Release` — 0 warnings, 0 errors.
-- Stock regression: `tests/RuneCLR.Runtime.Tests` — 156/156 passed.
-- Epoch tests on stock runtime: 5 passed, 19 skipped (matching private CoreCLR/native runtime not
-  present), 0 failed. Epoch enforcement is therefore **pending a matching runtime build**; the
-  2026-11-10 campaign numbers come from the archived binaries and do not validate this branch.
-- Native JIT/R2R remains a future direction: this work is an interpreter callback deadline.
+The archive branch keeps its original bytes and is untouched.
 
-## Runtime expectation
+## Verification status (current)
+
+- Stock desktop build `dotnet build RuneCLR.slnx -c Release`: 0 warnings, 0 errors.
+- Stock regression `tests/RuneCLR.Runtime.Tests`: 156/156 passed.
+- Epoch suite against the matching private runtime: **24 passed / 0 skipped / 0 failed**
+  (host commits 17a41fb and the P3 reporting fix 2387d81).
+- `eng/verify-epoch-integration.py`: PASS with 658 pinned inputs and a 520-file private layout
+  (verifier commit 0f2f135; run evidence `run13`).
+
+Historical figures are kept separate: the earlier stock-runtime run was 5 passed / 19 skipped
+because no matching runtime was present, and the 2026-11-10 campaign numbers came from the
+archived binaries. Those are history, not the current result.
+
+## Runtime expectation (paired branch)
 
 Matching runtime must provide, on `System.Runtime.Loader.AssemblyLoadContext`:
 
 - `RuneCLR_GetCallbackDeadlineVersion() -> long` returning 1 (existing clock ABI);
-- `RuneCLR_GetCallbackDeadlineCapabilities() -> int` with bit 2 set for epoch support;
-- `RuneCLR_CreateCallbackDeadlineEpoch(name, resolver, deadlineTicks, pollInterval, cleanupBudget, epochPeriodMicros)`;
+- `RuneCLR_GetCallbackDeadlineCapabilities() -> int`: **bit0 (0x1) is the clock ABI and bit1 (0x2)
+  is the epoch ABI** — hosts test `(capabilities & 2) != 0`; there is no `1 << 2` bit;
+- `RuneCLR_CreateCallbackDeadlineEpoch(name, resolver, deadlineTicks, pollInterval, cleanupBudget,
+  epochPeriodMicros)`;
 - `RuneCLR_TickCallbackDeadlineEpoch() -> long` and `RuneCLR_ReadCallbackDeadlineEpoch() -> long`.
 
-The native side (reviewer5) owns that runtime delta; this branch is host-only.
+## Provenance
+
+- Paired native: fork branch `runeclr/optional-callback-epoch-integration-20261112` at 7f5a0bc8,
+  parent `runeclr/dev` 474eb8ad; frozen binaries used for the run: coreclr `ed76bfa6…`, CoreLib
+  `6f181812…` (under IL/), clrinterpreter `905bb9bb…`, corerun `24ffba3e…`, clrjit `23e3411d…`.
+- The verifier's source manifest `{head 7f5a0bc8, files {}}` records the CURRENT clean Git identity
+  of that worktree. It does not prove the binaries were compiled from that clean tree: the build
+  record is base 474eb8ad plus a 14-file delta with its own raw source hashes.
+
+## Limits
+
+- One active callback per session and a single owner thread; a competing callback or thread fails
+  closed with reason 4.
+- Windows x64 Release interpreter only. No device, AOT, unmanaged-entry or global all-load evidence.
+- Native blocking cannot be interrupted, including a `Sleep` inside a finally block; finalizers run
+  outside the deadline. This is not a sandbox.
+- `InstallTestTimerFault` is an internal test hook compiled into the experiment assembly, not a
+  product API. `Stop`/`Dispose` must be called from an ordinary host thread, never from the ticker
+  path; the trusted tick/read calls are assumed non-blocking and the final join has no timeout.
+- The both-feature case is not validated natively: the minimal epoch runtime has no
+  instruction-terminal API, so only the pre-author missing-capability path is covered.
+
+## Performance
+
+Unresolved. The 5.33x (poll interval 1) and 3.18x (poll interval 100) figures are a historical
+microbenchmark scope (arithmetic lane versus the unconfigured interpreter), not a CPU gate and not
+an acceptance for the roughly 2x budget tolerance. Conflicting measurements across runtime builds
+mean a dedicated matched audit is still pending; no default-OFF cost conclusion is drawn here.
+
