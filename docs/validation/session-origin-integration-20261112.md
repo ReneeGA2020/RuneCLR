@@ -67,6 +67,14 @@ upstream tests do not attach a RuneCLR session, that run shows only switch parsi
 Enforcement evidence remains the committed host matrix below. The full run identity and logs are in
 the focused-upstream report recorded with the session-origin integration evidence.
 
+The RuneCLR lifecycle harness also passes **156/156** on the matching private Checked runtime
+in each of two separate processes: ordinary runtime selection and explicit `--require-interpreter`.
+Both runs use the existing Release host harness from host source `46c80a1b`; the runtime source
+stays clean at `2077f147` and all five private runtime binary hashes match the committed-source
+receipt. These lifecycle runs are separate from the stock-SDK regression and the origin-scan
+enforcement matrix. Their evidence is recorded under `lead-patched-lifecycle/` in the integration
+artifact (default/required logs, launch receipts and binary identities).
+
 ## Measured on 2026-11-12
 
 Toolchain and binary identities:
@@ -84,7 +92,7 @@ Toolchain and binary identities:
 | provenance | host commit | consumed source | modes | pins | drift | output |
 | --- | --- | --- | --- | --- | --- | --- |
 | source-manifest (dirty build) | cbac2a6 + dirty | manifest `49609720...` | 16 | 696 | 0 | repro-matrix/ |
-| committed-integration | 49fc6df1 | receipt `c911c665...` | 16 | 695 | 0 | repro-matrix-committed/ |
+| committed-integration | 24e5a8fa | receipt `c911c665...` | 16 | 695 | 0 | repro-matrix-committed/ |
 | committed-integration | 49fc6df1 | receipt `c911c665...` | 16 | 696 | 0 | repro-matrix-committed2/ |
 | committed-integration | 46c80a1b | receipt `c911c665...` | 16 | 696 | 0 | repro-matrix-final/ |
 
