@@ -25,6 +25,25 @@ batch-interval, mobile or callback-epoch patch stacks; those stay separate
 experiment branches below. Windows x64 evidence recorded for the dev baseline
 does not transfer to iOS or device claims.
 
+Current dev state (2026-11-15). The foundational opt-in callback-deadline increment was
+merged into `runeclr/dev` at `b747ab4d51d8da563b709a8b08ba69d15a314c03` (2026-11-13); it stays
+opt-in with the clock path as the default. A docs-only commit
+`bcefcb77a5166e3c9edd5ab5dbe76f08a44bd572` records that merge and the large-interval archive and
+changes no source; the 2026-11-10 snapshot above remains history.
+
+Two large-interval experiment branches are archived together with that docs commit and are
+not merged:
+
+| branch | commit | parent |
+| --- | --- | --- |
+| `runeclr/epoch-ref10k-20261114` | `6810f142b4e98d36f0b7ab98615e2a05bfdbab3b` | C `ca8c85eb0948301a97c385aef94b46c94d127b9a` |
+| `runeclr/epoch-large-interval-s2-20261114` | `64571e93fb27d7817f00786dd22d7f549ca7fa00` | S1 `ead0248a86e2706af6ce4c1dff9f38578f7652a8` |
+
+REF10K adds only the two 10000 allowlist checks to C; S2 is paused, not promoted. Evidence
+and limits are in [the large-interval
+record](https://github.com/ReneeGA2020/runtime/blob/bcefcb77a5166e3c9edd5ab5dbe76f08a44bd572/docs/runeclr-epoch-large-interval-20261114.md).
+
+
 Clone or switch commands are in
 [CoreCLR integration](coreclr.md#where-the-runtime-source-lives-start-here).
 

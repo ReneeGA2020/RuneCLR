@@ -1,9 +1,10 @@
 # Large poll-interval epoch optimization — S2 (2026-11-14)
 
 This record covers the experimental large poll-interval work on the opt-in epoch callback
-deadline: the validated-segment fast path (S1) and its codegen follow-up (S2). It is a local
-experiment record. The source commits named below are local pins; they are not published
-branches, and this document deliberately contains no repository links for them.
+deadline: the validated-segment fast path (S1) and its codegen follow-up (S2). It is an archive
+record for two independent experiment branches, published with this documentation commit:
+`runeclr/epoch-ref10k-20261114` and `runeclr/epoch-large-interval-s2-20261114`. Neither branch is merged into
+`runeclr/dev`; the SHAs below are immutable and must not be rewritten.
 
 Status updated 2026-11-15: functional and counter acceptance passed, and one formal 90-process
 batch passed independent capture review and independent offline statistical recomputation.
@@ -276,7 +277,8 @@ the fixed five values plus a count.
   significance, minimum detectable effect or default promotion. OFF regressed in all three kernels.
 - The interpreter segment path is not a sandbox; existing budget/enforcement limits and the
   author-finalizer restriction in a budgeted context are unchanged.
-- The source pins above are local and unpublished.
+- The source pins above are archived on the two experiment branches named at the top; they are
+  not merged into `runeclr/dev` and must not be rewritten.
 
 ## Evidence (local-only)
 
@@ -304,7 +306,7 @@ Lead integrated sources, built the minimal perf protocol and performed the redac
 formal run and initial analysis were executed by Orca Worker developer-4. Orca Worker developer-3
 independently reviewed capture/identity/integrity, while Orca Worker developer-5 independently
 parsed raw timings and recomputed statistics. Lead reviewed and published the documentation and
-allowlisted data extract. Runtime source pins remain unpublished; no runtime PR or merge happened,
+allowlisted data extract. The runtime source pins are archived on the two experiment branches and are not merged into dev; no runtime PR or merge happened,
 and no installed runtime was replaced.
 The bounded OFF diagnosis was performed by Orca Worker developer-5 and independently checked
 by Orca Worker developer-3; Lead reviewed the instruction windows and recorded the stopping point.

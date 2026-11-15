@@ -13,8 +13,10 @@ small safe fix or causal cost split. S2 optimization is paused without promotion
 optional epoch mechanism is retained. The quiet window is closed, with no automatic repeat.
 Portable [sample readings and provenance](evidence/epoch-s2-20261115/README.md) are recorded.
 Interval 10000 works
-through the private QCall only; MapRunOptions still accepts 1/100/1000, and the source pins are
-local and unpublished. The [Spark per-session ALC
+through the private QCall only; MapRunOptions still accepts 1/100/1000. REF10K (`6810f142`) and S2
+(`64571e93`) are archived as independent experiment branches (`runeclr/epoch-ref10k-20261114`,
+`runeclr/epoch-large-interval-s2-20261114`) with immutable SHAs; they are not merged into
+`runeclr/dev`, whose foundational opt-in callback deadline landed at `b747ab4d` (2026-11-13). The [Spark per-session ALC
 record](experiments/spark-session-alc-20261115.md) reports a fixture-level PASS for context
 isolation and event-retained release, while real framework migration, real host close/collection,
 failed-initialisation cleanup and trusted/author policy separation remain unverified; it confirms
