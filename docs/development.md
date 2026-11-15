@@ -5,8 +5,12 @@
 Two experiment records are current. The [large poll-interval epoch S2
 record](experiments/epoch-large-interval-s2-20261114.md) covers the validated-segment fast path and
 its codegen follow-up: S2 (64571e93) passes the functional and counter gates against the REF10K
-reference (6810f142) and the paired timing protocol is READY, but zero formal samples exist and a
-new explicit quiet-window confirmation is required before any measurement. Interval 10000 works
+reference (6810f142). The sole formal 90-process batch and two independent offline reviews are
+complete: Epoch/10000 elapsed time fell 19.2–41.8%, while OFF elapsed time rose 7.3–32.9% across
+three kernels (five paired ratios per row, exploratory). This is not a default-promotion result;
+the OFF regression needs explaining. The quiet window is closed, with no automatic repeat.
+Portable [sample readings and provenance](evidence/epoch-s2-20261115/README.md) are recorded.
+Interval 10000 works
 through the private QCall only; MapRunOptions still accepts 1/100/1000, and the source pins are
 local and unpublished. The [Spark per-session ALC
 record](experiments/spark-session-alc-20261115.md) reports a fixture-level PASS for context

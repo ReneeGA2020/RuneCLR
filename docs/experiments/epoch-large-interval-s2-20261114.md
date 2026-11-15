@@ -5,9 +5,11 @@ deadline: the validated-segment fast path (S1) and its codegen follow-up (S2). I
 experiment record. The source commits named below are local pins; they are not published
 branches, and this document deliberately contains no repository links for them.
 
-Status: functional and counter acceptance passed for S2 against a dedicated reference build;
-the timing protocol is READY but unmeasured. No performance number exists, and nothing here
-supports a speed claim. Scope is Windows x64 Release interpreter only.
+Status updated 2026-11-15: functional and counter acceptance passed, and one formal 90-process
+batch passed independent capture review and independent offline statistical recomputation.
+Epoch/10000 elapsed time fell by 19.2–41.8% across the three kernels, but OFF elapsed time rose
+by 7.3–32.9%. These are median paired changes in one exploratory batch, not a general improvement
+or a reason to promote S2 by default. Scope is Windows x64 Release interpreter only.
 
 ## Source chain
 
@@ -143,7 +145,7 @@ Interval 10000 is available through the private QCall that this experiment uses.
 `MapRunOptions` validation still accepts only 1/100/1000, so application-level support for 10000
 is not claimed and no host API was extended in this work.
 
-## Timing protocol readiness
+## Timing protocol and formal run
 
 A separate paired protocol exists and was independently accepted as READY:
 
@@ -159,15 +161,67 @@ A separate paired protocol exists and was independently accepted as READY:
 - 25 synthetic analyzer cases and 6 non-timing ValidateOnly captures pass; the analyzer enforces
   exact ordering, identity, raw hashes, exits and counter equality.
 
-Formal measurement count so far: zero. The user deferred timing ("later"), so a new explicit
-quiet-window confirmation is required before any of the 90 processes may run. Protocol READY means
-the inputs are fit for one measurement; it is not a performance result.
+The initial user deferral was followed by a new quiet-window confirmation on 2026-11-15, after
+other tasks and a CPU-heavy background process were stopped. Run `s2-quiet-20261115-153718`
+executed exactly once: 90 processes, all exit 0, no timeout, no input drift. The controller's
+real OS exit was 0, recorded by its launcher, not inferred from batch metadata. Its window was
+15:39:13–15:40:27 +08:00. No pilot, extra ValidateOnly run, replacement sample or repeat timing
+was added. The measurement window is closed; another timing batch needs a new quiet window.
 
 The reporting plan is whole-kernel medians, ratio of arm medians, median paired candidate/reference
 ratio, and the five per-pair ratios with their range. OFF is not a strict null because the same
 interpreter function changed layout; the ON/OFF ratio is descriptive only. Five pairs are
 exploratory: no significance, minimum detectable effect, or sub-percent exclusion is claimed, and
 10000 is not extrapolated from 1000.
+
+## Formal results (2026-11-15)
+
+Ratio direction is candidate S2 / reference REF10K. Each row has five pairs. Arm medians and
+the median of paired ratios are different statistics; the percentage column uses
+`100 * (median paired ratio - 1)`, so a negative change means less elapsed time.
+
+| kernel | lane | REF median ms | S2 median ms | ratio of arm medians | median paired ratio | elapsed change |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| TightLoop | Epoch/10000 primary | 385.5974 | 246.3384 | 0.638849 | 0.638849 | −36.1% |
+| CallBoundary | Epoch/10000 primary | 76.4112 | 62.4344 | 0.817084 | 0.807949 | −19.2% |
+| BusinessLoop | Epoch/10000 primary | 264.4680 | 154.6364 | 0.584707 | 0.581609 | −41.8% |
+| TightLoop | OFF/10000 label | 79.2259 | 105.1505 | 1.327224 | 1.328517 | **+32.9%** |
+| CallBoundary | OFF/10000 label | 22.9903 | 24.6778 | 1.073401 | 1.073401 | **+7.3%** |
+| BusinessLoop | OFF/10000 label | 57.5320 | 66.9996 | 1.164562 | 1.169090 | **+16.9%** |
+| TightLoop | Epoch/1000 control | 379.8864 | 240.6794 | 0.633556 | 0.628292 | −37.2% |
+| CallBoundary | Epoch/1000 control | 75.7295 | 64.2120 | 0.847913 | 0.847820 | −15.2% |
+| BusinessLoop | Epoch/1000 control | 266.4602 | 152.0967 | 0.570805 | 0.574976 | −42.5% |
+
+All five primary pairs favour S2 for every kernel; all five OFF pairs favour REF10K for every
+kernel. OFF has no configured deadline: its measured regression must stay visible even though
+the unchecked body has no added deadline-flag access. This run does not identify the cause.
+Investigating that regression is the next performance question; no new implementation or
+automatic repeat timing is part of this acceptance.
+
+CallBoundary Epoch/10000 pair 4 had a slow reference sample (101.9768 ms versus a 76.4112 ms
+reference median) and a candidate sample of 66.5860 ms. Its ratio, 0.652952, is retained, not
+discarded or winsorised; it is not the selected median paired ratio. The independent recompute
+reproduced all 36 comparable analyzer fields within the analyzer's display precision.
+
+The analyzer's optional normalized view is explicitly
+`median(pair epoch candidate/reference) / median(pair OFF candidate/reference)`:
+0.480874 / 0.752701 / 0.497489 for TightLoop / CallBoundary / BusinessLoop. This is not the
+median of pairwise normalized ratios and is not a pure helper-cost or net-benefit estimate.
+It does not erase the OFF regression. The measured span is typed-delegate dispatch plus the
+interpreted kernel, not a separately timed admission helper.
+
+Capture review rechecked all 541 immutable inputs, 9 pins, 90 unique process identities,
+180 raw streams and all 45 across-arm counter cells. Every epoch row had a stopped/joined
+ticker with no ticker fault. Fixed-only environment recording was preserved. Resource samples
+before the run reported CPU 2–6%, 15,245–15,324 MiB available and nonzero PagesInputPerSec
+(12,485 then 10,557). These are pre-run readings, not continuous telemetry; this is not a claim
+of a page-free window. The raw stdout file times corroborate ordering, but receipts do not
+contain per-child start/end timestamps.
+
+Portable, allowlisted [sample readings, pair ratios and provenance](../evidence/epoch-s2-20261115/README.md)
+are included in the repository. The complete local streams and the two independent reviews
+remain separately identified below. No raw inherited environment or absolute child-file path
+is included in the portable sample CSV.
 
 ## Recording defect and containment
 
@@ -186,7 +240,8 @@ the fixed five values plus a count.
 - Windows x64 Release interpreter only; no device, AOT, Linux, Wasm, JIT or R2R instrumentation
   claims.
 - 10000 is a private experiment; the public host option surface is unchanged.
-- No timing, so no throughput, latency or regression statement exists for S2.
+- One 90-process exploratory batch only; no general throughput/latency claim, statistical
+  significance, minimum detectable effect or default promotion. OFF regressed in all three kernels.
 - The interpreter segment path is not a sandbox; existing budget/enforcement limits and the
   author-finalizer restriction in a budgeted context are unchanged.
 - The source pins above are local and unpublished.
@@ -200,14 +255,20 @@ resolve from a clone.
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/s2/binary/REVIEW-BINARY-S2.md
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/functional-s2/REVIEW-FUNCTIONAL-S2.md
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/perf-s2/PERF-S2-V2-ACCEPTANCE.md
+- D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/perf-s2/formal/REVIEW-FORMAL-S2.md
+- D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/perf-s2/statistics/RECOMPUTED-S2.md
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/host-s2/S2-FUNCTIONAL-RESULTS.md
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/native-s2/MANIFEST-S2.json
-- D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/perf/v2/ (protocol inputs, logs, six ValidateOnly captures)
+- D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/perf/v2/ (frozen protocol, six ValidateOnly captures, and the sole formal run out/s2-quiet-20261115-153718)
 
 ## Execution channels
 
 Runtime implementation, builds, private layouts and static assembly inspection were done by an
 Orca worker; functional harness, matched/Query(4)/host/upstream runs and the protocol review were
 done by another Orca worker; independent source, binary and functional reviews by a third; the
-Lead integrated sources, built the minimal perf protocol and performed the redaction. No push, PR
-or merge happened in this work, and no installed runtime was replaced.
+Lead integrated sources, built the minimal perf protocol and performed the redaction. The sole
+formal run and initial analysis were executed by Orca Worker developer-4. Orca Worker developer-3
+independently reviewed capture/identity/integrity, while Orca Worker developer-5 independently
+parsed raw timings and recomputed statistics. Lead reviewed and published the documentation and
+allowlisted data extract. Runtime source pins remain unpublished; no runtime PR or merge happened,
+and no installed runtime was replaced.
