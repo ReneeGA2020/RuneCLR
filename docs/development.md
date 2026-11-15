@@ -13,7 +13,7 @@ record](experiments/spark-session-alc-20261115.md) reports a fixture-level PASS 
 isolation and event-retained release, while real framework migration, real host close/collection,
 failed-initialisation cleanup and trusted/author policy separation remain unverified; it confirms
 no RuneCLR runtime defect and does not propose an approved architecture change. Both records are
-Windows x64 Release interpreter evidence with local-only artifact paths.
+bounded Windows x64 experiments with distinct runtime identities and local-only artifact paths.
 
 ## Runtime development entry (2026-11-10)
 

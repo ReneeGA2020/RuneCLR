@@ -32,15 +32,15 @@ GameEntry). Historical client logs place 19 trusted assemblies in Default and th
 collectible policy-1 context. The inventory only reads PE metadata and correlates existing logs;
 it executes nothing and does not prove future binding.
 
-## Retention and release probe (layer 3 mechanism, fixture only)
+## Retention and release probe (layer 1, fixture only)
 
-A single p3 run, after the previous two runs produced invalid negative controls:
+A single p3 run, after the earlier p1/p2 probes produced invalid negative-control conclusions:
 
 - creation, author call, subscription, End, Dispose and Unload happen inside a NoInlining method;
   only a WeakReference, strings and primitive values cross the return boundary.
 - With one live event handler, three bounded GC rounds leave the context alive.
 - Unsubscription runs in a separate NoInlining method; after it returns, handlers are zero and one
-  GC round makes the WeakReference invalid.
+  GC round leaves the WeakReference with IsAlive false.
 - Ended and UnloadRequested are both true; business result and cleanup status are recorded
   separately; exit code 0, failures empty, no residual process.
 
@@ -71,8 +71,8 @@ Design guidance that follows, without approving any implementation:
 
 - classify assemblies by role: process-shared contract, per-session framework state, author code;
 - do not blanket-ban statics; decide by state ownership and lifetime;
-- if framework state must be per session, the route of putting a trusted framework into a
-  per-session context is untested and must not be assumed to work;
+- if framework state must be per session, moving the real trusted GameCore/GameUI framework
+  into a per-session context still needs acceptance; the fixture does not establish that migration;
 - if the framework stays process-shared, a complete Reset/End contract is needed; unsubscribing
   author events alone is not a global reset.
 
@@ -116,8 +116,8 @@ This runtime is unrelated to the S2 large-interval experiment: different layout 
 deadline or budget configuration, and no performance measurement.
 
 Session budget for this investigation was 10 of 10 (p1 four, p2 five, p3 one) and is finished.
-No new sessions were started. GUI work remains paused at `set_sprite_size` and was not repaired
-here.
+The investigation stopped at that cap, with no further diagnostic sessions. GUI work remains
+paused at `set_sprite_size` and was not repaired here.
 
 ## Unverified or open
 

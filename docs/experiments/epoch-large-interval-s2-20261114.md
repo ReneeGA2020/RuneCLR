@@ -52,16 +52,17 @@ S2 differs from S1 in two codegen-only ways:
 Both changes are compiled only for the Windows AMD64 Release folded bank. Other backends do not
 use this code.
 
-Because the per-opcode accounting is unchanged, checks and admitted are expected to match C and
-REF10K exactly at both 1000 and 10000, and the poll still happens at the interval threshold (or at
-a boundary). Cleanup quota and the configure-before-first-execution rule are unchanged.
+Because the per-opcode accounting is unchanged, checks and admitted match REF10K exactly at
+both 1000 and 10000; C is a valid counter reference only at its supported intervals. The poll
+still happens at the interval threshold or at a boundary. Cleanup quota and the
+configure-before-first-execution rule are unchanged.
 
 ## Codegen evidence (independent static review)
 
-Sizes are disassembly extents in bytes; the second number in parentheses is the extent to the next
-symbol, the convention that matches the native report.
+The table uses the independent reviewer's byte counts; raw address-range extents are shown in
+parentheses. These conventions must not be mixed when calculating size changes.
 
-| image | InterpExecMethod | full helper | typed VolatileLoad calls (image / inside the method) |
+| image | InterpExecMethod | full helper | VolatileLoad-family call sites (image / inside the method) |
 | --- | ---: | ---: | ---: |
 | REF10K | 44,491 (44,496) | 619 (624) | 10 / 0 |
 | S1 | 107,548 (107,549) | 619 (624) | 1,187 / 1,177 |
@@ -69,7 +70,7 @@ symbol, the convention that matches the native report.
 
 - The 1,080-call drop is exactly 3 x 360: three grant-side volatile reads removed from each of the
   360 helper call sites. The per-op failure probe was not eliminated.
-- S2 is still about 11.9 KiB larger than REF10K, and the helper grew by 127 bytes relative to S1,
+- S2 is still 11,919 bytes (about 11.6 KiB) larger than REF10K, and the helper grew by 127 bytes relative to S1,
   because of the single grant site and the extra callee-saved register.
 - Residual P2, non-blocking: the typed `VolatileLoad<LONG>` call is still out of line at the 97
   safe-opcode stubs. Its callee shrank to `mov eax,[rcx]; ret`, but the call and return remain.
@@ -101,8 +102,9 @@ Representative counters (identical to REF10K in every lane and field):
 | call-heavy | 10000 and 1000 | 3,200,013 | 9,600,030 |
 | business loop | 10000 and 1000 | 2,409,542 | 15,629,375 |
 
-The equality of the 1000 and 10000 counts in these kernels is not an artefact: the poll is
-boundary-dominated for these workloads, and the counters are per admission, not per interval.
+These workloads are boundary-dominated, so their equal totals at 1000 and 10000 do not imply
+that the interval configurations are equivalent. The admitted counter records admitted opcodes;
+the checks counter is a separate quantity.
 
 Query(4) readback through a dedicated probe: clock and epoch at 10000 and 1000 report the same
 value before Begin, while active and after End; 0, -1 and 12345 are rejected in both modes. Ten
@@ -148,7 +150,8 @@ A separate paired protocol exists and was independently accepted as READY:
 - layouts: PE-only copies of the two arms, 265 files each (259 managed + 6 native), managed set
   identical, CoreLib frozen from C;
 - driver unchanged at
-  `5747c1e0…`; lanes OFF/10000 (tag only, no deadline configured), Epoch/10000 primary,
+  `5747c1e034587f99b96c53d2f85e0e7f97790156b059c4264a783f4e618ba7e0`;
+  lanes OFF/10000 (tag only, no deadline configured), Epoch/10000 primary,
   Epoch/1000 control; three kernels; five alternating AB/BA pairs; 90 sequential processes;
 - 541 frozen inputs with digest
   `bd211afb992f3c2088b52eed9f8fe062522af949aeb12c7ae58b39808f05dea2`, matching freeze,
@@ -170,8 +173,9 @@ exploratory: no significance, minimum detectable effect, or sub-percent exclusio
 
 The first controller version serialized the full inherited child environment into every receipt.
 The protocol review caught this before any formal S2 timing began. Five generated receipt files
-(114 receipts, 10,488 environment entries) were redacted in place: only the five fixed test values
-and an inherited-entry count remain, all non-environment fields compare equal, and the raw
+(114 receipts, 10,488 environment entries) were redacted in place: full environment mappings were
+removed, with only allowlisted fixed environment values retained. All non-environment fields
+compare equal, and the raw
 stdout/stderr streams are unchanged. Receipt hashes therefore changed; earlier receipt hashes are
 pre-redaction evidence and must not be quoted as current bytes. The affected v1 controller and the
 older ABI4 perf controllers must not be used for new runs. The corrected controller records only
