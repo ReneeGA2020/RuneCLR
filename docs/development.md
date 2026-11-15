@@ -1,5 +1,20 @@
 # Development handoff
 
+## Current handoff (2026-11-15)
+
+Two experiment records are current. The [large poll-interval epoch S2
+record](experiments/epoch-large-interval-s2-20261114.md) covers the validated-segment fast path and
+its codegen follow-up: S2 (64571e93) passes the functional and counter gates against the REF10K
+reference (6810f142) and the paired timing protocol is READY, but zero formal samples exist and a
+new explicit quiet-window confirmation is required before any measurement. Interval 10000 works
+through the private QCall only; MapRunOptions still accepts 1/100/1000, and the source pins are
+local and unpublished. The [Spark per-session ALC
+record](experiments/spark-session-alc-20261115.md) reports a fixture-level PASS for context
+isolation and event-retained release, while real framework migration, real host close/collection,
+failed-initialisation cleanup and trusted/author policy separation remain unverified; it confirms
+no RuneCLR runtime defect and does not propose an approved architecture change. Both records are
+Windows x64 Release interpreter evidence with local-only artifact paths.
+
 ## Runtime development entry (2026-11-10)
 
 Current CoreCLR work uses the fork branch `runeclr/dev` (`ReneeGA2020/runtime`).
