@@ -2,7 +2,7 @@
 
 ## Current handoff (2026-11-15)
 
-Two experiment records are current. The [large poll-interval epoch S2
+The [large poll-interval epoch S2
 record](experiments/epoch-large-interval-s2-20261114.md) covers the validated-segment fast path and
 its codegen follow-up: S2 (64571e93) passes the functional and counter gates against the REF10K
 reference (6810f142). The sole formal 90-process batch and two independent offline reviews are
@@ -20,6 +20,14 @@ isolation and event-retained release, while real framework migration, real host 
 failed-initialisation cleanup and trusted/author policy separation remain unverified; it confirms
 no RuneCLR runtime defect and does not propose an approved architecture change. Both records are
 bounded Windows x64 experiments with distinct runtime identities and local-only artifact paths.
+
+The [same-source evidence audit and method observations](experiments/same-source-method-identity-20261115.md)
+confirm that the maintained sample already has same-source IL/R2R artifacts and basic behavioral
+parity, including simple failure/close semantics. The retained R2R Tick now has four observed native
+entry sites bound to its final image and method range. The successful IL continuation reproduced
+the business oracle but did not obtain a target interpreter/body witness; paired method-mode
+acceptance stays open. Four Host launches, including two observation-tool timeouts, are retained;
+no runtime/product rebuild or performance run was added. Further target runs are paused.
 
 ## Runtime development entry (2026-11-10)
 

@@ -259,6 +259,11 @@ execution evidence. The signed Host also has independent read-only review with
 signed baseline (archival/local evidence: `../artifacts/lead-trusted-game-signed-20261020/VALIDATION.md`).
 The existing same-source result proves independent IL/R2R artifacts and
 functional layouts; it does not establish method execution mode.
+The [2026-11-15 evidence audit and bounded observations](experiments/same-source-method-identity-20261115.md)
+confirm the existing result/state/simple-failure parity and add a positive native Tick entry on
+the retained R2R image. They do not close the IL method-mode side: its continuation exits normally
+without a positively identified Tick interpreter/IR witness. Do not rebuild or repeat the existing
+functional campaign as if that basic same-source comparison were missing.
 
 The maintained successful A/B business-version sequence now has a separate
 Lead execution record (archival/local evidence: `../artifacts/lead-trusted-game-ab-20261020/VALIDATION.md`):

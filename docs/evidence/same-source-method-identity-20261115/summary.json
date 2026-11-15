@@ -1,0 +1,294 @@
+{
+  "date": "2026-11-15",
+  "target": "TrustedGame.Update.GameRules.Tick(GameState,int)",
+  "methodDefToken": "0x06000001",
+  "mvid": "51c8d04a-e989-45dc-81a8-ac57d21147b1",
+  "platform": "Windows x64",
+  "runtimeConfiguration": "private CoreCLR 12 Checked",
+  "runtimeSourcePin": "0d73c1f21ea32da5ae2d5e1acc4dbb98d0f3e2de",
+  "inputImages": [
+    {
+      "logicalImage": "Host",
+      "arm": "il",
+      "sha256": "0664cd23aba16b8cead874bf683acf3afbda1fef4e386e623b6a18cdfe5f974b",
+      "size": 22016,
+      "mvid": "c5835b58-650c-415f-8357-2efd493ab0ac",
+      "assemblyFullName": "TrustedGame.Host, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": false
+    },
+    {
+      "logicalImage": "Host",
+      "arm": "r2r",
+      "sha256": "48772f77cbfa33b22b7832969553470b33a62cb47a7e17dacb5108a47d13b80d",
+      "size": 57344,
+      "mvid": "c5835b58-650c-415f-8357-2efd493ab0ac",
+      "assemblyFullName": "TrustedGame.Host, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": true
+    },
+    {
+      "logicalImage": "Contracts",
+      "arm": "il",
+      "sha256": "d6d59df9f7d35f61305edf5a20020603f0fe86068277ba424aade2fb573f0fb4",
+      "size": 4608,
+      "mvid": "17167638-5141-4ca1-b818-0a8f588dd5c2",
+      "assemblyFullName": "TrustedGame.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": false
+    },
+    {
+      "logicalImage": "Contracts",
+      "arm": "r2r",
+      "sha256": "b99f499dfd6d9dd1a84d42e2e417c748469b828d2464902a76a92c0a858bee9c",
+      "size": 12288,
+      "mvid": "17167638-5141-4ca1-b818-0a8f588dd5c2",
+      "assemblyFullName": "TrustedGame.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": true
+    },
+    {
+      "logicalImage": "TrustedUpdate",
+      "arm": "il",
+      "sha256": "c7ce2be416d199fe05258c442e13d97fb2e0404c478c0522496cda12e98be059",
+      "size": 84480,
+      "mvid": "d85f3315-de7e-40c9-870d-956ceb2224ea",
+      "assemblyFullName": "RuneCLR.TrustedUpdate, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": false
+    },
+    {
+      "logicalImage": "TrustedUpdate",
+      "arm": "r2r",
+      "sha256": "6911751a983d6db2a04c81eb6a8c21ae2d2f2b2d8624c82651cf8af021c2f66d",
+      "size": 233472,
+      "mvid": "d85f3315-de7e-40c9-870d-956ceb2224ea",
+      "assemblyFullName": "RuneCLR.TrustedUpdate, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": true
+    },
+    {
+      "logicalImage": "Update",
+      "arm": "il",
+      "sha256": "6ff7777f84402ac272d6cd198c4f30c5baae59aa0a39c9a4b25a24443457c053",
+      "size": 4608,
+      "mvid": "51c8d04a-e989-45dc-81a8-ac57d21147b1",
+      "assemblyFullName": "TrustedGame.Update, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": false
+    },
+    {
+      "logicalImage": "Update",
+      "arm": "r2r",
+      "sha256": "1589be9c84aa676fed4e4cf24f123e881d00d53e519f663f0705232e93f8e75a",
+      "size": 16384,
+      "mvid": "51c8d04a-e989-45dc-81a8-ac57d21147b1",
+      "assemblyFullName": "TrustedGame.Update, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": true
+    },
+    {
+      "logicalImage": "UpdateB",
+      "arm": "il",
+      "sha256": "64a36a25bfa19859ca0907119504eea7e794e1775cf05676aa62baca80cb5353",
+      "size": 4608,
+      "mvid": "961d06b5-75ce-49cc-a644-4f9a9a87f65f",
+      "assemblyFullName": "TrustedGame.Update, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": false
+    },
+    {
+      "logicalImage": "UpdateB",
+      "arm": "r2r",
+      "sha256": "0b9ee2a140b29ae664b9d3716930e99f44f53287672e003025bcba4d2d91a591",
+      "size": 16384,
+      "mvid": "961d06b5-75ce-49cc-a644-4f9a9a87f65f",
+      "assemblyFullName": "TrustedGame.Update, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "hasNativeHeader": true
+    }
+  ],
+  "runtimeInputs": [
+    {
+      "file": "coreclr.dll",
+      "sha256": "a9391606e33afcd41e2f117ea2c83f4a045c5e0bddc32320d50205a95fbf36dd"
+    },
+    {
+      "file": "clrinterpreter.dll",
+      "sha256": "6f9c915791e34054415ef7a3e0ff763f6abca0025432d3161d190e73f6d26ccc"
+    },
+    {
+      "file": "clrjit.dll",
+      "sha256": "c657302a3689b4b690d846fbd4a9d8efc4db1ac68329481e87ac1cc9c916808d"
+    },
+    {
+      "file": "System.Private.CoreLib.dll",
+      "sha256": "f3b765d3d04f816a418282bca88b05679084d70b42a4ff88533c7f0d71346db1"
+    },
+    {
+      "file": "crossgen2.exe",
+      "sha256": "2adf7303383fb7528a1e4f61d361bfca6df12f292c16b4d3222fe971843b85d9"
+    },
+    {
+      "file": "dotnet.exe",
+      "sha256": "4a97171c7e4d4646f9803308312c2d98aea26544ee4adb975ff2d93a526efe31"
+    }
+  ],
+  "hostLaunchCount": 4,
+  "runs": [
+    {
+      "runId": "tick-il-20261115-01",
+      "arm": "il",
+      "status": "timeout",
+      "timedOut": true,
+      "consoleMerged": true,
+      "debuggerPid": 37004,
+      "debuggerExit": 1,
+      "debuggerExitSource": "windows-process-exit",
+      "hostPid": 15240,
+      "hostExit": 1,
+      "hostExitSource": "winapi",
+      "inputsPreOk": true,
+      "inputsPostOk": true,
+      "requiredInputCount": 16,
+      "rawSha256": "47da03d448eba6308ee12d547dfc70148aa99eddb1763edd67ff40d2f60c1b7e",
+      "receiptSha256": "24526a6472d5892f67d44a18db085ca10dd53df9f7714de859349f7234bd6878",
+      "commandsLogPresent": false,
+      "commandsSha256": null,
+      "eventsSha256": "98ba232995d45ee4f83e2ed13ba253f4dc0dd6206cfa0831ea66b30e6d3a5066",
+      "fixedEnvironmentSha256": "f377d217ba3bfae8e561bf679c8c48822e0cac7d98950912313b71f5b1fe45b2",
+      "methodEvidence": "unproven"
+    },
+    {
+      "runId": "tick-il-20261115-02",
+      "arm": "il",
+      "status": "timeout",
+      "timedOut": true,
+      "consoleMerged": true,
+      "debuggerPid": 35280,
+      "debuggerExit": null,
+      "debuggerExitSource": "windows-process-exit",
+      "hostPid": 19204,
+      "hostExit": 1,
+      "hostExitSource": "winapi",
+      "inputsPreOk": true,
+      "inputsPostOk": true,
+      "requiredInputCount": 16,
+      "rawSha256": "243bb88777ef788b3fbf9b2694a9a72f7654aac3e48a581368f6886a34d8b14d",
+      "receiptSha256": "f2271e90aea6e3cf90a84fa05442e50f828756702ec92e4be7651ec90000e713",
+      "commandsLogPresent": true,
+      "commandsSha256": "62f9415f87d52c1ea94dbeb0e00d450ffb53cba8fba4e288f93a9f6c6d484330",
+      "eventsSha256": "62aac53bba0ec562144a08117134dd794429fc3ee99fbc569950f5602958e39c",
+      "fixedEnvironmentSha256": "f377d217ba3bfae8e561bf679c8c48822e0cac7d98950912313b71f5b1fe45b2",
+      "methodEvidence": "unproven"
+    },
+    {
+      "runId": "tick-r2r-20261115-02",
+      "arm": "r2r",
+      "status": "ok",
+      "timedOut": false,
+      "consoleMerged": true,
+      "debuggerPid": 27372,
+      "debuggerExit": 0,
+      "debuggerExitSource": "windows-process-exit",
+      "hostPid": 27472,
+      "hostExit": 0,
+      "hostExitSource": "winapi",
+      "inputsPreOk": true,
+      "inputsPostOk": true,
+      "requiredInputCount": 16,
+      "rawSha256": "db01fe2cd0383f6efea8272c977cf060504cf4e78635d07cf5fb931d3b40d2b0",
+      "receiptSha256": "85f641e9f68f4c3d72aea1c85348dffaebb64cf9534921c52fc5adf28f433301",
+      "commandsLogPresent": true,
+      "commandsSha256": "c3ae622f8d4abea9a0c8cc6901518ec423aafb43856aa5cd6c1e22db5397dad0",
+      "eventsSha256": "59bcaae627d35d813b0f22abc2f7ca6aeb3be7a37d74d4fc0397fcae2b16dc15",
+      "fixedEnvironmentSha256": "f377d217ba3bfae8e561bf679c8c48822e0cac7d98950912313b71f5b1fe45b2",
+      "methodEvidence": "native-body-entry-observed"
+    },
+    {
+      "runId": "tick-il-20261115-03",
+      "arm": "il",
+      "status": "ok",
+      "timedOut": false,
+      "consoleMerged": true,
+      "debuggerPid": 30400,
+      "debuggerExit": 0,
+      "debuggerExitSource": "windows-process-exit",
+      "hostPid": 33660,
+      "hostExit": 0,
+      "hostExitSource": "winapi",
+      "inputsPreOk": true,
+      "inputsPostOk": true,
+      "requiredInputCount": 16,
+      "rawSha256": "695649a4167fa7d38a4b46d4def561cbc0ffbf678e539616d0b62d25a155480e",
+      "receiptSha256": "f8d213ed13e8ebbb07bbf440a00f7597c1268b567a6150c718e47797cde68152",
+      "commandsLogPresent": true,
+      "commandsSha256": "d48c2448f732eb1af60275b28a0ae7a48851f026350e3d62496248a91776f600",
+      "eventsSha256": "5e59f5e67f59e09090e729423036b48869e661a0652413e2a694a75f0a790323",
+      "fixedEnvironmentSha256": "f377d217ba3bfae8e561bf679c8c48822e0cac7d98950912313b71f5b1fe45b2",
+      "methodEvidence": "unproven"
+    }
+  ],
+  "r2r": {
+    "status": "native-body-entry-observed",
+    "imageBase": "0x7ff9e4690000",
+    "imageSize": "0x4000",
+    "memoryType": "MEM_IMAGE",
+    "methodRvaStart": "0x1660",
+    "methodRvaEndExclusive": "0x1702",
+    "copiedIlRvaNotNativeBody": "0x1758",
+    "hits": [
+      {
+        "ordinal": 1,
+        "pc": "0x7ff9e4691660",
+        "rva": "0x1660",
+        "delta": 1
+      },
+      {
+        "ordinal": 2,
+        "pc": "0x7ff9e4691660",
+        "rva": "0x1660",
+        "delta": 2
+      },
+      {
+        "ordinal": 3,
+        "pc": "0x7ff9e4691660",
+        "rva": "0x1660",
+        "delta": 3
+      },
+      {
+        "ordinal": 4,
+        "pc": "0x7ff9e4691660",
+        "rva": "0x1660",
+        "delta": -1
+      }
+    ]
+  },
+  "il": {
+    "status": "mode-and-body-unproven",
+    "imageBase": "0x274fc100000",
+    "imageSize": "0x8000",
+    "targetInterpreterWitnessCount": 0,
+    "unboundInterpreterEntryTokenRemainder": "0x21",
+    "conditionalBreakpointValidityEstablished": false
+  },
+  "businessOracle": {
+    "normalResults": [
+      1,
+      3,
+      6
+    ],
+    "score": 6,
+    "ticks": 3,
+    "negativeFailure": "CallbackFailed",
+    "next": "Closed"
+  },
+  "dualLayoutMethodModeAcceptanceComplete": false,
+  "limits": [
+    "No JIT inference from a missing interpreter breakpoint",
+    "Native entry sites do not establish whole-method coverage",
+    "First two runs failed due to observation tooling, not evidence of a runtime crash",
+    "No performance, unload, mobile or generic execution-mode claim"
+  ],
+  "executionChannels": {
+    "capture": "Orca Worker developer-5",
+    "identityReview": "Orca Worker developer-3",
+    "controlReview": "Orca Worker developer-4",
+    "publication": "Lead"
+  },
+  "auditRecordHashes": {
+    "r2rReview": "80e8aab8c6b6c6aba0ff407b85dcaef7ae13d920f2e1753bc1b07cb32ec29e1d",
+    "ilReview": "e0b2697a0214699116b8a065b77140fd12e097b2c922ecd3afb4af0c361163b7",
+    "controlReview": "4730137fa4455c7a5b2a758d38534925ebf591043359865dd2f25960338db13c"
+  }
+}

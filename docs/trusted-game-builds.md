@@ -74,6 +74,11 @@ This establishes functional behavior and separate IL/R2R artifact kinds. It does
 
 If the supplied SDK or runtime layout is incompatible, the driver retains the concrete command, exit, stdout/stderr and failure in results.json rather than building a private runtime or inventing a fallback.
 
+The later [2026-11-15 external method observations](experiments/same-source-method-identity-20261115.md)
+reuse this driver's retained images without rebuilding them. They add native-entry evidence for
+Tick in the R2R arm, while IL mode/body remains unproven. This does not change the driver's own
+build/layout/functional scope or turn its environment settings into execution-mode evidence.
+
 ## Offline observation verification
 
 `eng/verify-trusted-game-observations.py` is the maintained offline entry for a
