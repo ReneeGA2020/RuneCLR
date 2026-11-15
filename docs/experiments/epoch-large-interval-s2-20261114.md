@@ -195,7 +195,7 @@ the median of paired ratios are different statistics; the percentage column uses
 All five primary pairs favour S2 for every kernel; all five OFF pairs favour REF10K for every
 kernel. OFF has no configured deadline: its measured regression must stay visible even though
 the unchecked body has no added deadline-flag access. This run does not identify the cause.
-Investigating that regression is the next performance question; no new implementation or
+The bounded static follow-up below examined the regression; no new implementation or
 automatic repeat timing is part of this acceptance.
 
 CallBoundary Epoch/10000 pair 4 had a slow reference sample (101.9768 ms versus a 76.4112 ms
@@ -222,6 +222,38 @@ Portable, allowlisted [sample readings, pair ratios and provenance](../evidence/
 are included in the repository. The complete local streams and the two independent reviews
 remain separately identified below. No raw inherited environment or absolute child-file path
 is included in the portable sample CSV.
+
+## Bounded OFF diagnosis and stopping point (2026-11-15)
+
+Two Orca Workers independently inspected the exact formal-run binaries, using dumpbin/PDB and
+a separate PE mapping/Capstone disassembly. OFF does not execute segment admission or grant,
+but its generated instruction stream is not unchanged:
+
+| inspected window | REF10K | S2 |
+| --- | --- | --- |
+| per-opcode dispatch head and back-edge | 16 instructions, 2 memory reads | 16 instructions, 4 memory reads |
+| instruction pointer | kept in a register across dispatch | stack home reloaded at dispatch, copied to a body register and written back by IP updates |
+| mode offset at dispatch | register | stack-home read |
+| sampled constant-zero body | reference IP update | one extra load and one extra store |
+| sampled branch-body path | reference IP update | three extra loads and one extra store |
+| stack frame/prologue | 8 pushes, 0x408 allocation, 4 XMM saves | same size and saves; local/home slots moved |
+
+The image-base `lea` moved from the back-edge to the head; it exists in both arms, is address
+arithmetic rather than a memory load, and is not an added-load explanation. The dispatch-state
+growth from 16 to 32 bytes did not increase the total frame allocation.
+
+This establishes extra executed memory accesses in OFF. It does not establish which source
+change caused the compiler's allocation decision, or how much of the 7–33% regression comes
+from those accesses versus instruction/cache/branch layout. No CPU sampling or additional
+timing was performed. In particular, instruction counts cannot be converted into CPU-cost
+percentages.
+
+No small, correctness-preserving fix was identified in the bounded pass. Moving segment TRY
+out of line or separating the checked dispatch loop would be a structural follow-up, not an
+already validated hint or one-line fix. The decision is to stop this S2 optimization round,
+retain its measured results and REF10K comparison, and leave S2 experimental without default
+promotion. This does not abandon or disable the previously accepted optional epoch mechanism.
+No third variant, build, target run or new quiet window was started.
 
 ## Recording defect and containment
 
@@ -257,6 +289,8 @@ resolve from a clone.
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/perf-s2/PERF-S2-V2-ACCEPTANCE.md
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/perf-s2/formal/REVIEW-FORMAL-S2.md
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/perf-s2/statistics/RECOMPUTED-S2.md
+- D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/off-diagnosis/native/OFF-DIAGNOSIS.md
+- D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/review/off-diagnosis/triage/verify-off-asm/VERIFY-OFF-ASM.md
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/host-s2/S2-FUNCTIONAL-RESULTS.md
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/native-s2/MANIFEST-S2.json
 - D:/RuneCLR-artifacts/epoch-large-interval-opt-20261114/perf/v2/ (frozen protocol, six ValidateOnly captures, and the sole formal run out/s2-quiet-20261115-153718)
@@ -272,3 +306,5 @@ independently reviewed capture/identity/integrity, while Orca Worker developer-5
 parsed raw timings and recomputed statistics. Lead reviewed and published the documentation and
 allowlisted data extract. Runtime source pins remain unpublished; no runtime PR or merge happened,
 and no installed runtime was replaced.
+The bounded OFF diagnosis was performed by Orca Worker developer-5 and independently checked
+by Orca Worker developer-3; Lead reviewed the instruction windows and recorded the stopping point.

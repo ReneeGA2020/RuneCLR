@@ -8,7 +8,9 @@ its codegen follow-up: S2 (64571e93) passes the functional and counter gates aga
 reference (6810f142). The sole formal 90-process batch and two independent offline reviews are
 complete: Epoch/10000 elapsed time fell 19.2–41.8%, while OFF elapsed time rose 7.3–32.9% across
 three kernels (five paired ratios per row, exploratory). This is not a default-promotion result;
-the OFF regression needs explaining. The quiet window is closed, with no automatic repeat.
+the bounded OFF follow-up found extra memory reads/IP-home writes in generated code, but no
+small safe fix or causal cost split. S2 optimization is paused without promotion; the accepted
+optional epoch mechanism is retained. The quiet window is closed, with no automatic repeat.
 Portable [sample readings and provenance](evidence/epoch-s2-20261115/README.md) are recorded.
 Interval 10000 works
 through the private QCall only; MapRunOptions still accepts 1/100/1000, and the source pins are
