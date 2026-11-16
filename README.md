@@ -107,6 +107,7 @@ Private runtime work uses the [ReneeGA2020/runtime](https://github.com/ReneeGA20
 
 ## Explore
 
+- [Runtime platform build baseline](docs/runtime-platform-baseline.md)
 - [Getting started and script example](docs/getting-started.md) / [Controlled source and IL packages](docs/controlled-packaging.md)
 - [Product direction](docs/product-direction.md) / [Roadmap](docs/roadmap.md) / [GitHub tracker](https://github.com/ReneeGA2020/RuneCLR/issues/11)
 - [Architecture and object lifetimes](docs/architecture.md) / [CoreCLR integration](docs/coreclr.md) / [Security and trust](SECURITY.md)

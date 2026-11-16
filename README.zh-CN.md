@@ -100,6 +100,7 @@ dotnet run --project samples/RuneCLR.SampleHost -c Release --no-build -- --colle
 
 ## 继续了解
 
+- [Runtime 平台编译基线](docs/runtime-platform-baseline.md)
 - [入门与脚本示例](docs/getting-started.md) / [受控源码与 IL 打包](docs/controlled-packaging.md)
 - [产品方向](docs/product-direction.md) / [路线图](docs/roadmap.md) / [GitHub 总任务](https://github.com/ReneeGA2020/RuneCLR/issues/11)
 - [架构与对象生命周期](docs/architecture.md) / [CoreCLR 集成](docs/coreclr.md) / [安全与信任模型](SECURITY.md)
