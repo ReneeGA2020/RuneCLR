@@ -11,6 +11,8 @@ delivery, signing/loading and physical-device acceptance; existing post-install
 IL experiments establish the interpreted path.
 See [product direction](product-direction.md).
 
+For the opt-in grouped framework/author host see the [grouped host guide](grouped-alc-host.md) and the [grouped context design](grouped-alc-host-design.md).
+
 A host can retire one script module/session and load different C# code without
 restarting the process. Successive custom maps are one example. Existing `Map`
 names are prototype terminology scheduled for a later naming review. Initial

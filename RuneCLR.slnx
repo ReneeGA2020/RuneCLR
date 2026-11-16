@@ -45,6 +45,13 @@
     <Project Path="tests/RuneCLR.TestMaps/RuneCLR.TestMaps.csproj" />
     <Project Path="tests/TrustedUpdate.Good/TrustedUpdate.Good.csproj" />
     <Project Path="tests/TrustedUpdate.Throwing/TrustedUpdate.Throwing.csproj" />
+    <Project Path="tests/RuneCLR.GroupedHost.Contracts/RuneCLR.GroupedHost.Contracts.csproj" />
+    <Project Path="tests/RuneCLR.GroupedHost.Framework/RuneCLR.GroupedHost.Framework.csproj" />
+    <Project Path="tests/RuneCLR.GroupedHost.Framework.Portable/RuneCLR.GroupedHost.Framework.Portable.csproj" />
+    <Project Path="tests/RuneCLR.GroupedHost.Author.A/RuneCLR.GroupedHost.Author.A.csproj" />
+    <Project Path="tests/RuneCLR.GroupedHost.Author.B/RuneCLR.GroupedHost.Author.B.csproj" />
+    <Project Path="tests/RuneCLR.GroupedHost.Author.NativeRejected/RuneCLR.GroupedHost.Author.NativeRejected.csproj" />
+    <Project Path="tests/RuneCLR.GroupedHost.Tests/RuneCLR.GroupedHost.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/RuneCLR.PackageTool/RuneCLR.PackageTool.csproj" />

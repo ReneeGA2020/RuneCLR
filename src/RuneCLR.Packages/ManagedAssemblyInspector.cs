@@ -14,6 +14,13 @@ public static class ManagedAssemblyInspector
 {
     public const int MaximumImageBytes = 32 * 1024 * 1024;
 
+    private static ManagedAssemblyInfo ReadDefinition(MetadataReader metadata)
+    {
+        var definition = metadata.GetAssemblyDefinition();
+        var identity = DefinitionIdentity(metadata);
+        return new ManagedAssemblyInfo(identity, metadata.GetString(definition.Name),
+            metadata.AssemblyReferences.Select(handle => ReferenceIdentity(metadata, handle)).ToArray());
+    }
     public static ManagedAssemblyInfo Inspect(ReadOnlyMemory<byte> image) =>
         ReadImage(image, (_, metadata) =>
         {
@@ -23,6 +30,39 @@ public static class ManagedAssemblyInspector
                 metadata.AssemblyReferences.Select(handle => ReferenceIdentity(metadata, handle)).ToArray());
         });
 
+    /// <summary>
+    /// Trusted-framework metadata inspection: the same structural PE/IL checks as Inspect, except that
+    /// P/Invoke and InternalCall method declarations are permitted. Only an explicitly trusted framework
+    /// role may use this; author intake keeps the strict Inspect path.
+    /// </summary>
+    /// <summary>
+    /// Identity-only read from the same bytes. It validates only that the image is a bounded managed
+    /// assembly with metadata; it does not run IL/policy validation. Used to classify framework or
+    /// shared reference copies BEFORE strict author intake, never as an admission decision.
+    /// </summary>
+    internal static bool TryReadIdentity(ReadOnlyMemory<byte> image, out string identity, out string simpleName)
+    {
+        identity = string.Empty;
+        simpleName = string.Empty;
+        try
+        {
+            if (image.IsEmpty || image.Length > MaximumImageBytes) return false;
+            using var pe = new PEReader(ImmutableArray.CreateRange(image.ToArray()));
+            if (!pe.HasMetadata) return false;
+            var metadata = pe.GetMetadataReader(MetadataReaderOptions.None);
+            if (!metadata.IsAssembly) return false;
+            var definition = metadata.GetAssemblyDefinition();
+            simpleName = metadata.GetString(definition.Name);
+            identity = DefinitionIdentity(metadata);
+            return simpleName.Length > 0 && identity.Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    internal static ManagedAssemblyInfo InspectTrustedFramework(ReadOnlyMemory<byte> image) =>
+        ReadImage(image, (_, metadata) => ReadDefinition(metadata), allowPInvoke: true);
     public static ManagedAssemblyInfo Inspect(string path)
     {
         // Preserve path/access/read errors as normal I/O exceptions, and bound allocation before reading.
@@ -41,21 +81,22 @@ public static class ManagedAssemblyInspector
             return true;
         });
 
-    private static T ReadImage<T>(ReadOnlyMemory<byte> image, Func<PEReader, MetadataReader, T> inspect)
+    private static T ReadImage<T>(ReadOnlyMemory<byte> image, Func<PEReader, MetadataReader, T> inspect,
+        bool allowPInvoke = false)
     {
         if (image.IsEmpty || image.Length > MaximumImageBytes)
             throw Invalid($"Provide a nonempty managed assembly no larger than {MaximumImageBytes} bytes.");
         try
         {
             using var pe = new PEReader(ImmutableArray.CreateRange(image.ToArray()));
-            ValidateImage(pe, image.Length);
+            ValidateImage(pe, image.Length, allowPInvoke);
             var metadata = pe.GetMetadataReader(MetadataReaderOptions.None);
             if (!metadata.IsAssembly)
                 throw Invalid("Input is a metadata module, not a managed assembly.");
             _ = DefinitionIdentity(metadata);
             foreach (var reference in metadata.AssemblyReferences)
                 _ = ReferenceIdentity(metadata, reference);
-            ValidateMethods(pe, metadata);
+            ValidateMethods(pe, metadata, allowPInvoke);
             return inspect(pe, metadata);
         }
         catch (Exception error) when (error is BadImageFormatException or ArgumentException or
@@ -65,7 +106,7 @@ public static class ManagedAssemblyInspector
         }
     }
 
-    private static void ValidateImage(PEReader pe, int length)
+    private static void ValidateImage(PEReader pe, int length, bool allowPInvoke)
     {
         var headers = pe.PEHeaders;
         var optional = headers.PEHeader;
@@ -104,7 +145,7 @@ public static class ManagedAssemblyInspector
             throw Invalid($"The {label} directory has an invalid RVA or extends outside its PE section.");
     }
 
-    private static void ValidateMethods(PEReader pe, MetadataReader metadata)
+    private static void ValidateMethods(PEReader pe, MetadataReader metadata, bool allowPInvoke = false)
     {
         // Touch type/member strings and row ownership as well as method bodies; PEReader alone is lazy.
         foreach (var typeHandle in metadata.TypeDefinitions)
@@ -127,11 +168,16 @@ public static class ManagedAssemblyInspector
             var method = metadata.GetMethodDefinition(handle);
             var name = metadata.GetString(method.Name);
             if (name.Length == 0) throw Invalid("A method definition has an empty name.");
-            if ((method.Attributes & MethodAttributes.PinvokeImpl) != 0 ||
-                (method.ImplAttributes & MethodImplAttributes.InternalCall) != 0)
+            if (!allowPInvoke &&
+                ((method.Attributes & MethodAttributes.PinvokeImpl) != 0 ||
+                 (method.ImplAttributes & MethodImplAttributes.InternalCall) != 0))
                 throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} uses P/Invoke or InternalCall, unsupported in managed-il-v1.");
-            if ((method.ImplAttributes & MethodImplAttributes.CodeTypeMask) != MethodImplAttributes.IL ||
-                (method.ImplAttributes & (MethodImplAttributes.Unmanaged | MethodImplAttributes.ForwardRef)) != 0)
+            var isNativeRuntime = allowPInvoke &&
+                (method.ImplAttributes & MethodImplAttributes.InternalCall) != 0 &&
+                (method.ImplAttributes & MethodImplAttributes.CodeTypeMask) == MethodImplAttributes.Native;
+            if (!isNativeRuntime &&
+                ((method.ImplAttributes & MethodImplAttributes.CodeTypeMask) != MethodImplAttributes.IL ||
+                (method.ImplAttributes & (MethodImplAttributes.Unmanaged | MethodImplAttributes.ForwardRef)) != 0))
                 throw Invalid($"Method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} has a non-IL/unmanaged/forward implementation, unsupported in managed-il-v1.");
             var signature = metadata.GetBlobReader(method.Signature);
             var header = signature.ReadSignatureHeader();
@@ -156,7 +202,10 @@ public static class ManagedAssemblyInspector
                     throw Invalid($"Abstract method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} unexpectedly contains a method body.");
                 continue;
             }
-            if (method.RelativeVirtualAddress <= 0)
+            var isNativeDeclaration = (method.Attributes & MethodAttributes.PinvokeImpl) != 0 ||
+            (method.ImplAttributes & MethodImplAttributes.InternalCall) != 0;
+        if (isNativeDeclaration && allowPInvoke) { continue; }
+        if (method.RelativeVirtualAddress <= 0)
                 throw Invalid($"Managed method '{name}' token 0x{MetadataTokens.GetToken(handle):X8} is missing its IL body.");
             var body = pe.GetMethodBody(method.RelativeVirtualAddress);
             var code = body.GetILBytes();

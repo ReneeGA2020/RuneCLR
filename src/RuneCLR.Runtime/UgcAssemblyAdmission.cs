@@ -18,6 +18,10 @@ internal sealed class UgcAssemblyAdmission
     private readonly HashSet<string> _directories = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     private readonly HashSet<string> _identities = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _expectedHashes = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+    // Group-only: exact framework instances from a designated ordinary group context.
+    // Names are reserved so an author image can never shadow them and resolution never falls back.
+    private readonly HashSet<string> _groupReserved = new(StringComparer.OrdinalIgnoreCase);
+    private Func<AssemblyName, Assembly?>? _groupResolve;
     private readonly string _contract;
 
     internal UgcAssemblyAdmission(IApiAccessPolicy policy, MapPackage package, IReadOnlyList<Assembly> shared)
@@ -82,17 +86,50 @@ internal sealed class UgcAssemblyAdmission
             _expectedHashes[source.Path] = source.Sha256;
     }
 
+    /// <summary>
+    /// Group-only registration: framework identities are reserved for the designated ordinary group
+    /// context. Author private sources cannot take these names and resolution never falls back.
+    /// </summary>
+    private bool _groupRegistered;
+
+    internal void RegisterGroupFramework(IReadOnlyList<AssemblyName> closure, Func<AssemblyName, Assembly?> resolve)
+    {
+        if (_groupRegistered) throw new InvalidOperationException("A group framework closure can only be registered once.");
+        ArgumentNullException.ThrowIfNull(closure);
+        if (closure.Count == 0) throw new ArgumentException("A framework closure is required.", nameof(closure));
+        _groupResolve = resolve ?? throw new ArgumentNullException(nameof(resolve));
+        foreach (var identity in closure)
+        {
+            var name = identity?.Name ?? throw new ArgumentException("A framework closure identity requires a simple name.");
+            if (_shared.ContainsKey(name) || _sources.ContainsKey(name))
+                throw new InvalidDataException("The framework closure cannot shadow a shared or author identity: " + name + ".");
+            _groupReserved.Add(name);
+        }
+        _groupRegistered = true;
+    }
+
     internal void Admit(byte[] image, string? sourcePath)
     {
         if (sourcePath is not null && _expectedHashes.TryGetValue(Path.GetFullPath(sourcePath), out var expected) &&
             !HashMatches(image, expected))
             throw new InvalidDataException("Assembly bytes no longer match the package's declared SHA-256.");
         var info = ManagedAssemblyInspector.Inspect(image);
+        if (_groupReserved.Contains(info.SimpleName))
+            throw new InvalidDataException("Author bytes cannot replace a group framework assembly.");
         if (_shared.ContainsKey(info.SimpleName))
             throw new InvalidDataException("UGC bytes cannot replace a host-supplied shared assembly instance.");
         var identities = _identities.Append(info.AssemblyName).ToArray();
-        GameplayCapabilityPolicy.ValidateWithApiPolicy(image, identities, _contract, _policy,
-            allowReflectionTypeTokens: true, allowSessionAssemblyNames: true);
+        if (_groupRegistered)
+        {
+            // Grouped profile: the same policy object, with the group delegate/opcode gate added by the
+            // Packages helper. Single-domain callers keep the existing validation arguments below.
+            GameplayCapabilityPolicy.ValidateGroupedHostWithApiPolicy(image, identities, _contract, _policy);
+        }
+        else
+        {
+            GameplayCapabilityPolicy.ValidateWithApiPolicy(image, identities, _contract, _policy,
+                allowReflectionTypeTokens: true, allowSessionAssemblyNames: true);
+        }
         _identities.Add(info.AssemblyName);
         if (sourcePath is not null)
         {
@@ -104,6 +141,14 @@ internal sealed class UgcAssemblyAdmission
     internal Assembly? Resolve(AssemblyLoadContext context, AssemblyName requested)
     {
         string name = requested.Name ?? throw new FileLoadException("An assembly simple name is required.");
+        if (_groupReserved.Contains(name))
+        {
+            var groupAssembly = _groupResolve?.Invoke(requested)
+                ?? throw new FileLoadException("No group framework instance matched " + requested.FullName + ".");
+            MapDependencyResolver.RequireIdentity(requested, groupAssembly.GetName());
+            return groupAssembly;
+        }
+
         if (_shared.TryGetValue(name, out var shared))
         {
             MapDependencyResolver.RequireIdentity(requested, shared.GetName());

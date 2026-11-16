@@ -38,6 +38,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Integration tests failed.' }
     & dotnet run --project tests/RuneCLR.Packaging.Tests -c Release --no-build
     if ($LASTEXITCODE -ne 0) { throw 'Packaging tests failed.' }
+    & dotnet run --project tests/RuneCLR.GroupedHost.Tests -c Release --no-build -- --stock-negative
+    if ($LASTEXITCODE -ne 0) { throw 'Grouped host stock-negative control failed.' }
     $fixtures = Join-Path 'artifacts/packages' ('acceptance-' + [guid]::NewGuid().ToString('N'))
     & dotnet run --project tools/RuneCLR.PackageFixtures -c Release --no-build -- --framework-refs tools/RuneCLR.PackageFixtures/bin/Release/net11.0/refs --contract src/RuneCLR.Abstractions/bin/Release/net11.0/RuneCLR.Abstractions.dll --output $fixtures --include-pumped
     if ($LASTEXITCODE -ne 0) { throw 'Controlled fixture generation failed.' }

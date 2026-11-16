@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>RuneCLR.GroupedHost.Contracts</AssemblyName>
+    <RootNamespace>RuneCLR.GroupedHost.Fixtures</RootNamespace>
+  </PropertyGroup>
+</Project>
