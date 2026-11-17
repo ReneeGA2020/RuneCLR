@@ -1,6 +1,6 @@
 var cases = CompilerCases.Cases().Concat(IntakeCases.Cases()).Concat(ManifestCases.Cases())
     .Concat(PipelineCases.Cases()).Concat(CapabilityCases.Cases()).Concat(HostContractCapabilityCases.Cases())
-    .Concat(ApiAccessCases.Cases()).Concat(OpcodeCatalogCases.Cases()).Concat(GroupedDelegateCapabilityCases.Cases()).ToArray();
+    .Concat(ApiAccessCases.Cases()).Concat(ApiRuleCases.Cases()).Concat(OpcodeCatalogCases.Cases()).Concat(GroupedDelegateCapabilityCases.Cases()).ToArray();
 var failed = 0;
 foreach (var (name, run) in cases)
 {
