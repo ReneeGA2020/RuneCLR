@@ -1,5 +1,23 @@
 # Development handoff
 
+## Composable API access rules (2026-11-17)
+
+The opt-in [API access rules](api-access-rules.md) add host-owned Include/Exclude
+selectors for assemblies, namespaces, types, members and exact method signatures
+through the existing IApiAccessPolicy slots. More specific rules win, with
+Exclude winning ties. Strict-descendant structural references let an included
+member remain reachable without granting sibling operations. Existing gameplay
+defaults and loader/runtime safety gates remain unchanged.
+
+Stock .NET acceptance passed: solution Release build with zero warnings/errors,
+Packaging 363/363 (30 API-rule cases), Runtime 156/156, and SampleHost --collect
+with both maps collected. Compiled IL and reflection checks agree on the tested
+targets, including constructed generic declaring types. Tests also cover
+contradictory namespace/type selectors, denial before side effects and collection
+while a policy stays alive. Spark host configuration is the next integration
+check; interpreter, iOS, performance and sandbox properties are not established
+by this slice.
+
 ## Grouped method-entry witness (2026-11-17)
 
 The [Windows x64 method-entry record](experiments/grouped-method-witness-20261117.md)
