@@ -24,6 +24,12 @@ Public entry: public static int AuthorEntry.Run(IGroupedHostContract host, int v
   outside the role catalogs, so the strict load hook must reject it; the author records
   attempt/rejected (type and bounded message) or ALLOWED and returns normally.
 
+- host.Mode starting with "witness": the framework-event callback is bound as a direct no-argument
+  method-group delegate to `OnFrameworkEvent` (the host is retained in an author-owned static only),
+  so that named private NoInlining method is the callback entry. Non-witness modes keep the original
+  closure binding to `OnFrameworkEventCore(host)`; the closure baseline is behaviour-only and no
+  child-frame/native-entry claim is made for it.
+
 Statics RunCount/Token are never reset by fixtures; collection is proven by unloading the ALC.
 
 No RuneCLR.Runtime reference, no engine UI, no processes, no timing assertions, no finalizers.

@@ -8,6 +8,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 #endif
 
+using System.Runtime.CompilerServices;
+
 namespace RuneCLR.GroupedHost.Fixtures;
 
 /// <summary>
@@ -53,6 +55,7 @@ public static class FrameworkEntry
     /// "normal" records the init line and returns; "throw-init" records it and then throws a generic
     /// framework-init failure. No host or business static is reset by this method.
     /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void Initialize(IGroupedHostContract host)
     {
         ArgumentNullException.ThrowIfNull(host);
@@ -77,9 +80,20 @@ public static class FrameworkEntry
             host.Record("framework:own-reflection:" + value + ":allowed");
             return;
         }
+        if (mode == "witness-raise")
+        {
+            // Test-only mode: raise the existing author callback without re-initializing any state.
+            Action? witnessHandlers = s_frameworkEvent;
+            witnessHandlers?.Invoke();
+            return;
+        }
         s_initCount++;
         s_instance = new FrameworkInstance("fw-" + Guid.NewGuid().ToString("N"));
         host.Record("framework:init:" + mode + ":count=" + s_initCount + ":token=" + s_instance.Token);
+        if (mode.StartsWith("witness", StringComparison.Ordinal))
+        {
+            host.Record("framework:witness-entry:mode=" + mode + ":count=" + s_initCount + ":token=" + s_instance.Token);
+        }
         if (mode == "throw-init")
         {
             throw new FrameworkInitException();
@@ -97,6 +111,7 @@ public static class FrameworkEntry
     }
 
     /// <summary>Touches shared framework state and returns the running call count.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Touch(string caller)
     {
         ArgumentNullException.ThrowIfNull(caller);
@@ -119,6 +134,7 @@ public static class FrameworkEntry
     }
 
     /// <summary>Invokes every callback currently held by the framework static event.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int RaiseFrameworkEvent()
     {
         Action? handlers = s_frameworkEvent;

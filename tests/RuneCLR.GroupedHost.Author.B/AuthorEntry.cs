@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace RuneCLR.GroupedHost.Fixtures;
 
 /// <summary>Fixture-defined failure for the author initialization mode; the host must surface a type-only failure.</summary>
@@ -32,6 +34,7 @@ public static class AuthorEntry
     public static string Token { get; private set; } = "uninitialized";
 
     private static Action? s_authorCallback;
+    private static IGroupedHostContract? s_witnessHost;
 
     /// <summary>
     /// Runs one author call.
@@ -42,6 +45,7 @@ public static class AuthorEntry
     ///               trusted-native bridge probe through the trusted framework API, not an author P/Invoke;
     ///               it is subject to the host's explicit API allow policy.
     /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Run(IGroupedHostContract host, int value)
     {
         ArgumentNullException.ThrowIfNull(host);
@@ -61,7 +65,18 @@ public static class AuthorEntry
         int touched = FrameworkEntry.Touch("B");
         host.Record("author:B:framework-touch=" + touched);
 
-        s_authorCallback ??= () => OnFrameworkEvent(host);
+        if (IsWitnessMode(host.Mode))
+        {
+            // Witness modes bind the direct no-argument method group so the specified OnFrameworkEvent
+            // method itself is the callback entry; the host is retained in an author-owned static only.
+            s_witnessHost = host;
+            s_authorCallback ??= OnFrameworkEvent;
+        }
+        else
+        {
+            // Original closure baseline: unchanged behaviour, no policy widening.
+            s_authorCallback ??= () => OnFrameworkEventCore(host);
+        }
         FrameworkEntry.SubscribeFrameworkEvent(s_authorCallback);
 
         // Retention negative control: the host holds this delegate in its own external root until
@@ -70,6 +85,10 @@ public static class AuthorEntry
         host.Subscribe(hostCallback);
         host.Record("author:B:current:run=" + RunCount + ":token=" + Token);
 
+        if (IsWitnessMode(host.Mode))
+        {
+            host.Record("author:" + Tag + ":witness-entry:mode=" + host.Mode + ":run=" + RunCount + ":token=" + Token);
+        }
         if (host.DynamicImage is { Length: > 0 })
         {
             AttemptDynamicLoad(host);
@@ -90,9 +109,27 @@ public static class AuthorEntry
     /// the attempt and then reflects an explicitly denied target (String.StartsWith) so the runtime's
     /// origin scan must reject it even though no InvokeAuthor scope surrounds the framework entry.
     /// </summary>
-    private static void OnFrameworkEvent(IGroupedHostContract host)
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void OnFrameworkEvent()
+    {
+        OnFrameworkEventCore(s_witnessHost!);
+    }
+
+    // Ordinal prefix check that avoids String.StartsWith, which the fixture policy denies for the callback case.
+    private static bool IsWitnessMode(string mode)
+    {
+        return mode.Length >= 7 && string.CompareOrdinal(mode, 0, "witness", 0, 7) == 0;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void OnFrameworkEventCore(IGroupedHostContract host)
     {
         host.Record("author:" + Tag + ":framework-event-fired");
+        if (IsWitnessMode(host.Mode))
+        {
+            host.Record("author:" + Tag + ":witness-callback:mode=" + host.Mode);
+            return;
+        }
         if (!string.Equals(host.Mode, "raise-denied-reflection", StringComparison.Ordinal))
         {
             return;

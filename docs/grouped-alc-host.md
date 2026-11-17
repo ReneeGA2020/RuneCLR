@@ -194,8 +194,13 @@ collection. These regressions and the grouped results above have separate execut
 
 ### Not measured / not claimed
 
-* Method-level JIT or interpreter execution witness: not produced. Policy acknowledgement, module presence
-  and collection of a context are not execution witnesses.
+The later [November 17 fixture method-entry record](experiments/grouped-method-witness-20261117.md)
+adds 16 actual framework JIT / author interpreter observations with independent
+verification, including direct method-group callbacks. This is separate from
+the functional results above. Original closure private child-frame execution
+and whole-method coverage remain unproven. Policy acknowledgement, module
+presence and collection alone are not execution witnesses.
+
 * Any platform other than Windows x64, and any runtime other than the matching private .NET 12 dev build.
 * Security/sandbox properties, unloadable R2R, and collection timing guarantees.
 * Runtime call-count instrumentation for the single unload request (see the unload note above).

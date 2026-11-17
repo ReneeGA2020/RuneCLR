@@ -127,11 +127,25 @@ A second config that enables the policy but not the origin scan is used only for
 
 ## Capability witness vs method witness
 
+The [November 17 method-entry experiment](../../docs/experiments/grouped-method-witness-20261117.md)
+adds a separate external CDB collector and verifier. Its accepted Windows x64
+capture has 16 framework JIT / author interpreter observations across A/B/A
+and recovery, including a direct method-group callback. The original closure
+callback remains behavior-only. See the [collector instructions](../../eng/grouped-method-witness/README.md)
+for explicit private-runtime inputs and fresh output paths.
+
+`--method-witness-fixture` validates scalar identities and lifecycle gates and
+exits 0 without claiming execution mode. `--method-witness` deliberately exits
+3 (NOT-VERIFIED) because host records cannot self-verify. Both modes keep every
+host record's witness_verified=false. Only the external verifier report carries
+the measured verdict. Without an attached native debugger, explicitly enabling
+the checkpoint environment is refused before DebugBreak.
+
 - Capability witness: `--runtime-check` and `--origin-negative` prove the process configuration and
   the fail-closed preflight, not how any method executes.
-- Method witness: `--probe-entry`, `--policy-audit`, `--rejected-author` and the functional cases
-  prove specific metadata/admission/execution outcomes. No case proves that a body ran interpreted
-  or JIT-compiled; no tier or performance claim is made.
+- Functional/metadata probes: `--probe-entry`, `--policy-audit`, `--rejected-author` and the
+  functional cases prove their metadata/admission/execution outcomes. Those modes alone do not
+  prove that a body ran interpreted or JIT-compiled; no tier or performance claim is made.
 
 ## Host contract, policy and exception contracts
 

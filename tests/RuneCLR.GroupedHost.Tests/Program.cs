@@ -55,6 +55,10 @@ switch (mode)
         return FrameworkNative();
     case "--probe-entry":
         return ProbeEntry();
+    case "--method-witness":
+        return MethodWitness.Run(fixtureOnly: false, jsonlPath: Environment.GetEnvironmentVariable("GROUPED_WITNESS_JSONL"));
+    case "--method-witness-fixture":
+        return MethodWitness.Run(fixtureOnly: true, jsonlPath: Environment.GetEnvironmentVariable("GROUPED_WITNESS_JSONL"));
     case "--policy-audit":
         return PolicyAudit();
     case "--dump-refs":

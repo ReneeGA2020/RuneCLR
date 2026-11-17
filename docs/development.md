@@ -1,5 +1,19 @@
 # Development handoff
 
+## Grouped method-entry witness (2026-11-17)
+
+The [Windows x64 method-entry record](experiments/grouped-method-witness-20261117.md)
+adds actual framework Initialize/Touch JIT and author Run/direct-method-group
+OnFrameworkEvent interpreter observations: four targets across A/B/A and the
+recovered group, 16 events, 635 independent checks, zero failures, lifecycle
+gates and target exit 0. Host records remain scalar-only and never self-verify.
+Original closure callbacks remain behavior-only; whole-method coverage,
+performance, iOS and sandbox properties are not established. This tests/tools
+slice changes no public SDK, product implementation or CoreCLR source.
+An independent validation tree passed the solution build (zero warnings/errors),
+Runtime 156/156, Packaging 333/333, SampleHost --collect with collection, and
+grouped stock/policy gates, without changing the accepted capture inputs.
+
 ## Grouped collectible host handoff (2026-11-16)
 
 The opt-in [grouped host guide](grouped-alc-host.md) documents a public API that runs a trusted framework in
