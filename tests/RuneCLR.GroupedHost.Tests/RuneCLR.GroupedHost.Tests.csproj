@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RuneCLR.Runtime/RuneCLR.Runtime.csproj" />
+    <ProjectReference Include="../../src/RuneCLR.Packages/RuneCLR.Packages.csproj" />
+    <ProjectReference Include="../RuneCLR.GroupedHost.Contracts/RuneCLR.GroupedHost.Contracts.csproj" />
+    <ProjectReference Include="../RuneCLR.GroupedHost.Framework/RuneCLR.GroupedHost.Framework.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../RuneCLR.GroupedHost.Framework.Portable/RuneCLR.GroupedHost.Framework.Portable.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../RuneCLR.GroupedHost.Author.A/RuneCLR.GroupedHost.Author.A.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../RuneCLR.GroupedHost.Author.B/RuneCLR.GroupedHost.Author.B.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../RuneCLR.GroupedHost.Author.NativeRejected/RuneCLR.GroupedHost.Author.NativeRejected.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="StageGroupedHostFixtures" AfterTargets="Build">
+    <ItemGroup>
+      <GroupedFramework Include="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Framework/bin/$(Configuration)/$(TargetFramework)/*.dll" />
+      <GroupedFrameworkPortable Include="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Framework.Portable/bin/$(Configuration)/$(TargetFramework)/*.dll" />
+      <GroupedAuthorA Include="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Author.A/bin/$(Configuration)/$(TargetFramework)/*.dll" Exclude="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Author.A/bin/$(Configuration)/$(TargetFramework)/RuneCLR.GroupedHost.Framework.dll" />
+      <GroupedAuthorB Include="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Author.B/bin/$(Configuration)/$(TargetFramework)/*.dll" Exclude="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Author.B/bin/$(Configuration)/$(TargetFramework)/RuneCLR.GroupedHost.Framework.dll" />
+      <GroupedAuthorRejected Include="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Author.NativeRejected/bin/$(Configuration)/$(TargetFramework)/*.dll" Exclude="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Author.NativeRejected/bin/$(Configuration)/$(TargetFramework)/RuneCLR.GroupedHost.Framework.dll" />
+      <GroupedDynamicRejected Include="$(MSBuildThisFileDirectory)../RuneCLR.GroupedHost.Author.NativeRejected/bin/$(Configuration)/$(TargetFramework)/RuneCLR.GroupedHost.Author.NativeRejected.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(GroupedFramework)" DestinationFolder="$(TargetDir)fixtures/framework" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(GroupedFrameworkPortable)" DestinationFolder="$(TargetDir)fixtures/framework-portable" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(GroupedAuthorA)" DestinationFolder="$(TargetDir)fixtures/author-a" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(GroupedAuthorB)" DestinationFolder="$(TargetDir)fixtures/author-b" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(GroupedAuthorRejected)" DestinationFolder="$(TargetDir)fixtures/author-native-rejected" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(GroupedDynamicRejected)" DestinationFolder="$(TargetDir)fixtures/dynamic" SkipUnchangedFiles="true" />
+    <!-- Deterministic staging: a byte-copy of the framework image left in an author role directory by an
+         earlier build is obsolete (author roles resolve the framework from the group context). Remove only
+         these named artifacts inside the intended fixture output tree; no recursive deletes. -->
+    <ItemGroup>
+      <StaleGroupedAuthorArtifact Include="$(TargetDir)fixtures/author-a/RuneCLR.GroupedHost.Framework.dll" />
+      <StaleGroupedAuthorArtifact Include="$(TargetDir)fixtures/author-b/RuneCLR.GroupedHost.Framework.dll" />
+      <StaleGroupedAuthorArtifact Include="$(TargetDir)fixtures/author-native-rejected/RuneCLR.GroupedHost.Framework.dll" />
+    </ItemGroup>
+    <Delete Files="@(StaleGroupedAuthorArtifact)" />
+  </Target>
+</Project>

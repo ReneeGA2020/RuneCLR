@@ -30,9 +30,21 @@ public static partial class GameplayCapabilityPolicy
             allowReflectionTypeTokens, allowSessionAssemblyNames);
     }
 
+    /// <summary>Grouped-host admission: same ValidateCore as ValidateWithApiPolicy, plus the
+    /// metadata-proven managed delegate constructor exception. Only the grouped host calls this;
+    /// the public signatures and the legacy profile stay strict.</summary>
+    internal static void ValidateGroupedHostWithApiPolicy(ReadOnlyMemory<byte> image,
+        IReadOnlyCollection<string> privateAssemblyIdentities, string contractAssemblyIdentity, IApiAccessPolicy apiPolicy)
+    {
+        ArgumentNullException.ThrowIfNull(apiPolicy);
+        ValidateCore(image, privateAssemblyIdentities, contractAssemblyIdentity, null, null, apiPolicy,
+            allowReflectionTypeTokens: true, allowSessionAssemblyNames: true, allowManagedDelegateConstruction: true);
+    }
+
     private static void ValidateCore(ReadOnlyMemory<byte> image, IReadOnlyCollection<string> privateAssemblyIdentities,
         string contractAssemblyIdentity, string? hostInterface, IReadOnlyCollection<string>? allowedMethods, IApiAccessPolicy? apiPolicy,
-        bool allowReflectionTypeTokens = false, bool allowSessionAssemblyNames = false)
+        bool allowReflectionTypeTokens = false, bool allowSessionAssemblyNames = false,
+        bool allowManagedDelegateConstruction = false)
     {
         ArgumentNullException.ThrowIfNull(privateAssemblyIdentities);
         if (image.IsEmpty || image.Length > ManagedAssemblyInspector.MaximumImageBytes)
@@ -42,7 +54,7 @@ public static partial class GameplayCapabilityPolicy
             using var pe = new PEReader(ImmutableArray.CreateRange(image.ToArray()));
             var reader = pe.GetMetadataReader(MetadataReaderOptions.None);
             new Inspection(reader, pe, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, apiPolicy,
-                allowReflectionTypeTokens, allowSessionAssemblyNames).Validate();
+                allowReflectionTypeTokens, allowSessionAssemblyNames, allowManagedDelegateConstruction).Validate();
         }
         catch (Exception error) when (error is BadImageFormatException or ArgumentException or
             InvalidOperationException or IndexOutOfRangeException or OverflowException)
@@ -146,12 +158,15 @@ public static partial class GameplayCapabilityPolicy
         private readonly IApiAccessPolicy apiPolicy;
         private readonly bool allowReflectionTypeTokens;
         private readonly bool allowSessionAssemblyNames;
+        private readonly bool allowManagedDelegateConstruction;
+        private bool decodingDelegateConstructor;
         private int depth;
         private int activeSpecificationBytes;
 
         internal Inspection(MetadataReader metadata, PEReader pe, IReadOnlyCollection<string> identities, string contract,
             string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null, IApiAccessPolicy? apiPolicy = null,
-            bool allowReflectionTypeTokens = false, bool allowSessionAssemblyNames = false)
+            bool allowReflectionTypeTokens = false, bool allowSessionAssemblyNames = false,
+            bool allowManagedDelegateConstruction = false)
         {
             this.metadata = metadata;
             this.pe = pe;
@@ -168,6 +183,7 @@ public static partial class GameplayCapabilityPolicy
             this.apiPolicy = apiPolicy ?? CreateApiPolicy(identities.Append(ownIdentity).ToArray(), contract, hostInterface, allowedMethods);
             this.allowReflectionTypeTokens = allowReflectionTypeTokens;
             this.allowSessionAssemblyNames = allowSessionAssemblyNames;
+            this.allowManagedDelegateConstruction = allowManagedDelegateConstruction;
             foreach (var identity in identities)
             {
                 var full = FullIdentity(identity);
@@ -202,6 +218,11 @@ public static partial class GameplayCapabilityPolicy
                         throw Invalid("Author byref-like types are unsupported.");
                 }
             }
+            // Grouped route: identify metadata-proven managed delegate constructors before any body scan.
+            var delegateConstructorTokens = allowManagedDelegateConstruction
+                ? CollectManagedDelegateConstructors()
+                : new HashSet<int>();
+
             foreach (var handle in metadata.FieldDefinitions)
             {
                 var field = metadata.GetFieldDefinition(handle);
@@ -226,7 +247,7 @@ public static partial class GameplayCapabilityPolicy
                 }
                 foreach (var region in body.ExceptionRegions)
                     if (region.Kind == ExceptionRegionKind.Catch) _ = Type(region.CatchType);
-                CheckInstructions(body.GetILBytes()!);
+                CheckInstructions(body.GetILBytes()!, delegateConstructorTokens, body.ExceptionRegions);
             }
             foreach (var handle in metadata.MemberReferences)
             {
@@ -237,7 +258,10 @@ public static partial class GameplayCapabilityPolicy
                 ApiMethodSignature? methodShape = null;
                 if (member.GetKind() == MemberReferenceKind.Method)
                 {
-                    var signature = member.DecodeMethodSignature(this, null);
+                    decodingDelegateConstructor = delegateConstructorTokens.Contains(MetadataTokens.GetToken(handle));
+                    MethodSignature<Shape> signature;
+                    try { signature = member.DecodeMethodSignature(this, null); }
+                    finally { decodingDelegateConstructor = false; }
                     CheckSignature(signature);
                     methodShape = new(signature.ReturnType.SignatureName,
                         signature.ParameterTypes.Select(type => type.SignatureName).ToImmutableArray(),
@@ -396,6 +420,8 @@ public static partial class GameplayCapabilityPolicy
 
         public Shape GetPrimitiveType(PrimitiveTypeCode code) => code switch
         {
+            PrimitiveTypeCode.IntPtr when decodingDelegateConstructor =>
+                new("IntPtr", "primitive", false, "System.IntPtr"),
             PrimitiveTypeCode.IntPtr or PrimitiveTypeCode.UIntPtr or PrimitiveTypeCode.TypedReference =>
                 throw Invalid($"Unsafe/native signature type '{code}' is unsupported."),
             _ => new(code.ToString(), "primitive", false, "System." + code)
@@ -423,13 +449,143 @@ public static partial class GameplayCapabilityPolicy
                 throw Invalid("Unexpected method/property signature kind.");
         }
 
-        private static readonly Dictionary<ushort, OpCode> Opcodes = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
-            .Where(field => field.FieldType == typeof(OpCode)).Select(field => (OpCode)field.GetValue(null)!)
-            .ToDictionary(opcode => unchecked((ushort)opcode.Value));
 
-        private void CheckInstructions(byte[] bytes)
+        private static readonly HashSet<string> TrustedDelegateNames = new(StringComparer.Ordinal)
         {
+            "System.Action", "System.Predicate`1", "System.Comparison`1", "System.Converter`2",
+            "System.EventHandler", "System.EventHandler`1",
+            "System.Action`1", "System.Action`2", "System.Action`3", "System.Action`4", "System.Action`5",
+            "System.Action`6", "System.Action`7", "System.Action`8", "System.Action`9", "System.Action`10",
+            "System.Action`11", "System.Action`12", "System.Action`13", "System.Action`14", "System.Action`15",
+            "System.Action`16",
+            "System.Func`1", "System.Func`2", "System.Func`3", "System.Func`4", "System.Func`5",
+            "System.Func`6", "System.Func`7", "System.Func`8", "System.Func`9", "System.Func`10",
+            "System.Func`11", "System.Func`12", "System.Func`13", "System.Func`14", "System.Func`15",
+            "System.Func`16", "System.Func`17"
+        };
+
+        /// <summary>Trusted BCL identity by exact simple name plus the .NET public key token.</summary>
+        private static bool IsTrustedBclAssembly(string identity)
+        {
+            try
+            {
+                var name = new AssemblyName(identity);
+                var token = name.GetPublicKeyToken();
+                if (token is null || token.Length != 8) return false;
+                var hex = Convert.ToHexString(token).ToLowerInvariant();
+                return name.Name switch
+                {
+                    "System.Private.CoreLib" => hex == "7cec85d7bea7798e",
+                    "System.Runtime" => hex == "b03f5f7f11d50a3a",
+                    _ => false
+                };
+            }
+            catch (Exception) { return false; }
+        }
+
+        private HashSet<int> CollectManagedDelegateConstructors()
+        {
+            var tokens = new HashSet<int>();
+            foreach (var handle in metadata.MemberReferences)
+            {
+                var member = metadata.GetMemberReference(handle);
+                if (member.GetKind() != MemberReferenceKind.Method || Identifier(member.Name) != ".ctor") continue;
+                if (!IsTrustedStandardDelegate(member.Parent)) continue;
+                decodingDelegateConstructor = true;
+                MethodSignature<Shape> signature;
+                try { signature = member.DecodeMethodSignature(this, null); }
+                finally { decodingDelegateConstructor = false; }
+                if (!signature.Header.IsInstance) continue;
+                if (signature.ReturnType.SignatureName != "System.Void") continue;
+                if (signature.ParameterTypes.Length != 2) continue;
+                if (signature.ParameterTypes[0].SignatureName != "System.Object") continue;
+                if (signature.ParameterTypes[1].SignatureName != "System.IntPtr") continue;
+                tokens.Add(MetadataTokens.GetToken(handle));
+            }
+            return tokens;
+        }
+
+        /// <summary>Supported scope: trusted standard BCL delegate types only. Author-defined delegates
+        /// stay on the strict path (their IntPtr constructor signature is rejected), which is deliberate
+        /// for this slice rather than an unproven custom-type acceptance.</summary>
+        private bool IsTrustedStandardDelegate(EntityHandle parent)
+        {
+            if (parent.Kind is not (HandleKind.TypeReference or HandleKind.TypeSpecification)) return false;
+            // Type() decodes a specification strictly (the scoped IntPtr flag is off here), so generic
+            // arguments never receive the delegate-constructor exception.
+            var shape = Type(parent);
+            if (shape.Private) return false;
+            // A generic instantiation renders as "Ns.Name<args>"; compare the generic definition name.
+            var name = shape.Name;
+            var generic = name.IndexOf('<');
+            if (generic >= 0) name = name[..generic];
+            return IsTrustedBclAssembly(shape.Assembly) && TrustedDelegateNames.Contains(name);
+        }
+
+        private bool TryInstructionSize(ushort value, byte[] bytes, int operandOffset, out int size)
+        {
+            size = 0;
+            if (!GameplayCapabilityOpcodes.ByValue.TryGetValue(value, out var opcode)) return false;
+            size = opcode.Operand switch
+            {
+                OperandType.InlineNone => 0,
+                OperandType.ShortInlineBrTarget or OperandType.ShortInlineI or OperandType.ShortInlineVar => 1,
+                OperandType.InlineVar => 2,
+                OperandType.InlineI8 or OperandType.InlineR => 8,
+                OperandType.InlineSwitch => SwitchSize(bytes, operandOffset),
+                OperandType.InlineBrTarget or OperandType.InlineField or OperandType.InlineI or OperandType.InlineMethod or
+                    OperandType.InlineSig or OperandType.InlineString or OperandType.InlineTok or OperandType.InlineType or OperandType.ShortInlineR => 4,
+                _ => -1
+            };
+            return size >= 0;
+        }
+
+        private void CheckInstructions(byte[] bytes, HashSet<int> delegateConstructors, ImmutableArray<ExceptionRegion> regions)
+        {
+            // Pass 1: collect branch/switch targets so a newobj can never be reached by a jump.
+            var branchTargets = new HashSet<int>();
+            var instructionStarts = new HashSet<int>();
+            {
+                var scan = 0;
+                while (scan < bytes.Length)
+                {
+                    var at = scan;
+                    instructionStarts.Add(at);
+                    ushort value = bytes[scan++];
+                    if (value == 0xfe)
+                    {
+                        if (scan >= bytes.Length) throw Invalid($"Truncated IL opcode at IL offset {at}.");
+                        value = (ushort)(0xfe00 | bytes[scan++]);
+                    }
+                    if (!GameplayCapabilityOpcodes.ByValue.ContainsKey(value))
+                        throw Invalid($"Unknown IL opcode 0x{value:X4} at IL offset {at}.");
+                    if (!TryInstructionSize(value, bytes, scan, out var step) || step < 0)
+                        throw Invalid($"Unsupported IL operand encoding at IL offset {at}.");
+                    if (step > bytes.Length - scan)
+                        throw Invalid($"Truncated IL operand at IL offset {scan}.");
+                    if (value == 0x45) // switch: int32 count followed by count int32 targets
+                    {
+                        var count = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(scan, 4));
+
+                        for (var i = 0; i < count; i++)
+                            branchTargets.Add(scan + step + System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(scan + 4 + i * 4, 4)));
+                    }
+                    else if (value is >= 0x2B and <= 0x37 || value is >= 0x38 and <= 0x44 || value is 0xDD or 0xDE)
+                    {
+                        var delta = step == 1 ? (sbyte)bytes[scan] : System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(scan, 4));
+                        branchTargets.Add(scan + step + delta);
+                    }
+                    scan += step;
+                }
+                foreach (var target in branchTargets)
+                {
+                    if (target < 0 || target >= bytes.Length || !instructionStarts.Contains(target))
+                        throw Invalid($"Branch/switch target {target} is not a valid instruction start.");
+                }
+            }
             var offset = 0;
+            ushort previousValue = 0;
+            var previousEnd = -1;
             while (offset < bytes.Length)
             {
                 var start = offset;
@@ -439,12 +595,14 @@ public static partial class GameplayCapabilityPolicy
                     if (offset == bytes.Length) throw Invalid($"Truncated IL opcode at IL offset {start}.");
                     value = (ushort)(0xfe00 | bytes[offset++]);
                 }
-                if (!Opcodes.TryGetValue(value, out var opcode)) throw Invalid($"Unknown IL opcode at IL offset {start}.");
-                if (opcode == OpCodes.Calli || opcode == OpCodes.Localloc || opcode == OpCodes.Jmp ||
-                    opcode == OpCodes.Ldtoken && !allowReflectionTypeTokens || opcode == OpCodes.Mkrefany || opcode == OpCodes.Refanytype || opcode == OpCodes.Refanyval ||
-                    opcode == OpCodes.Cpblk || opcode == OpCodes.Initblk)
+                if (!GameplayCapabilityOpcodes.ByValue.TryGetValue(value, out var opcode)) throw Invalid($"Unknown IL opcode at IL offset {start}.");
+                // Values checked against the checked-in catalog; no reflection at runtime.
+                if (value == 0x0029 /* calli */ || value == 0xFE0F /* localloc */ || value == 0x0027 /* jmp */ ||
+                    value == 0x00D0 /* ldtoken */ && !allowReflectionTypeTokens || value == 0x00C6 /* mkrefany */ ||
+                    value == 0xFE1D /* refanytype */ || value == 0x00C2 /* refanyval */ ||
+                    value == 0xFE17 /* cpblk */ || value == 0xFE18 /* initblk */)
                     throw Invalid($"IL opcode '{opcode.Name}' is unsupported at IL offset {start}.");
-                var size = opcode.OperandType switch
+                var size = opcode.Operand switch
                 {
                     OperandType.InlineNone => 0,
                     OperandType.ShortInlineBrTarget or OperandType.ShortInlineI or OperandType.ShortInlineVar => 1,
@@ -456,7 +614,7 @@ public static partial class GameplayCapabilityPolicy
                     _ => throw Invalid("Unsupported IL operand encoding.")
                 };
                 if (size > bytes.Length - offset) throw Invalid($"Truncated IL operand at IL offset {offset}.");
-                if (opcode == OpCodes.Ldtoken)
+                if (value == 0x00D0 /* ldtoken */)
                 {
                     int token = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset, 4));
                     var handle = MetadataTokens.EntityHandle(token);
@@ -464,6 +622,35 @@ public static partial class GameplayCapabilityPolicy
                         throw Invalid("Only type metadata tokens are supported by the reflection-policy input profile.");
                     _ = Type(handle);
                 }
+                // Any instruction carrying a method/token operand is checked against the admitted set.
+                if (delegateConstructors.Count != 0 && size == 4 &&
+                    GameplayCapabilityOpcodes.ByValue.TryGetValue(value, out var guarded) &&
+                    guarded.Operand is OperandType.InlineMethod or OperandType.InlineTok)
+                {
+                    var token = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset, 4));
+                    if (delegateConstructors.Contains(token))
+                    {
+                        if (value != 0x0073)
+                            throw Invalid($"Admitted delegate constructor token used by opcode 0x{value:X4} at IL offset {start}; only newobj is allowed.");
+                        if (!(previousValue == 0xFE06 || previousValue == 0xFE07) || previousEnd != start)
+                            throw Invalid($"Delegate construction at IL offset {start} is not directly preceded by ldftn/ldvirtftn.");
+                        if (branchTargets.Contains(start))
+                            throw Invalid($"Delegate construction at IL offset {start} is a branch/switch target.");
+                        foreach (var region in regions)
+                        {
+                            if (region.TryOffset < 0 || region.TryLength < 0 || region.HandlerOffset < 0 || region.HandlerLength < 0 ||
+                                (long)region.TryOffset + region.TryLength > bytes.Length ||
+                                (long)region.HandlerOffset + region.HandlerLength > bytes.Length)
+                                throw Invalid("Exception region ranges are outside the method body.");
+                            if (start == region.TryOffset || start == region.TryOffset + region.TryLength ||
+                                start == region.HandlerOffset || start == region.HandlerOffset + region.HandlerLength ||
+                                (region.Kind == ExceptionRegionKind.Filter && start == region.FilterOffset))
+                                throw Invalid($"Delegate construction at IL offset {start} is an exception-region boundary.");
+                        }
+                    }
+                }
+                previousEnd = offset + size;
+                previousValue = value;
                 offset += size;
             }
         }

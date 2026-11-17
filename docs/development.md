@@ -1,5 +1,37 @@
 # Development handoff
 
+## Grouped method-entry witness (2026-11-17)
+
+The [Windows x64 method-entry record](experiments/grouped-method-witness-20261117.md)
+adds actual framework Initialize/Touch JIT and author Run/direct-method-group
+OnFrameworkEvent interpreter observations: four targets across A/B/A and the
+recovered group, 16 events, 635 independent checks, zero failures, lifecycle
+gates and target exit 0. Host records remain scalar-only and never self-verify.
+Original closure callbacks remain behavior-only; whole-method coverage,
+performance, iOS and sandbox properties are not established. This tests/tools
+slice changes no public SDK, product implementation or CoreCLR source.
+An independent validation tree passed the solution build (zero warnings/errors),
+Runtime 156/156, Packaging 333/333, SampleHost --collect with collection, and
+grouped stock/policy gates, without changing the accepted capture inputs.
+
+## Grouped collectible host handoff (2026-11-16)
+
+The opt-in [grouped host guide](grouped-alc-host.md) documents a public API that runs a trusted framework in
+an ordinary collectible context and an author module in a required-interpreter collectible context as one
+retirement group. A scoped Windows x64 functional acceptance on a matching private .NET 12 dev runtime is
+complete for the measured modes: basic group lifecycle 8/8 with both contexts collected, callbacks 2/2,
+dynamic in-hook native-import rejection, failed-Open rollback with host-owned MissingEntry diagnostics and
+joint collection, unload retry 3/3, trusted native interop, reference-copy accept/deny, stock-runtime
+rejection 2/2, policy 11/11 and the origin-scan negative case. The solution builds with 0 warnings and 0
+errors on that cut. Packaging passes 333/333 (including 13 new opcode/delegate cases), Runtime tests pass
+156/156, and both ordinary and host-pumped SampleHost runs report collection.
+
+The API is opt-in and additive: existing single-domain sessions, the legacy managed-IL gameplay profile and
+their validation are unchanged, and the group-only delegate gate accepts standard BCL delegate constructors
+while custom delegates stay strict. Still open and deliberately unclaimed: a method-level JIT/interpreter
+execution witness, any platform other than Windows x64, and security or sandbox properties. Treat the
+guide as usage documentation for the measured scope, not as broader product acceptance.
+
 ## Current handoff (2026-11-15)
 
 The [large poll-interval epoch S2

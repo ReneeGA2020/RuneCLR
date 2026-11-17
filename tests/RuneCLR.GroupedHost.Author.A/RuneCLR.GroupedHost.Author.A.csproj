@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>RuneCLR.GroupedHost.Author</AssemblyName>
+    <RootNamespace>RuneCLR.GroupedHost.Fixtures</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../RuneCLR.GroupedHost.Contracts/RuneCLR.GroupedHost.Contracts.csproj" />
+    <ProjectReference Include="../RuneCLR.GroupedHost.Framework/RuneCLR.GroupedHost.Framework.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>RuneCLR.GroupedHost.Framework</AssemblyName>
+    <RootNamespace>RuneCLR.GroupedHost.Fixtures</RootNamespace>
+    <DefineConstants>$(DefineConstants);GROUPED_HOST_PORTABLE_FRAMEWORK</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../RuneCLR.GroupedHost.Framework/FrameworkEntry.cs" Link="FrameworkEntry.cs" />
+    <ProjectReference Include="../RuneCLR.GroupedHost.Contracts/RuneCLR.GroupedHost.Contracts.csproj" />
+  </ItemGroup>
+</Project>
