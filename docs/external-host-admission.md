@@ -156,3 +156,24 @@ ownership. See the current results in [the development handoff](development.md).
 These are stock .NET checks. No real-engine run, CoreCLR change, interpreter
 method-entry proof, iOS validation, performance or sandbox claim is part of this
 increment.
+
+## Separately audited embedding trial (2026-11-26)
+
+One controlled Windows x64 engine session using the definition-evidence
+implementation was independently reviewed against 19 scope checks. The host
+validated an owned author buffer, loaded that same buffer into its required
+author context, and audited subscriptions from the owned image rather than
+assuming a stream-loaded assembly had a filesystem Location. Formal
+initialization and host acknowledgement preceded engine start; one synchronous
+author click and one before-load policy denial were observed. Cleanup released
+the owned buffers and roots; both collectible contexts were observed collected
+after the lifecycle stack returned. The application requested successful
+process termination. This was not evidence of a normal return from main.
+
+The generic runner's legacy failure receipt and earlier failed attempts remain
+unchanged; the scoped acceptance is separate. The trial covered one accepted
+session with an empty GUI baseline and the exercised synchronous callback/close
+path. It does not prove generic drain, in-flight or late asynchronous callbacks,
+failed-initialization recovery, a nonempty shared-resource baseline, arbitrary
+loading/reflection interception, method-level execution mode, iOS or performance.
+The local integration review does not rerun the engine or broaden these claims.

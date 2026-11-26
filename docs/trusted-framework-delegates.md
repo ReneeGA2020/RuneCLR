@@ -123,7 +123,15 @@ signatures, construction IL and rules. Neither evidence creation nor author
 validation loads provider or author images. Current stock-.NET results are in
 [the handoff](development.md).
 
+A separate synthetic retirement regression deliberately loads and executes a
+legal callback, then observes both collectible contexts and input buffers after
+the execution frame returns. Retaining provider evidence and a scalar rule
+policy does not retain them. This does not release application-owned delegates
+on the host's behalf.
+
 Company bytes, source and raw logs are not public fixtures. Any separate local
 engine metadata-only comparison is not a real-client run, interpreter witness
 or lifecycle acceptance. No CoreCLR, tiering, iOS, performance or sandbox claim
-is established.
+is established. A separate, narrowly audited embedding session is described in
+the [external-host guide](external-host-admission.md); its scope is distinct
+from the metadata-only fixtures above.

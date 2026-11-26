@@ -47,12 +47,12 @@ branch/switch/EH and pointer-producer rejection. Known delegate constructors
 with malformed noncanonical signatures now reject explicitly in the shared
 opt-in checker, including a missing native-int slot.
 
-This is public static admission acceptance, not an additional Spark engine
+This is public static admission acceptance, not an additional embedding engine
 run, interpreter/iOS method-mode proof, performance result or sandbox. Custom
 game-defined delegates remain unsupported. External hosts must control every
 load and bind the validated bytes, trusted BCL and exact shared instances;
 API validation does not authenticate assembly identity or install runtime
-reflection interception. Spark integration is a separate follow-up.
+reflection interception. Real-host integration is a separate follow-up.
 
 ## Composable API access rules (2026-11-17)
 
