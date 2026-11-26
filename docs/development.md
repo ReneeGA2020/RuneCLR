@@ -26,6 +26,16 @@ admission results, not real-engine execution, reflection interception, callback
 drain/lifetime, interpreter, tiering, iOS, performance or sandbox acceptance.
 Exact-signature proof does not infer variance or assembly-binding equivalence.
 
+The subsequent integration review preserves the same production sources and
+adds a retained-evidence collection regression. The complete Packaging harness
+passes 384/384 (12 trusted-definition cases), Runtime remains 156/156, the
+Release build has no warnings/errors and all three SampleHost sessions collect.
+The new synthetic case executes a legal callback and then observes both
+collectible contexts and original input buffers collected while evidence and
+a scalar policy stay alive. A separate, narrowly audited embedding trial is
+described in the [external-host guide](external-host-admission.md); it is not a
+claim of generic drain, failure recovery or broad runtime interception.
+
 ## External-host standard delegate admission (2026-11-26)
 
 The additive public
