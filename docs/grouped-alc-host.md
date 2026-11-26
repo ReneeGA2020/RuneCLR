@@ -94,6 +94,11 @@ directory. Unreadable or non-managed images in a role directory fail Open rather
   Packages gate has proven (a narrowly validated ctor plus managed pointer IL). Custom or author-defined
   delegate construction stays strict and is rejected; no blanket IntPtr or native-signature support was added.
 
+External hosts can now opt in to the same standard-delegate metadata checks via
+the [public external-host admission entry](external-host-admission.md), while
+retaining their own loaders. That static stock-.NET validation has a separate
+scope from the grouped host's private-runtime execution acceptance above.
+
 
 ## Host lifecycle
 

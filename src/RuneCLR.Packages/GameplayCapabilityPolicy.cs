@@ -31,8 +31,9 @@ public static partial class GameplayCapabilityPolicy
     }
 
     /// <summary>Grouped-host admission: same ValidateCore as ValidateWithApiPolicy, plus the
-    /// metadata-proven managed delegate constructor exception. Only the grouped host calls this;
-    /// the public signatures and the legacy profile stay strict.</summary>
+    /// metadata-proven managed delegate constructor exception, with the group's type-token/name options.
+    /// External loaders opt in separately through ValidateWithStandardManagedDelegates;
+    /// Validate and ValidateWithApiPolicy keep their legacy strict behavior.</summary>
     internal static void ValidateGroupedHostWithApiPolicy(ReadOnlyMemory<byte> image,
         IReadOnlyCollection<string> privateAssemblyIdentities, string contractAssemblyIdentity, IApiAccessPolicy apiPolicy)
     {
@@ -44,7 +45,8 @@ public static partial class GameplayCapabilityPolicy
     private static void ValidateCore(ReadOnlyMemory<byte> image, IReadOnlyCollection<string> privateAssemblyIdentities,
         string contractAssemblyIdentity, string? hostInterface, IReadOnlyCollection<string>? allowedMethods, IApiAccessPolicy? apiPolicy,
         bool allowReflectionTypeTokens = false, bool allowSessionAssemblyNames = false,
-        bool allowManagedDelegateConstruction = false)
+        bool allowManagedDelegateConstruction = false,
+        ImmutableDictionary<string, TrustedDelegateProvider>? trustedDelegateProviders = null)
     {
         ArgumentNullException.ThrowIfNull(privateAssemblyIdentities);
         if (image.IsEmpty || image.Length > ManagedAssemblyInspector.MaximumImageBytes)
@@ -54,7 +56,7 @@ public static partial class GameplayCapabilityPolicy
             using var pe = new PEReader(ImmutableArray.CreateRange(image.ToArray()));
             var reader = pe.GetMetadataReader(MetadataReaderOptions.None);
             new Inspection(reader, pe, privateAssemblyIdentities, contractAssemblyIdentity, hostInterface, allowedMethods, apiPolicy,
-                allowReflectionTypeTokens, allowSessionAssemblyNames, allowManagedDelegateConstruction).Validate();
+                allowReflectionTypeTokens, allowSessionAssemblyNames, allowManagedDelegateConstruction, trustedDelegateProviders).Validate();
         }
         catch (Exception error) when (error is BadImageFormatException or ArgumentException or
             InvalidOperationException or IndexOutOfRangeException or OverflowException)
@@ -149,7 +151,7 @@ public static partial class GameplayCapabilityPolicy
         internal string SignatureName => EncodedName ?? Name;
     }
 
-    private sealed class Inspection : ISignatureTypeProvider<Shape, object?>
+    private sealed partial class Inspection : ISignatureTypeProvider<Shape, object?>
     {
         private readonly MetadataReader metadata;
         private readonly PEReader pe;
@@ -166,7 +168,8 @@ public static partial class GameplayCapabilityPolicy
         internal Inspection(MetadataReader metadata, PEReader pe, IReadOnlyCollection<string> identities, string contract,
             string? hostInterface = null, IReadOnlyCollection<string>? allowedMethods = null, IApiAccessPolicy? apiPolicy = null,
             bool allowReflectionTypeTokens = false, bool allowSessionAssemblyNames = false,
-            bool allowManagedDelegateConstruction = false)
+            bool allowManagedDelegateConstruction = false,
+            ImmutableDictionary<string, TrustedDelegateProvider>? trustedDelegateProviders = null)
         {
             this.metadata = metadata;
             this.pe = pe;
@@ -180,6 +183,13 @@ public static partial class GameplayCapabilityPolicy
             if (publicKey.Length > 0) ownName.SetPublicKey(publicKey);
             else ownName.SetPublicKeyToken([]);
             ownIdentity = ownName.FullName!;
+            this.trustedDelegateProviders = trustedDelegateProviders;
+            if (trustedDelegateProviders is not null)
+            {
+                var sessionNames = identities.Append(ownIdentity).Select(i => new AssemblyName(i).Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (trustedDelegateProviders.Values.Any(p => sessionNames.Contains(new AssemblyName(p.AssemblyIdentity).Name)))
+                    throw Invalid("Trusted delegate providers cannot also be author/private assemblies.");
+            }
             this.apiPolicy = apiPolicy ?? CreateApiPolicy(identities.Append(ownIdentity).ToArray(), contract, hostInterface, allowedMethods);
             this.allowReflectionTypeTokens = allowReflectionTypeTokens;
             this.allowSessionAssemblyNames = allowSessionAssemblyNames;
@@ -218,7 +228,7 @@ public static partial class GameplayCapabilityPolicy
                         throw Invalid("Author byref-like types are unsupported.");
                 }
             }
-            // Grouped route: identify metadata-proven managed delegate constructors before any body scan.
+            // Opt-in routes: identify metadata-proven managed delegate constructors before any body scan.
             var delegateConstructorTokens = allowManagedDelegateConstruction
                 ? CollectManagedDelegateConstructors()
                 : new HashSet<int>();
@@ -255,6 +265,7 @@ public static partial class GameplayCapabilityPolicy
                 CheckBlob(member.Signature);
                 var declaring = Type(member.Parent);
                 var name = Identifier(member.Name);
+                ValidateTrustedMember(member, name);
                 ApiMethodSignature? methodShape = null;
                 if (member.GetKind() == MemberReferenceKind.Method)
                 {
@@ -490,16 +501,19 @@ public static partial class GameplayCapabilityPolicy
             {
                 var member = metadata.GetMemberReference(handle);
                 if (member.GetKind() != MemberReferenceKind.Method || Identifier(member.Name) != ".ctor") continue;
-                if (!IsTrustedStandardDelegate(member.Parent)) continue;
+                if (!IsTrustedStandardDelegate(member.Parent) && !CollectTrustedDelegateConstructor(handle, member)) continue;
                 decodingDelegateConstructor = true;
                 MethodSignature<Shape> signature;
                 try { signature = member.DecodeMethodSignature(this, null); }
                 finally { decodingDelegateConstructor = false; }
-                if (!signature.Header.IsInstance) continue;
-                if (signature.ReturnType.SignatureName != "System.Void") continue;
-                if (signature.ParameterTypes.Length != 2) continue;
-                if (signature.ParameterTypes[0].SignatureName != "System.Object") continue;
-                if (signature.ParameterTypes[1].SignatureName != "System.IntPtr") continue;
+                CheckSignature(signature);
+                // A known BCL delegate constructor has exactly this ordinary instance signature.
+                // Reject malformed lookalikes even if their signature omits the native-int slot.
+                if (signature.Header.RawValue != 0x20 || signature.GenericParameterCount != 0 ||
+                    signature.ReturnType.SignatureName != "System.Void" || signature.ParameterTypes.Length != 2 ||
+                    signature.ParameterTypes[0].SignatureName != "System.Object" ||
+                    signature.ParameterTypes[1].SignatureName != "System.IntPtr")
+                    throw Invalid("Standard managed delegate constructors require instance void(object, native int).");
                 tokens.Add(MetadataTokens.GetToken(handle));
             }
             return tokens;
@@ -636,6 +650,9 @@ public static partial class GameplayCapabilityPolicy
                             throw Invalid($"Delegate construction at IL offset {start} is not directly preceded by ldftn/ldvirtftn.");
                         if (branchTargets.Contains(start))
                             throw Invalid($"Delegate construction at IL offset {start} is a branch/switch target.");
+                        if (trustedConstructors.TryGetValue(token, out var trustedConstructor))
+                            ValidateTrustedHandler(MetadataTokens.EntityHandle(System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(
+                                bytes.AsSpan(start - 4, 4))), trustedConstructor);
                         foreach (var region in regions)
                         {
                             if (region.TryOffset < 0 || region.TryLength < 0 || region.HandlerOffset < 0 || region.HandlerLength < 0 ||
