@@ -3,6 +3,8 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
+using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using RuneCLR.Compiler;
 using RuneCLR.Packages;
 
@@ -52,6 +54,7 @@ internal static class TrustedDelegateCases
         yield return ("Trusted delegate constructor, Invoke and signature dependency excludes remain effective", DependencyRules);
         yield return ("Trusted delegate route keeps native, PInvoke and author-defined delegates rejected", UnsafeAuthor);
         yield return ("Trusted delegate metadata does not enable independent type-token options", IndependentOptions);
+        yield return ("Retained provider evidence and scalar policy do not root retired provider or author contexts", EvidenceRetirement);
     }
 
     private sealed class Fixture : IDisposable
@@ -259,6 +262,50 @@ internal static class TrustedDelegateCases
         var image = f.Author(AuthorSource.Replace("public static class Entry", "public static class Entry").Replace("Make() => Handle;", "Make() => Handle; public static object Token() => typeof(Entry);"));
         Reject(() => f.Validate(image), "ldtoken");
         f.Validate(image, typeTokens: true);
+    }
+
+    private static void EvidenceRetirement()
+    {
+        var (provider, author, providerBytes, authorBytes, evidence, policy) = RetireSyntheticGroup();
+        for (var attempt = 0; attempt < 15 && (provider.IsAlive || author.IsAlive || providerBytes.IsAlive || authorBytes.IsAlive); attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+        Check.Assert(!provider.IsAlive && !author.IsAlive, "Evidence or policy retained a collectible context after the execution stack returned.");
+        Check.Assert(!providerBytes.IsAlive && !authorBytes.IsAlive, "Evidence or validation retained an input image buffer.");
+        GC.KeepAlive(evidence);
+        GC.KeepAlive(policy);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (WeakReference Provider, WeakReference Author, WeakReference ProviderBytes, WeakReference AuthorBytes,
+        TrustedDelegateProvider Evidence, IApiAccessPolicy Policy) RetireSyntheticGroup()
+    {
+        using var fixture = new Fixture();
+        var image = fixture.Author();
+        IApiAccessPolicy policy = new RuleBasedApiAccessPolicy(ApiPolicyDefault.Allow, []);
+        fixture.Validate(image, policy);
+        var providerContext = new AssemblyLoadContext("delegate-evidence-provider", isCollectible: true);
+        var authorContext = new AssemblyLoadContext("delegate-evidence-author", isCollectible: true);
+        using var providerStream = new MemoryStream(fixture.Provider, writable: false);
+        var providerAssembly = providerContext.LoadFromStream(providerStream);
+        authorContext.Resolving += (_, name) => name.Name == "TrustedCallbackProvider" ? providerAssembly : null;
+        try
+        {
+            using var authorStream = new MemoryStream(image, writable: false);
+            var authorAssembly = authorContext.LoadFromStream(authorStream);
+            var callback = (Delegate)authorAssembly.GetType("Entry")!.GetMethod("Make")!.Invoke(null, null)!;
+            var result = (Task<bool>)callback.DynamicInvoke(null, new object())!;
+            Check.Assert(result.GetAwaiter().GetResult(), "The synthetic ordinary managed callback must execute before retirement.");
+            return (new(providerContext), new(authorContext), new(fixture.Provider), new(image), fixture.Evidence, policy);
+        }
+        finally
+        {
+            authorContext.Unload();
+            providerContext.Unload();
+        }
     }
 
     private static byte[] PatchCtor(byte[] image, bool definition, Action<byte[], int> edit)
