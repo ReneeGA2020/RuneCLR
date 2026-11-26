@@ -1,5 +1,33 @@
 # Development handoff
 
+## External-host standard delegate admission (2026-11-26)
+
+The additive public
+[`GameplayCapabilityPolicy.ValidateWithStandardManagedDelegates`](external-host-admission.md)
+entry lets an external loader opt in to the grouped validator's standard BCL
+delegate construction checks. It runs strict author structural intake and the
+supplied API policy against one owned image snapshot. Type-token/name options
+remain separate and default off. Existing strict validation and versioned
+package defaults are unchanged. No GroupedHostSession migration is required.
+
+Stock .NET 11 Windows x64 validation: solution Release build with zero warnings
+and errors, Packaging 372/372, Runtime 156/156, and SampleHost --collect with all
+three sessions collected. Nine new external-host cases cover method groups,
+closures/virtual callbacks, policy defaults and precise exceptions, malformed
+and spoofed delegate constructors, native/custom signature/import rejection,
+no-author-load/side-effect observation, independent options and snapshot
+ownership. The existing grouped mutation cases also exercise the public route's
+branch/switch/EH and pointer-producer rejection. Known delegate constructors
+with malformed noncanonical signatures now reject explicitly in the shared
+opt-in checker, including a missing native-int slot.
+
+This is public static admission acceptance, not an additional Spark engine
+run, interpreter/iOS method-mode proof, performance result or sandbox. Custom
+game-defined delegates remain unsupported. External hosts must control every
+load and bind the validated bytes, trusted BCL and exact shared instances;
+API validation does not authenticate assembly identity or install runtime
+reflection interception. Spark integration is a separate follow-up.
+
 ## Composable API access rules (2026-11-17)
 
 The opt-in [API access rules](api-access-rules.md) add host-owned Include/Exclude

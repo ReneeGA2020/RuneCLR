@@ -9,8 +9,8 @@ using RuneCLR.Compiler;
 using RuneCLR.Packages;
 
 /// <summary>
-/// Group-only managed-delegate capability regressions. The stock test compiler produces the images;
-/// the legacy public profile must keep rejecting them while the internal grouped route admits only
+/// Grouped and public opt-in managed-delegate capability regressions. The stock compiler produces images;
+/// the legacy public profile must keep rejecting them while both opt-in routes admit only
 /// metadata-proven delegate construction whose native-int argument comes from ldftn/ldvirtftn.
 /// Patched images are inspected only; nothing here loads or executes them.
 /// </summary>
@@ -20,15 +20,15 @@ internal static class GroupedDelegateCapabilityCases
 
     public static IEnumerable<(string Name, Action Run)> Cases()
     {
-        yield return ("Grouped route admits static and instance Action construction; legacy route rejects the same bytes", ActionConstruction);
-        yield return ("Grouped route admits Action<T> and Func<T> constructions; legacy route rejects the same bytes", GenericDelegateConstruction);
-        yield return ("Grouped route rejects IntPtr field and return signatures", NativeIntSignatures);
-        yield return ("Grouped route rejects an Action-like constructor that does not derive MulticastDelegate", FakeDelegateConstructor);
-        yield return ("Grouped route rejects a delegate constructor token used by call instead of newobj", ConstructorTokenOutsideNewobj);
-        yield return ("Grouped route rejects conv.i in place of the ldftn delegate target", ConvIProducer);
-        yield return ("Grouped route rejects delegate construction reached by a short branch", BranchTargetAtDelegateConstruction);
-        yield return ("Grouped route rejects delegate construction reached by a switch target", SwitchTargetAtDelegateConstruction);
-        yield return ("Grouped route rejects delegate construction on an exception-region boundary", ExceptionBoundaryAtDelegateConstruction);
+        yield return ("Grouped and external routes admit static and instance Action; legacy rejects the same bytes", ActionConstruction);
+        yield return ("Grouped and external routes admit Action<T> and Func<T>; legacy rejects the same bytes", GenericDelegateConstruction);
+        yield return ("Grouped and external routes reject IntPtr field and return signatures", NativeIntSignatures);
+        yield return ("Grouped and external routes reject an Action-like non-delegate constructor", FakeDelegateConstructor);
+        yield return ("Grouped and external routes reject a delegate constructor token used by call", ConstructorTokenOutsideNewobj);
+        yield return ("Grouped and external routes reject conv.i in place of the ldftn delegate target", ConvIProducer);
+        yield return ("Grouped and external routes reject delegate construction reached by a short branch", BranchTargetAtDelegateConstruction);
+        yield return ("Grouped and external routes reject delegate construction reached by a switch target", SwitchTargetAtDelegateConstruction);
+        yield return ("Grouped and external routes reject delegate construction on an exception-region boundary", ExceptionBoundaryAtDelegateConstruction);
         yield return ("Author P/Invoke is rejected by structural intake before the delegate route", PInvokeLayering);
         yield return ("Grouped route denies a delegate to a BCL method outside the supplied policy", DeniedDelegateTarget);
     }
@@ -324,6 +324,11 @@ internal static class GroupedDelegateCapabilityCases
         var intake = Check.Throws<InvalidDataException>(() => ManagedAssemblyInspector.Inspect(mutated));
         Check.Assert(intake.Message.Contains("P/Invoke", StringComparison.Ordinal),
             "Author P/Invoke must be rejected by structural intake itself: " + intake.Message);
+        var external = Check.Throws<InvalidDataException>(() =>
+            GameplayCapabilityPolicy.ValidateWithStandardManagedDelegates(mutated, [], Contract,
+                new RuleBasedApiAccessPolicy(ApiPolicyDefault.Allow, [])));
+        Check.Assert(external.Message.Contains("P/Invoke", StringComparison.Ordinal),
+            "Public external admission must run structural intake itself: " + external.Message);
     }
 
     private static void DeniedDelegateTarget()
@@ -363,7 +368,20 @@ internal static class GroupedDelegateCapabilityCases
     private static IApiAccessPolicy Policy(string identity) =>
         new DelegateFixturePolicy(GameplayCapabilityPolicy.CreateApiPolicy([identity], Contract));
 
-    private static void ValidateGrouped(byte[] image, string identity) => GroupedRoute.Value.Invoke(image, identity, Policy(identity));
+    private static void ValidateGrouped(byte[] image, string identity)
+    {
+        void ValidateExternal() => GameplayCapabilityPolicy.ValidateWithStandardManagedDelegates(
+            image, [identity], Contract, Policy(identity));
+        try { GroupedRoute.Value.Invoke(image, identity, Policy(identity)); }
+        catch (InvalidDataException)
+        {
+            // Exercise every mutated control through the public opt-in route too. The public route
+            // also runs structural intake, so it may reject a malformed image earlier than the core.
+            Check.Throws<InvalidDataException>(ValidateExternal);
+            throw;
+        }
+        ValidateExternal();
+    }
 
     private static void ValidateLegacy(byte[] image, string identity) =>
         GameplayCapabilityPolicy.ValidateWithApiPolicy(image, [identity], Contract, Policy(identity));

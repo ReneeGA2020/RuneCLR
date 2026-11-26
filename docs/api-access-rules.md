@@ -157,6 +157,11 @@ Default-allow does not disable them. GroupedHostOptions.AuthorApiPolicy can
 consume this policy through its existing slot; no new global switch is needed.
 Trusted framework execution is not reclassified as author code.
 
+External hosts that retain their own loaders can explicitly opt in to
+[standard managed delegate admission](external-host-admission.md) through
+`ValidateWithStandardManagedDelegates`. The existing `ValidateWithApiPolicy`
+entry stays strict; API Include rules alone do not enable the delegate exception.
+
 ## Verified scope
 
 The solution Release build passed with zero warnings and errors. The Packaging

@@ -31,8 +31,9 @@ public static partial class GameplayCapabilityPolicy
     }
 
     /// <summary>Grouped-host admission: same ValidateCore as ValidateWithApiPolicy, plus the
-    /// metadata-proven managed delegate constructor exception. Only the grouped host calls this;
-    /// the public signatures and the legacy profile stay strict.</summary>
+    /// metadata-proven managed delegate constructor exception, with the group's type-token/name options.
+    /// External loaders opt in separately through ValidateWithStandardManagedDelegates;
+    /// Validate and ValidateWithApiPolicy keep their legacy strict behavior.</summary>
     internal static void ValidateGroupedHostWithApiPolicy(ReadOnlyMemory<byte> image,
         IReadOnlyCollection<string> privateAssemblyIdentities, string contractAssemblyIdentity, IApiAccessPolicy apiPolicy)
     {
@@ -218,7 +219,7 @@ public static partial class GameplayCapabilityPolicy
                         throw Invalid("Author byref-like types are unsupported.");
                 }
             }
-            // Grouped route: identify metadata-proven managed delegate constructors before any body scan.
+            // Opt-in routes: identify metadata-proven managed delegate constructors before any body scan.
             var delegateConstructorTokens = allowManagedDelegateConstruction
                 ? CollectManagedDelegateConstructors()
                 : new HashSet<int>();
@@ -495,11 +496,14 @@ public static partial class GameplayCapabilityPolicy
                 MethodSignature<Shape> signature;
                 try { signature = member.DecodeMethodSignature(this, null); }
                 finally { decodingDelegateConstructor = false; }
-                if (!signature.Header.IsInstance) continue;
-                if (signature.ReturnType.SignatureName != "System.Void") continue;
-                if (signature.ParameterTypes.Length != 2) continue;
-                if (signature.ParameterTypes[0].SignatureName != "System.Object") continue;
-                if (signature.ParameterTypes[1].SignatureName != "System.IntPtr") continue;
+                CheckSignature(signature);
+                // A known BCL delegate constructor has exactly this ordinary instance signature.
+                // Reject malformed lookalikes even if their signature omits the native-int slot.
+                if (signature.Header.RawValue != 0x20 || signature.GenericParameterCount != 0 ||
+                    signature.ReturnType.SignatureName != "System.Void" || signature.ParameterTypes.Length != 2 ||
+                    signature.ParameterTypes[0].SignatureName != "System.Object" ||
+                    signature.ParameterTypes[1].SignatureName != "System.IntPtr")
+                    throw Invalid("Standard managed delegate constructors require instance void(object, native int).");
                 tokens.Add(MetadataTokens.GetToken(handle));
             }
             return tokens;
