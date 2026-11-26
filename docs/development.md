@@ -1,5 +1,31 @@
 # Development handoff
 
+## Trusted framework delegate definition evidence (2026-11-26)
+
+External loaders may explicitly provide selected actual framework delegate
+definitions through [`TrustedDelegateProvider`](trusted-framework-delegates.md)
+and `GameplayCapabilityPolicy.ValidateWithTrustedManagedDelegates`. Evidence
+snapshots provider identity/hash and immutable metadata, not loaded assemblies.
+The new entry verifies author references, generic substitution, exact handler
+signatures and the existing managed-pointer construction pattern. Provider
+definitions must stay separate from author/private identities. API rules still
+apply, and strict/standard-only entry points keep their defaults.
+
+Stock .NET Windows x64 acceptance passed: solution Release build with 0 warnings
+and errors, Packaging 383/383 (11 new trusted-definition cases), Runtime 156/156,
+SampleHost --collect with all three sessions collected. Generic delegates with
+Task<bool>(object,T) Invoke, ordinary instance targets and closed generic handlers
+pass. Controls reject invalid/conflicting evidence, author impersonation, unsafe
+signatures/imports, mismatched handlers and construction IL, and test both policy
+defaults, exact exceptions, same-rank Exclude and rule diagnostics. Provider and
+author metadata validation do not load those images.
+
+The host must bind approved provider identity/hash to its actual shared instance,
+validate every author load and load the same owned bytes. These are static public
+admission results, not real-engine execution, reflection interception, callback
+drain/lifetime, interpreter, tiering, iOS, performance or sandbox acceptance.
+Exact-signature proof does not infer variance or assembly-binding equivalence.
+
 ## External-host standard delegate admission (2026-11-26)
 
 The additive public

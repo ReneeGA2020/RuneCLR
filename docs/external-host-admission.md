@@ -38,6 +38,9 @@ The exception covers known standard BCL delegates: `Action`, `Action<T...>`
 `EventHandler<TEventArgs>`. Ordinary C# method groups, closures, and virtual
 method callbacks can use those types. Custom delegates, including delegates
 declared in a game's contract assembly, remain unsupported by this exception.
+For selected delegates defined in a trusted framework, an external host can
+instead opt in to [provider definition evidence](trusted-framework-delegates.md).
+That separate entry does not alter this standard-only entry's defaults.
 
 A constructor must reference one of those types under `System.Runtime` or
 `System.Private.CoreLib` with the expected .NET public key token, have exactly

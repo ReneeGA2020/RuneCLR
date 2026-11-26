@@ -161,6 +161,9 @@ External hosts that retain their own loaders can explicitly opt in to
 [standard managed delegate admission](external-host-admission.md) through
 `ValidateWithStandardManagedDelegates`. The existing `ValidateWithApiPolicy`
 entry stays strict; API Include rules alone do not enable the delegate exception.
+Selected framework-defined delegates need the separate
+[trusted provider metadata entry](trusted-framework-delegates.md); naming a
+delegate in an Include rule is not definition evidence or a trust grant.
 
 ## Verified scope
 
