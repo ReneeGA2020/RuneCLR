@@ -11,9 +11,12 @@ public static partial class GameplayCapabilityPolicy
         // Resolve slots in this image only. An unresolved external Finalize override is denied,
         // rather than assuming that a caller's API allow rule proves its base-class layout.
         private enum FinalizerSlot { Ordinary, Finalizer, Unknown }
+        private readonly Dictionary<MethodDefinitionHandle, FinalizerSlot> finalizerSlots = new();
+        private readonly HashSet<MethodDefinitionHandle> resolvingFinalizerSlots = new();
 
         private void ValidateFinalizerSlots()
         {
+            var implementations = new HashSet<MethodImplementationHandle>();
             foreach (var typeHandle in metadata.TypeDefinitions)
             {
                 var type = metadata.GetTypeDefinition(typeHandle);
@@ -23,13 +26,16 @@ public static partial class GameplayCapabilityPolicy
                     try
                     {
                         var implementation = metadata.GetMethodImplementation(implementationHandle);
+                        if (implementation.Type != typeHandle || !implementations.Add(implementationHandle))
+                            throw Invalid("Inconsistent MethodImpl declaring type metadata.");
                         var bodyHandle = LocalMethod(implementation.MethodBody);
                         var body = metadata.GetMethodDefinition(bodyHandle);
                         bodyDescription = $"{Identifier(body.Name)} (body 0x{MetadataTokens.GetToken(bodyHandle):X8}, MethodImpl)";
-                        if (body.GetDeclaringType() != typeHandle ||
-                            (body.Attributes & (MethodAttributes.Virtual | MethodAttributes.Static)) != MethodAttributes.Virtual)
-                            throw Invalid("MethodImpl body must be an instance virtual method on its declaring type.");
-                        var slot = DeclarationSlot(implementation.MethodDeclaration, 0);
+                        if (body.GetDeclaringType() != typeHandle)
+                            throw Invalid("MethodImpl body must belong to its declaring type.");
+                        if ((body.Attributes & (MethodAttributes.Static | MethodAttributes.Virtual)) == 0)
+                            throw Invalid("Instance MethodImpl body must be virtual.");
+                        var slot = DeclarationSlot(implementation.MethodDeclaration, 0, typeHandle);
                         if (slot != FinalizerSlot.Ordinary)
                             throw Invalid(slot == FinalizerSlot.Finalizer
                                 ? "Author finalizers are unsupported (MethodImpl finalizer slot)."
@@ -44,7 +50,10 @@ public static partial class GameplayCapabilityPolicy
                 foreach (var methodHandle in type.GetMethods())
                 {
                     var method = metadata.GetMethodDefinition(methodHandle);
-                    if (metadata.GetString(method.Name) != "Finalize") continue;
+                    var methodName = metadata.GetString(method.Name);
+                    if (methodName != "Finalize" &&
+                        (method.Attributes & (MethodAttributes.Virtual | MethodAttributes.NewSlot)) != MethodAttributes.Virtual)
+                        continue;
                     try
                     {
                         var slot = MethodSlot(methodHandle, 0);
@@ -56,9 +65,17 @@ public static partial class GameplayCapabilityPolicy
                     catch (Exception error) when (error is InvalidDataException or BadImageFormatException or
                         ArgumentException or InvalidOperationException or IndexOutOfRangeException)
                     {
-                        throw FinalizerMetadataError(typeHandle, methodHandle, "Finalize", error);
+                        throw FinalizerMetadataError(typeHandle, methodHandle, Identifier(method.Name), error);
                     }
                 }
+            }
+            // A malformed Class column/sort order must not hide a MethodImpl from the per-type
+            // enumeration and thereby turn an explicit finalizer body into an ordinary method.
+            for (var row = 1; row <= metadata.GetTableRowCount(TableIndex.MethodImpl); row++)
+            {
+                var handle = MetadataTokens.MethodImplementationHandle(row);
+                if (!implementations.Contains(handle))
+                    throw Invalid($"Type '<unresolved>', method 'MethodImpl', metadata token 0x{MetadataTokens.GetToken(handle):X8}: Unowned or unsorted MethodImpl metadata is unsupported.");
             }
         }
 
@@ -69,6 +86,19 @@ public static partial class GameplayCapabilityPolicy
         private FinalizerSlot MethodSlot(MethodDefinitionHandle handle, int nesting)
         {
             if (nesting > 64) return FinalizerSlot.Unknown;
+            if (finalizerSlots.TryGetValue(handle, out var cached)) return cached;
+            if (!resolvingFinalizerSlots.Add(handle)) return FinalizerSlot.Unknown;
+            try
+            {
+                var slot = ResolveMethodSlot(handle, nesting);
+                finalizerSlots.Add(handle, slot);
+                return slot;
+            }
+            finally { resolvingFinalizerSlots.Remove(handle); }
+        }
+
+        private FinalizerSlot ResolveMethodSlot(MethodDefinitionHandle handle, int nesting)
+        {
             var method = metadata.GetMethodDefinition(handle);
             CheckBlob(method.Signature);
             var signature = method.DecodeSignature(this, null);
@@ -76,7 +106,8 @@ public static partial class GameplayCapabilityPolicy
             if (signature.Header.IsInstance == ((method.Attributes & MethodAttributes.Static) != 0) ||
                 signature.GenericParameterCount != method.GetGenericParameters().Count ||
                 (method.Attributes & (MethodAttributes.Virtual | MethodAttributes.Static)) ==
-                (MethodAttributes.Virtual | MethodAttributes.Static))
+                (MethodAttributes.Virtual | MethodAttributes.Static) &&
+                (metadata.GetTypeDefinition(method.GetDeclaringType()).Attributes & TypeAttributes.Interface) == 0)
                 return FinalizerSlot.Unknown;
 
             // Explicit overrides can give an object finalizer any body name, including a newslot
@@ -85,70 +116,107 @@ public static partial class GameplayCapabilityPolicy
             {
                 var implementation = metadata.GetMethodImplementation(handleImpl);
                 if (LocalMethod(implementation.MethodBody) != handle) continue;
-                var slot = DeclarationSlot(implementation.MethodDeclaration, nesting + 1);
+                var slot = DeclarationSlot(implementation.MethodDeclaration, nesting + 1, method.GetDeclaringType());
                 if (slot != FinalizerSlot.Ordinary) return slot;
             }
 
-            if (metadata.GetString(method.Name) != "Finalize" || !FinalizerSignature(signature) ||
-                (method.Attributes & MethodAttributes.Virtual) == 0 ||
-                (method.Attributes & MethodAttributes.NewSlot) != 0)
+            if (!FinalizerSignature(signature) ||
+                (method.Attributes & MethodAttributes.Virtual) == 0)
                 return FinalizerSlot.Ordinary;
+            var name = metadata.GetString(method.Name);
+            if (name != "Finalize" && (method.Attributes & MethodAttributes.NewSlot) != 0)
+                return FinalizerSlot.Ordinary;
+            if (!CanonicalFinalizerSignature(method.Signature)) return FinalizerSlot.Unknown;
+            if ((method.Attributes & MethodAttributes.NewSlot) != 0) return FinalizerSlot.Ordinary;
 
-            return InheritedSlot(metadata.GetTypeDefinition(method.GetDeclaringType()).BaseType, nesting + 1);
+            return InheritedSlot(metadata.GetTypeDefinition(method.GetDeclaringType()).BaseType, name, nesting + 1);
         }
 
         private static bool FinalizerSignature(MethodSignature<Shape> signature) =>
             signature.Header.IsInstance && signature.GenericParameterCount == 0 &&
             signature.ParameterTypes.Length == 0 && signature.ReturnType.SignatureName == "System.Void";
 
-        private FinalizerSlot InheritedSlot(EntityHandle typeHandle, int nesting)
+        private bool CanonicalFinalizerSignature(BlobHandle signature) =>
+            metadata.GetBlobBytes(signature).AsSpan().SequenceEqual(new byte[] { 0x20, 0x00, 0x01 });
+
+        private FinalizerSlot InheritedSlot(EntityHandle typeHandle, string name, int nesting)
         {
             if (nesting > 64 || typeHandle.IsNil) return FinalizerSlot.Unknown;
+            typeHandle = SlotTypeDefinition(typeHandle);
             if (typeHandle.Kind == HandleKind.TypeDefinition)
             {
                 var type = metadata.GetTypeDefinition((TypeDefinitionHandle)typeHandle);
                 if ((type.Attributes & TypeAttributes.Interface) != 0) return FinalizerSlot.Unknown;
+                MethodDefinitionHandle match = default;
                 foreach (var handle in type.GetMethods())
                 {
                     var method = metadata.GetMethodDefinition(handle);
-                    if (metadata.GetString(method.Name) == "Finalize" &&
+                    if (metadata.GetString(method.Name) == name &&
                         (method.Attributes & MethodAttributes.Virtual) != 0)
                     {
                         CheckBlob(method.Signature);
-                        if (FinalizerSignature(method.DecodeSignature(this, null)))
-                            return MethodSlot(handle, nesting + 1);
+                        var signature = method.DecodeSignature(this, null);
+                        CheckSignature(signature);
+                        if (!FinalizerSignature(signature)) continue;
+                        if (!match.IsNil || !CanonicalFinalizerSignature(method.Signature))
+                            return FinalizerSlot.Unknown;
+                        match = handle;
                     }
                 }
-                return InheritedSlot(type.BaseType, nesting + 1);
+                return match.IsNil ? InheritedSlot(type.BaseType, name, nesting + 1) : MethodSlot(match, nesting + 1);
             }
             if (typeHandle.Kind == HandleKind.TypeReference)
             {
                 var type = Type(typeHandle);
                 if (type.Name == "System.Object" && IsTrustedBclAssembly(type.Assembly))
-                    return FinalizerSlot.Finalizer;
+                    return name == "Finalize" ? FinalizerSlot.Finalizer : FinalizerSlot.Ordinary;
             }
-            // TypeSpec/external base layouts cannot be proved from the current image.
+            // External base layouts cannot be proved from the current image.
             return FinalizerSlot.Unknown;
         }
 
-        private FinalizerSlot DeclarationSlot(EntityHandle declaration, int nesting)
+        private FinalizerSlot DeclarationSlot(EntityHandle declaration, int nesting, TypeDefinitionHandle owner)
         {
             if (nesting > 64 || declaration.IsNil) return FinalizerSlot.Unknown;
             if (declaration.Kind == HandleKind.MethodDefinition)
-                return MethodSlot((MethodDefinitionHandle)declaration, nesting + 1);
+            {
+                var method = metadata.GetMethodDefinition((MethodDefinitionHandle)declaration);
+                return (method.Attributes & MethodAttributes.Virtual) != 0
+                    ? MethodSlot((MethodDefinitionHandle)declaration, nesting + 1) : FinalizerSlot.Unknown;
+            }
             if (declaration.Kind != HandleKind.MemberReference) return FinalizerSlot.Unknown;
             var member = metadata.GetMemberReference((MemberReferenceHandle)declaration);
             if (member.GetKind() != MemberReferenceKind.Method) return FinalizerSlot.Unknown;
             CheckBlob(member.Signature);
             var signature = member.DecodeMethodSignature(this, null);
             CheckSignature(signature);
-            if (member.Parent.Kind == HandleKind.TypeDefinition)
-                return MethodSlot(LocalMethod(declaration), nesting + 1);
-            if (metadata.GetString(member.Name) != "Finalize") return FinalizerSlot.Ordinary;
-            if (!FinalizerSignature(signature)) return FinalizerSlot.Unknown;
+            if (SlotTypeDefinition(member.Parent).Kind == HandleKind.TypeDefinition)
+                return DeclarationSlot(LocalMethod(declaration), nesting + 1, owner);
+            if (!FinalizerSignature(signature)) return FinalizerSlot.Ordinary;
+            if (!CanonicalFinalizerSignature(member.Signature)) return FinalizerSlot.Unknown;
             var parent = Type(member.Parent);
-            return parent.Name == "System.Object" && IsTrustedBclAssembly(parent.Assembly)
-                ? FinalizerSlot.Finalizer : FinalizerSlot.Unknown;
+            if (parent.Name == "System.Object" && IsTrustedBclAssembly(parent.Assembly))
+                return metadata.GetString(member.Name) == "Finalize" ? FinalizerSlot.Finalizer : FinalizerSlot.Unknown;
+            // A class can expose its finalizer slot under another name via MethodImpl. A
+            // void() declaration on an unresolved external class is therefore not proof of
+            // an ordinary slot. Interface mappings have no Object finalizer vtable slot.
+            return DeclaresInterface(owner, parent, 0) ? FinalizerSlot.Ordinary : FinalizerSlot.Unknown;
+        }
+
+        private bool DeclaresInterface(TypeDefinitionHandle owner, Shape target, int nesting)
+        {
+            if (nesting > 64) return false;
+            var type = metadata.GetTypeDefinition(owner);
+            foreach (var handle in type.GetInterfaceImplementations())
+            {
+                var candidate = Type(metadata.GetInterfaceImplementation(handle).Interface);
+                if (candidate.Assembly == target.Assembly && candidate.SignatureName == target.SignatureName)
+                    return true;
+            }
+            if (type.BaseType.IsNil) return false;
+            var parent = SlotTypeDefinition(type.BaseType);
+            return parent.Kind == HandleKind.TypeDefinition &&
+                DeclaresInterface((TypeDefinitionHandle)parent, target, nesting + 1);
         }
 
         private MethodDefinitionHandle LocalMethod(EntityHandle handle)
@@ -161,10 +229,11 @@ public static partial class GameplayCapabilityPolicy
             if (!handle.IsNil && handle.Kind == HandleKind.MemberReference)
             {
                 var member = metadata.GetMemberReference((MemberReferenceHandle)handle);
-                if (member.Parent.Kind == HandleKind.TypeDefinition && member.GetKind() == MemberReferenceKind.Method)
+                var parent = SlotTypeDefinition(member.Parent);
+                if (parent.Kind == HandleKind.TypeDefinition && member.GetKind() == MemberReferenceKind.Method)
                 {
                     CheckBlob(member.Signature);
-                    var matches = metadata.GetTypeDefinition((TypeDefinitionHandle)member.Parent).GetMethods()
+                    var matches = metadata.GetTypeDefinition((TypeDefinitionHandle)parent).GetMethods()
                         .Where(candidate =>
                         {
                             var method = metadata.GetMethodDefinition(candidate);
@@ -176,6 +245,29 @@ public static partial class GameplayCapabilityPolicy
                 }
             }
             throw Invalid("Unresolved or ambiguous MethodImpl method metadata.");
+        }
+
+        private EntityHandle SlotTypeDefinition(EntityHandle type)
+        {
+            if (type.Kind != HandleKind.TypeSpecification) return type;
+            // Finalizer slot matching is instance void(), so class type arguments cannot
+            // change that signature. Prove the complete local class instantiation, rather
+            // than relying on a decoder that accepts trailing data or ignores class arity.
+            _ = Type(type);
+            var signature = metadata.GetTypeSpecification((TypeSpecificationHandle)type).Signature;
+            CheckBlob(signature);
+            var blob = metadata.GetBlobReader(signature);
+            if (blob.ReadByte() != 0x15 /* GENERICINST */ || blob.ReadByte() != 0x12 /* CLASS */)
+                throw Invalid("Unresolved finalizer generic type shape.");
+            var definition = blob.ReadTypeHandle();
+            if (definition.Kind != HandleKind.TypeDefinition) return type;
+            var count = blob.ReadCompressedInteger();
+            if (count != metadata.GetTypeDefinition((TypeDefinitionHandle)definition).GetGenericParameters().Count)
+                throw Invalid("Unresolved finalizer generic type arity.");
+            var decoder = new SignatureDecoder<Shape, object?>(this, metadata, null);
+            for (var argument = 0; argument < count; argument++) _ = decoder.DecodeType(ref blob);
+            if (blob.RemainingBytes != 0) throw Invalid("Trailing finalizer generic type metadata.");
+            return definition;
         }
     }
 }

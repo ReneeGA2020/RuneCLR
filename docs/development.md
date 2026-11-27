@@ -12,6 +12,18 @@ inspection does not load author images or resolve external base-class layouts.
 The public admission defaults and native signature/P/Invoke restrictions are
 unchanged. Independent fixtures cover the name collision and override boundaries.
 
+Ordinary local generic interface/base slots and static abstract interface
+implementations are covered as well. An unresolved external class can expose an
+object finalizer under an alias, so instance `void()` reuse-slot overrides and
+explicit mappings to such external class slots are conservatively unsupported.
+Declared interface mappings do not use the object's finalizer slot. Modified or
+ambiguous signatures and incomplete local generic instantiations also reject.
+
+The [external-host guide](external-host-admission.md#supply-complete-assembly-identities)
+documents explicit unsigned identity text and normalization of a trusted actual
+`AssemblyName`. The strict version/culture/token requirement is preserved; this
+adds contract fixtures and a host-local example rather than a public helper API.
+
 ## Trusted framework delegate definition evidence (2026-11-26)
 
 External loaders may explicitly provide selected actual framework delegate

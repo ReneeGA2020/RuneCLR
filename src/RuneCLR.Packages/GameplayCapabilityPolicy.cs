@@ -210,6 +210,7 @@ public static partial class GameplayCapabilityPolicy
             if (!allowSessionAssemblyNames && Reserved(ownName)) throw Invalid($"Author assembly '{ownName}' spoofs a framework or host assembly name.");
             foreach (var handle in metadata.AssemblyReferences) ValidateAssembly(ReferenceIdentity(handle));
             foreach (var handle in metadata.TypeReferences) _ = GetTypeFromReference(metadata, handle, 0);
+            ValidateFinalizerSlots();
             for (var row = 1; row <= metadata.GetTableRowCount(TableIndex.TypeSpec); row++)
                 _ = GetTypeFromSpecification(metadata, null, MetadataTokens.TypeSpecificationHandle(row), 0);
             foreach (var handle in metadata.TypeDefinitions)
@@ -228,7 +229,6 @@ public static partial class GameplayCapabilityPolicy
                         throw Invalid("Author byref-like types are unsupported.");
                 }
             }
-            ValidateFinalizerSlots();
             // Opt-in routes: identify metadata-proven managed delegate constructors before any body scan.
             var delegateConstructorTokens = allowManagedDelegateConstruction
                 ? CollectManagedDelegateConstructors()
