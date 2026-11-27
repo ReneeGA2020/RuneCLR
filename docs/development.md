@@ -1,5 +1,17 @@
 # Development handoff
 
+## Public admission follow-up (2026-11-27)
+
+The managed-IL capability gate distinguishes ordinary methods named `Finalize`
+from object finalizer slots. Static, private, parameterized and separate newslot
+methods retain ordinary admission; actual author finalizers remain unsupported.
+Metadata inspection also checks explicit `MethodImpl` overrides, including bodies
+whose names differ from `Finalize`. Unresolved finalizer-slot layouts and malformed
+override metadata fail closed with bounded type/method/token diagnostics. This
+inspection does not load author images or resolve external base-class layouts.
+The public admission defaults and native signature/P/Invoke restrictions are
+unchanged. Independent fixtures cover the name collision and override boundaries.
+
 ## Trusted framework delegate definition evidence (2026-11-26)
 
 External loaders may explicitly provide selected actual framework delegate

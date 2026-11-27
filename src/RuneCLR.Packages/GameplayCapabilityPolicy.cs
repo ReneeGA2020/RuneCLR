@@ -228,6 +228,7 @@ public static partial class GameplayCapabilityPolicy
                         throw Invalid("Author byref-like types are unsupported.");
                 }
             }
+            ValidateFinalizerSlots();
             // Opt-in routes: identify metadata-proven managed delegate constructors before any body scan.
             var delegateConstructorTokens = allowManagedDelegateConstruction
                 ? CollectManagedDelegateConstructors()
@@ -244,7 +245,6 @@ public static partial class GameplayCapabilityPolicy
                 var method = metadata.GetMethodDefinition(handle);
                 CheckBlob(method.Signature);
                 CheckSignature(method.DecodeSignature(this, null));
-                if (metadata.GetString(method.Name) == "Finalize") throw Invalid("Author finalizers are unsupported.");
                 if (metadata.GetString(metadata.GetTypeDefinition(method.GetDeclaringType()).Name) == "<Module>")
                     throw Invalid("Module initializers and global module methods are unsupported.");
                 if (method.RelativeVirtualAddress == 0) continue;
