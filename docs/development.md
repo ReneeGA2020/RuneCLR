@@ -26,6 +26,14 @@ documents explicit unsigned identity text and normalization of a trusted actual
 `AssemblyName`. The strict version/culture/token requirement is preserved; this
 adds contract fixtures and a host-local example rather than a public helper API.
 
+Stock .NET 11 Windows x64 acceptance: solution Release build with 0 warnings and
+errors, Packaging 400/400 (14 finalizer groups and 2 identity contract groups),
+Runtime 156/156, and SampleHost `--collect` with all three sessions collected.
+The grouped stock-negative control observes both expected pre-entry rejections;
+it does not establish grouped interpreter execution. These results concern static
+admission and ordinary desktop lifecycle, not device, interpreter or performance
+acceptance. No runtime patch is involved.
+
 ## Trusted framework delegate definition evidence (2026-11-26)
 
 External loaders may explicitly provide selected actual framework delegate
