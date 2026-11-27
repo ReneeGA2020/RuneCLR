@@ -106,6 +106,38 @@ the supported delegate constructor sees `System.Void`, parameters
 deny that constructor despite the structural exception. A narrow Include of a
 target method under a wider Exclude does not grant its sibling methods.
 
+### Supply complete assembly identities
+
+Use full identity text, including `Version`, `Culture` and `PublicKeyToken`;
+neutral culture and unsigned assemblies are written as `Culture=neutral` and
+`PublicKeyToken=null`. Prefer `ManagedAssemblyInspector.Inspect(ownedBytes).AssemblyName`
+when you already have an owned image that fits the inspector's managed intake
+profile. Use the actual image selected by the trusted host, not an author claim.
+
+If the host already has a trusted, actual `AssemblyName` (for example, from
+`sharedContract.GetName()`), its `FullName` can omit culture or the public-key
+token when those fields are unset. Normalize a copy at the host boundary:
+
+```csharp
+static string CompleteIdentity(AssemblyName actual)
+{
+    var copy = (AssemblyName)actual.Clone();
+    if (string.IsNullOrWhiteSpace(copy.Name) || copy.Version is null)
+        throw new ArgumentException("An actual assembly name and version are required.", nameof(actual));
+
+    copy.CultureName ??= string.Empty;
+    if (copy.GetPublicKeyToken() is null)
+        copy.SetPublicKeyToken([]);
+    return copy.FullName!;
+}
+```
+
+This preserves the version, non-neutral culture, any nonempty token, content
+type and retargetable flag. It does not relax the complete-text requirement,
+approve a mismatching identity, or establish trust in the bytes. Do not use
+this to fill gaps in identity text from an untrusted source or fall back to a
+simple name for admission.
+
 ## Binding and trust obligations
 
 - Build the approved private identity set from the host's controlled image

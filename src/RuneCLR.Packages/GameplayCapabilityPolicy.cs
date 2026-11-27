@@ -210,6 +210,7 @@ public static partial class GameplayCapabilityPolicy
             if (!allowSessionAssemblyNames && Reserved(ownName)) throw Invalid($"Author assembly '{ownName}' spoofs a framework or host assembly name.");
             foreach (var handle in metadata.AssemblyReferences) ValidateAssembly(ReferenceIdentity(handle));
             foreach (var handle in metadata.TypeReferences) _ = GetTypeFromReference(metadata, handle, 0);
+            ValidateFinalizerSlots();
             for (var row = 1; row <= metadata.GetTableRowCount(TableIndex.TypeSpec); row++)
                 _ = GetTypeFromSpecification(metadata, null, MetadataTokens.TypeSpecificationHandle(row), 0);
             foreach (var handle in metadata.TypeDefinitions)
@@ -244,7 +245,6 @@ public static partial class GameplayCapabilityPolicy
                 var method = metadata.GetMethodDefinition(handle);
                 CheckBlob(method.Signature);
                 CheckSignature(method.DecodeSignature(this, null));
-                if (metadata.GetString(method.Name) == "Finalize") throw Invalid("Author finalizers are unsupported.");
                 if (metadata.GetString(metadata.GetTypeDefinition(method.GetDeclaringType()).Name) == "<Module>")
                     throw Invalid("Module initializers and global module methods are unsupported.");
                 if (method.RelativeVirtualAddress == 0) continue;

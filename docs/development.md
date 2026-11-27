@@ -1,5 +1,39 @@
 # Development handoff
 
+## Public admission follow-up (2026-11-27)
+
+The managed-IL capability gate distinguishes ordinary methods named `Finalize`
+from object finalizer slots. Static, private, parameterized and separate newslot
+methods retain ordinary admission; actual author finalizers remain unsupported.
+Metadata inspection also checks explicit `MethodImpl` overrides, including bodies
+whose names differ from `Finalize`. Unresolved finalizer-slot layouts and malformed
+override metadata fail closed with bounded type/method/token diagnostics. This
+inspection does not load author images or resolve external base-class layouts.
+The public admission defaults and native signature/P/Invoke restrictions are
+unchanged. Independent fixtures cover the name collision and override boundaries.
+
+Ordinary local generic interface/base slots and static abstract interface
+implementations are covered as well. An unresolved external class can expose an
+object finalizer under an alias, so instance `void()` reuse-slot overrides and
+explicit mappings to such external class slots are conservatively unsupported.
+Declared interface mappings do not use the object's finalizer slot. Modified or
+ambiguous signatures and incomplete local generic instantiations also reject.
+Interface evidence must use the same metadata reference handle; flattened display
+names cannot prove identity, and duplicate or unresolved references stay unsupported.
+
+The [external-host guide](external-host-admission.md#supply-complete-assembly-identities)
+documents explicit unsigned identity text and normalization of a trusted actual
+`AssemblyName`. The strict version/culture/token requirement is preserved; this
+adds contract fixtures and a host-local example rather than a public helper API.
+
+Stock .NET 11 Windows x64 acceptance: solution Release build with 0 warnings and
+errors, Packaging 400/400 (14 finalizer groups and 2 identity contract groups),
+Runtime 156/156, and SampleHost `--collect` with all three sessions collected.
+The grouped stock-negative control observes both expected pre-entry rejections;
+it does not establish grouped interpreter execution. These results concern static
+admission and ordinary desktop lifecycle, not device, interpreter or performance
+acceptance. No runtime patch is involved.
+
 ## Trusted framework delegate definition evidence (2026-11-26)
 
 External loaders may explicitly provide selected actual framework delegate
