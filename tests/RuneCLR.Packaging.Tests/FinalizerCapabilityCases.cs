@@ -137,6 +137,8 @@ internal static class FinalizerCapabilityCases
         Denied(Build([new("Entry", -1, [new("Cleanup", Virtual)])]), "Unresolved finalizer", allowAll: true);
         Validate(Build([new("Base", 0, [new("Cleanup", Virtual | MethodAttributes.NewSlot)]),
             new("Entry", 1, [new("Cleanup", Virtual)])]));
+        Denied(Build([new("Entry", -1, [new("Cleanup", Virtual | MethodAttributes.NewSlot)])],
+            implementation: 14), "Unresolved finalizer", allowAll: true);
     }
 
     private static void InheritedSlot() => Denied(Build([new("Base", 0, []),
@@ -216,10 +218,17 @@ internal static class FinalizerCapabilityCases
             metadata.GetOrAddBlob(core.GetPublicKeyToken()!), 0, default);
         var objectType = metadata.AddTypeReference(coreRef, metadata.GetOrAddString("System"), metadata.GetOrAddString("Object"));
         var unknownType = objectType;
-        if (types.Any(type => type.Base == -1) || implementation is 4 or 12)
+        TypeReferenceHandle nestedInterface = default;
+        if (types.Any(type => type.Base == -1) || implementation is 4 or 12 or 14)
         {
             var unknownRef = metadata.AddAssemblyReference(metadata.GetOrAddString("ExternalBase"), new Version(1, 0, 0, 0), default, default, 0, default);
             unknownType = metadata.AddTypeReference(unknownRef, metadata.GetOrAddString("External"), metadata.GetOrAddString("Base"));
+            if (implementation == 14)
+            {
+                var outer = metadata.AddTypeReference(unknownRef, metadata.GetOrAddString("External"), metadata.GetOrAddString("Outer"));
+                nestedInterface = metadata.AddTypeReference(outer, default, metadata.GetOrAddString("Contract"));
+                unknownType = metadata.AddTypeReference(unknownRef, metadata.GetOrAddString("External"), metadata.GetOrAddString("Outer+Contract"));
+            }
         }
         metadata.AddTypeDefinition(TypeAttributes.NotPublic, default, metadata.GetOrAddString("<Module>"), default,
             MetadataTokens.FieldDefinitionHandle(1), MetadataTokens.MethodDefinitionHandle(1));
@@ -250,6 +259,8 @@ internal static class FinalizerCapabilityCases
             for (var parameter = 0; parameter < types[index].Arity; parameter++)
                 metadata.AddGenericParameter(MetadataTokens.TypeDefinitionHandle(index + 2), GenericParameterAttributes.None,
                     metadata.GetOrAddString("T" + parameter), parameter);
+        if (implementation == 14)
+            metadata.AddInterfaceImplementation(MetadataTokens.TypeDefinitionHandle(2), nestedInterface);
         if (implementation != 0)
         {
             EntityHandle declaration = implementation switch
@@ -261,8 +272,8 @@ internal static class FinalizerCapabilityCases
                 9 => allMethods[^1],
                 10 => allMethods[^1],
                 11 => metadata.AddMemberReference(MetadataTokens.TypeDefinitionHandle(3), metadata.GetOrAddString("Finalize"), metadata.GetOrAddBlob(InstanceVoid)),
-                _ => metadata.AddMemberReference(implementation is 4 or 12 ? unknownType : objectType,
-                    metadata.GetOrAddString(implementation == 12 ? "Cleanup" : "Finalize"), metadata.GetOrAddBlob(InstanceVoid))
+                _ => metadata.AddMemberReference(implementation is 4 or 12 or 14 ? unknownType : objectType,
+                    metadata.GetOrAddString(implementation is 12 or 14 ? "Cleanup" : "Finalize"), metadata.GetOrAddBlob(InstanceVoid))
             };
             metadata.AddMethodImplementation(MetadataTokens.TypeDefinitionHandle(implementation == 8 ? 999 : implementation is 10 or 11 ? 2 : types.Length + 1),
                 implementation == 7 ? MetadataTokens.MethodDefinitionHandle(999) : implementation is 10 or 11 ? allMethods[0] : allMethods[^1], declaration);

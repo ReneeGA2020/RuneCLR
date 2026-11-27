@@ -200,17 +200,18 @@ public static partial class GameplayCapabilityPolicy
             // A class can expose its finalizer slot under another name via MethodImpl. A
             // void() declaration on an unresolved external class is therefore not proof of
             // an ordinary slot. Interface mappings have no Object finalizer vtable slot.
-            return DeclaresInterface(owner, parent, 0) ? FinalizerSlot.Ordinary : FinalizerSlot.Unknown;
+            return DeclaresInterface(owner, member.Parent, 0) ? FinalizerSlot.Ordinary : FinalizerSlot.Unknown;
         }
 
-        private bool DeclaresInterface(TypeDefinitionHandle owner, Shape target, int nesting)
+        private bool DeclaresInterface(TypeDefinitionHandle owner, EntityHandle target, int nesting)
         {
             if (nesting > 64) return false;
             var type = metadata.GetTypeDefinition(owner);
             foreach (var handle in type.GetInterfaceImplementations())
             {
-                var candidate = Type(metadata.GetInterfaceImplementation(handle).Interface);
-                if (candidate.Assembly == target.Assembly && candidate.SignatureName == target.SignatureName)
+                // Exact metadata identity avoids flattening a nested name into an ambiguous
+                // display string containing '+'. Duplicate/unresolved references stay unknown.
+                if (metadata.GetInterfaceImplementation(handle).Interface == target)
                     return true;
             }
             if (type.BaseType.IsNil) return false;

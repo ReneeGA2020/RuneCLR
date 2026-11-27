@@ -18,6 +18,8 @@ object finalizer under an alias, so instance `void()` reuse-slot overrides and
 explicit mappings to such external class slots are conservatively unsupported.
 Declared interface mappings do not use the object's finalizer slot. Modified or
 ambiguous signatures and incomplete local generic instantiations also reject.
+Interface evidence must use the same metadata reference handle; flattened display
+names cannot prove identity, and duplicate or unresolved references stay unsupported.
 
 The [external-host guide](external-host-admission.md#supply-complete-assembly-identities)
 documents explicit unsigned identity text and normalization of a trusted actual
