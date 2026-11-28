@@ -140,12 +140,42 @@ version. A separate BCL-only console build of the same two source files reproduc
 all six probe dispositions. No private-cache reflection was used to force a
 successful outcome.
 
+### Separate .NET 12 fork evidence
+
+A separate STJ investigation publishes its patch and focused tests on the
+[runtime fork at `01cecc2a`](https://github.com/ReneeGA2020/runtime/commit/01cecc2a1af0bdca86a7e5e16780633fecf6e208).
+Its reviewed xUnit/RemoteExecutor results use runtime
+`12.0.0-alpha.1.26557.102` and verified .NET 12 library/reference metadata,
+separately from this repository's stock .NET 11 probes above. A version label
+alone does not establish the actual target framework or available APIs.
+
+That six-case suite reports 3 passing / 3 failing on the official unpatched STJ,
+and 6/6 passing with the patched fork library and with the same patch on the
+fixed official source baseline `a33eebbe`. In the unpatched collection failures,
+options/resolver/type-info weak references are already dead while collectible
+contexts, types and assemblies remain alive. Focused controls cover two-round
+dual contexts, four-thread first metadata use, held metadata followed by release,
+stable accessor reuse, collectible constructor type arguments and the
+dynamic-code-disabled reflection fallback. No host cache cleanup is used.
+
+This is a different focused suite; the six probe modes in this repository have
+not been rerun against those .NET 12 library layouts. In particular, the passing
+Default-options test is a **retention control**: live Default metadata still owns
+collectible types. It does not prove that held Default or equivalent options can
+be left alive while their DTO contexts collect. Bounded field/JSON-node codecs
+and post-finalizer observation timing remain separate host integration concerns.
+
 ## Evidence needed before an STJ upstream change
 
 Keep this lifecycle contract separate from the diagnosis of STJ internals.
 A submit-ready upstream case still needs the exact upstream source/runtime/STJ
 revision, an independently runnable synthetic repro and control, the relevant
 retaining root(s), and a public-API-compatible fix with focused upstream tests.
+The fork's fixed-baseline results provide reproducibility and focused patch
+evidence, but do not establish validation on the latest upstream main: that
+source needs matching newer type APIs in its references/runtime. Keep that
+toolchain gap explicit rather than relabeling an older runtime or widening the
+claim from the fixed source pin to latest main.
 Exercise reflection metadata, Default/equivalent options, concurrent or foreign
 sessions and failure paths on the intended versions. Preserve failures and
 report version-dependent retention instead of skipping the assertion or adding
