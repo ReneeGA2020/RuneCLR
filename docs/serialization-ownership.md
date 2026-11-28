@@ -112,6 +112,23 @@ functional checks passed but collection remained incomplete within the stated
 observation. Other failures/invalid arguments must not be treated as retention
 observations. No mode clears private caches or swaps installed runtime files.
 
+### Measured stock desktop baseline (2026-11-28)
+
+Windows x64, SDK 11.0.100, runtime .NET 11.0.0, STJ assembly 11.0.0.0
+(MVID `cb8c0bdb-0233-45f5-8f9b-38dd940c302e`): Release solution build had
+0 warnings/errors, the normal Runtime harness passed 162/162 including the six
+new cases, and all three SampleHost sessions collected with `--collect`.
+
+All six fresh-process probes passed their functional checks. `none` and `bounded`
+observed both retired and foreign pairs collected (exit 0). `owned`, `equivalent`
+and `default` still observed both pairs' contexts, assemblies and types alive
+after release (exit 3). In `failure`, the retired framework role collected but
+the retired author role and the foreign pair remained alive; the synthetic
+getter failure was copied to text (exit 3). The observation bound was 12
+collect/finalizer/collect cycles, without a sleep or elapsed-time condition.
+These observations do not identify the retaining roots or predict a newer STJ
+version. No private-cache reflection was used to force a successful outcome.
+
 ## Evidence needed before an STJ upstream change
 
 Keep this lifecycle contract separate from the diagnosis of STJ internals.

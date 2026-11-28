@@ -12,6 +12,13 @@ outcomes for owned, equivalent and Default options and a getter-failure path;
 incomplete collection is reported explicitly, not counted as a passing regression.
 No production GC/cache policy or public runtime fix is implied.
 
+Stock Windows x64 .NET 11 acceptance: Release solution build 0 warnings/errors,
+Runtime 162/162 and three SampleHost collections. The optional probe's
+no-serialization/bounded controls collected; owned/equivalent/Default reflection
+and getter-failure modes explicitly reported incomplete collection (exit 3).
+Version identity and the six observed outcomes are recorded in the guide; this
+does not establish an upstream root cause or acceptance for another STJ version.
+
 ## Public admission follow-up (2026-11-27)
 
 The managed-IL capability gate distinguishes ordinary methods named `Finalize`
