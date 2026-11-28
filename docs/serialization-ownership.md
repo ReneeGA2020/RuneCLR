@@ -106,6 +106,7 @@ dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build -- --seri
 
 Output records runtime and STJ assembly versions/MVID, both roles' context,
 assembly and type liveness, the functional oracle and the error text, if any.
+Actual diagnostic cycle counts are reported separately from the cycle limit.
 Exit **0** means the functional checks passed and collection was observed for
 retired and foreign pairs after their owning frames returned. Exit **3** means
 functional checks passed but collection remained incomplete within the stated

@@ -145,7 +145,7 @@ internal static class SerializationOwnershipTests
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void Release(Lease lease) => lease.Value = null;
 
-    private static void Observe(PairReferences references)
+    private static int Observe(PairReferences references)
     {
         // Never dereference weak targets in the collecting frame. First let finalizers
         // release native loader state, then collect again, then inspect the weak handles.
@@ -154,8 +154,9 @@ internal static class SerializationOwnershipTests
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
-            if (references.Collected) break;
+            if (references.Collected) return round + 1;
         }
+        return ObservationRounds;
     }
 
     private static void RequireCollected(PairReferences references)
@@ -175,7 +176,7 @@ internal static class SerializationOwnershipTests
             return 2;
         }
         var result = RunProbe(mode);
-        Observe(result.Foreign);
+        var foreignCycles = Observe(result.Foreign);
         var foreignCollected = result.Foreign.Collected;
         Console.WriteLine(JsonSerializer.Serialize(new
         {
@@ -185,7 +186,8 @@ internal static class SerializationOwnershipTests
             result.WhileHeld, result.AfterRelease, foreign = result.Foreign.Snapshot(),
             result.FunctionalOracle, result.ErrorText,
             observation = result.AfterRelease.Collected && foreignCollected ? "collected" : "retained-after-observation",
-            diagnosticCollectionRounds = ObservationRounds
+            result.HeldCycles, result.ReleasedCycles, foreignCycles,
+            maximumDiagnosticCycles = ObservationRounds
         }));
         // 3 is an incomplete collection observation, not proof of a leak or a passing test.
         return result.AfterRelease.Collected && foreignCollected ? 0 : 3;
@@ -204,17 +206,17 @@ internal static class SerializationOwnershipTests
         var retired = RetireReflection(mode, sharedResolver, foreignOptions, lease);
         try
         {
-            Observe(retired.References);
+            var heldCycles = Observe(retired.References);
             var held = retired.References.Snapshot();
             Release(lease);
-            Observe(retired.References);
+            var releasedCycles = Observe(retired.References);
             var released = retired.References.Snapshot();
             // Foreign metadata and objects stay live and usable throughout old-session retirement.
             if (mode is "none" or "bounded") AssertPayload(WriteBounded(foreign.Author), "foreign", 7);
             else ValidateReflection(foreign.Author, foreignOptions, includeFields: mode != "default");
             GC.KeepAlive(foreignOptions);
             GC.KeepAlive(sharedResolver);
-            return new(held, released, foreign.References, true, retired.ErrorText);
+            return new(held, released, foreign.References, true, retired.ErrorText, heldCycles, releasedCycles);
         }
         finally { Release(lease); }
     }
@@ -336,7 +338,7 @@ internal static class SerializationOwnershipTests
     private sealed record Retired(PairReferences References, byte[] Payload);
     private sealed record ReflectionRetired(PairReferences References, string? ErrorText);
     private sealed record ProbeResult(PairSnapshot WhileHeld, PairSnapshot AfterRelease, PairReferences Foreign,
-        bool FunctionalOracle, string? ErrorText);
+        bool FunctionalOracle, string? ErrorText, int HeldCycles, int ReleasedCycles);
     private sealed class Lease { internal object? Value; }
     private enum RootKind { Options, Resolver, TypeInfo, Instance }
     private sealed class OwnedResolver(JsonTypeInfo owned) : IJsonTypeInfoResolver
