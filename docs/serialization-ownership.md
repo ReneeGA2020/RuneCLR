@@ -112,6 +112,14 @@ functional checks passed but collection remained incomplete within the stated
 observation. Other failures/invalid arguments must not be treated as retention
 observations. No mode clears private caches or swaps installed runtime files.
 
+For an independent repro, copy `SerializationFixtures.cs` and
+`SerializationOwnershipTests.cs` from `tests/RuneCLR.Runtime.Tests` into a console
+project targeting `net11.0`, with nullable and implicit usings enabled. The only
+entry statement needed is
+`return SerializationOwnershipTests.Probe(args.Length == 1 ? args[0] : "bounded");`.
+Those files use only BCL APIs; no RuneCLR production assembly, package or engine
+is required. Supply one mode as the executable's argument in each fresh process.
+
 ### Measured stock desktop baseline (2026-11-28)
 
 Windows x64, SDK 11.0.100, runtime .NET 11.0.0, STJ assembly 11.0.0.0
@@ -127,7 +135,9 @@ the retired author role and the foreign pair remained alive; the synthetic
 getter failure was copied to text (exit 3). The observation bound was 12
 collect/finalizer/collect cycles, without a sleep or elapsed-time condition.
 These observations do not identify the retaining roots or predict a newer STJ
-version. No private-cache reflection was used to force a successful outcome.
+version. A separate BCL-only console build of the same two source files reproduced
+all six probe dispositions. No private-cache reflection was used to force a
+successful outcome.
 
 ## Evidence needed before an STJ upstream change
 
