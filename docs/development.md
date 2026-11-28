@@ -4,16 +4,18 @@
 
 The [serialization ownership guide](serialization-ownership.md) separates
 host-owned options/resolver/type-info leases from version-dependent reflection
-serializer caching. Six synthetic Runtime test cases cover two ordinary
+serializer caching. Seven synthetic Runtime test cases cover two ordinary
 collectible contexts, A-B-A scalar-field snapshots, an active foreign pair,
 explicit metadata/DTO retention and release, and a throwing property outside the
-bounded codec's contract. Optional fresh-process probes report STJ reflection
-outcomes for owned, equivalent and Default options and a getter-failure path;
+bounded codec's contract, plus Default-defined closed generic pair/array/list/nest
+shapes whose constructed types are collectible. Optional fresh-process probes
+report real cached-metadata holds, verified sharing with Default, owned options
+and a getter-failure path;
 incomplete collection is reported explicitly, not counted as a passing regression.
 No production GC/cache policy or public runtime fix is implied.
 
 Stock Windows x64 .NET 11 acceptance: Release solution build 0 warnings/errors,
-Runtime 162/162 and three SampleHost collections. The optional probe's
+Runtime 163/163 and three SampleHost collections. The optional probe's
 no-serialization/bounded controls collected; owned/equivalent/Default reflection
 and getter-failure modes explicitly reported incomplete collection (exit 3).
 Version identity and the six observed outcomes are recorded in the guide; this

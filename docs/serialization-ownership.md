@@ -36,11 +36,38 @@ then is retired and observed separately.
 
 ## Reflection and bounded field codecs have different contracts
 
-The reflection probe uses real `JsonSerializer.Serialize(object, Type, options)`
-against collectible types. It checks traversal of both roles, holds a foreign
-session and its options, retires another session, and records weak-reference
-state before and after releasing the retired session's options lease. The
-failure mode invokes a synthetic throwing getter and retains only error text.
+The reflection probe serializes **and deserializes** a closed
+`Pair<TLeft,TRight>` whose generic definition is in Default and whose type
+arguments come from the two collectible contexts. The constructed `Type` is
+collectible even though its defining `Assembly` is not. Distinct non-default
+sentinels and actual round-trip type identity are checked on both sides. Array,
+nonempty list and four-level `Nest<T>` envelopes exercise the same graph.
+
+Owned options use a fresh `DefaultJsonTypeInfoResolver`, independent of the
+foreign session. Metadata is captured after serialization freezes the options;
+repeated `GetTypeInfo` must return the same cached instance. `held` keeps only
+that actual cached `JsonTypeInfo`, which also owns its options. The handcrafted
+type-info graphs in the ordinary ownership tests are a separate control and are
+not described as actual reflection-cache owners.
+
+The `equivalent` comparison first warms **real** `JsonSerializerOptions.Default`
+with a stable Default DTO. A configuration-identical copy is made read-only,
+and its stable type info must be `ReferenceEquals` to Default's before it ever
+sees a collectible graph. A shared resolver or an options copy alone is not
+accepted as proof of shared caching state. Real Default is used again with the
+stable DTO before collection, so its root-type fast slot is not the only root
+being exercised. Default/equivalent and held controls assert each role's context,
+assembly and type alive, rather than merely asserting that not all collected.
+
+The foreign session round-trips again after the old session requests unload,
+before the first GC phase, and stays strongly held through the old session's
+observation. Its whole owning helper then returns before the outer observer
+collects it. No further STJ call is made during these GC phases; the JSON report
+is printed only after all lifetime snapshots have been taken. The failure mode
+exits its exception helper, retaining only error type/message strings, never an
+exception or `ExceptionDispatchInfo` object. Options, resolver and cached info
+have separate weak-reference observations alongside contexts, assemblies, types
+and the constructed generic envelope type.
 
 The bounded test codec reads exactly three declared instance fields: an `int`,
 a bounded `string`, and an optional peer whose `int` is copied. It writes those
@@ -49,6 +76,11 @@ reflection serializer. Its temporary `FieldInfo` objects leave the helper stack
 before collection. Tests cover A-B-A fresh dual-context sessions, an active
 foreign session, invalid field shapes and a DTO with a throwing property that
 the bounded codec never calls.
+
+An additional bounded regression unwraps only the explicitly selected generic
+pair/array/list/nest shapes and copies their two scalar fields. It does not send
+those collectible graphs back into `JsonNode.Deserialize<T>` or another general
+reflection fallback.
 
 That codec is only a fixture illustrating a finite host-owned schema. It is
 not general-purpose reflection serialization: properties, arbitrary nested
@@ -79,7 +111,7 @@ the collect/finalizer/collect order; this does not require changing them globall
 
 ## Run the neutral fixtures
 
-The six ownership/codec cases are part of the normal executable harness:
+The seven ownership/codec cases are part of the normal executable harness:
 
 ```sh
 dotnet build RuneCLR.slnx -c Release
@@ -93,19 +125,23 @@ that quietly pass when collection was not observed:
 ```sh
 dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build -- --serialization-probe bounded
 dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build -- --serialization-probe owned
+dotnet run --project tests/RuneCLR.Runtime.Tests -c Release --no-build -- --serialization-probe held list
 ```
 
 | Mode | Controlled difference |
 | --- | --- |
-| `none` | Load/create/release the two-role graph without serialization. |
-| `bounded` | Use only the bounded scalar-field codec. |
-| `owned` | Reflect with a distinct resolver/options graph for the retiring session; retain foreign options. |
-| `equivalent` | Reflect with a copy of foreign options using the same resolver. The configuration is equivalent; the probe does not inspect private caches to claim actual cache sharing. |
-| `default` | Reflect with `JsonSerializerOptions.Default` held by the process. Scalar/peer properties make both roles observable even though Default omits fields. |
+| `none` | Load/create/release the two-role closed generic graph without serialization. |
+| `bounded` | Use only the explicit bounded graph/field codec. |
+| `owned` | Reflect with a distinct resolver/options graph, then return with only weak metadata references; retain foreign options independently. |
+| `held` | Keep the actual frozen-options cached cross-domain `JsonTypeInfo` alive, then release that single owner. |
+| `equivalent` | Copy real Default options unchanged, freeze and prove stable metadata identity sharing before touching collectible types. |
+| `default` | Reflect through real Default; overwrite its fast slot with a stable DTO before observing its remaining metadata ownership. |
 | `failure` | Reflect with distinct options; a synthetic author getter throws. Retain error text only. |
 
-Output records runtime and STJ assembly versions/MVID, both roles' context,
-assembly and type liveness, the functional oracle and the error text, if any.
+The optional final argument selects `pair` (default), `array`, `list` or `nest`.
+Schema-2 output records runtime and STJ assembly versions/MVID, both roles'
+context/assembly/type and envelope liveness, options/resolver/cached-info
+liveness, cache/sharing assertions, the functional oracle and any error text.
 Actual diagnostic cycle counts are reported separately from the cycle limit.
 Exit **0** means the functional checks passed and collection was observed for
 retired and foreign pairs after their owning frames returned. Exit **3** means
@@ -117,7 +153,7 @@ For an independent repro, copy `SerializationFixtures.cs` and
 `SerializationOwnershipTests.cs` from `tests/RuneCLR.Runtime.Tests` into a console
 project targeting `net11.0`, with nullable and implicit usings enabled. The only
 entry statement needed is
-`return SerializationOwnershipTests.Probe(args.Length == 1 ? args[0] : "bounded");`.
+`return SerializationOwnershipTests.Probe(args.Length > 0 ? args[0] : "bounded", args.Length > 1 ? args[1] : "pair");`.
 Those files use only BCL APIs; no RuneCLR production assembly, package or engine
 is required. Supply one mode as the executable's argument in each fresh process.
 
@@ -126,19 +162,29 @@ is required. Supply one mode as the executable's argument in each fresh process.
 Windows x64, SDK 11.0.100, runtime .NET 11.0.0, STJ assembly 11.0.0.0
 (MVID `cb8c0bdb-0233-45f5-8f9b-38dd940c302e`): Release solution build had
 0 warnings/errors, the normal Runtime harness passed 162/162 including the six
-new cases, and all three SampleHost sessions collected with `--collect`.
+initial cases, and all three SampleHost sessions collected with `--collect`.
 
-All six fresh-process probes passed their functional checks. `none` and `bounded`
-observed both retired and foreign pairs collected (exit 0). `owned`, `equivalent`
-and `default` still observed both pairs' contexts, assemblies and types alive
-after release (exit 3). In `failure`, the retired framework role collected but
-the retired author role and the foreign pair remained alive; the synthetic
-getter failure was copied to text (exit 3). The observation bound was 12
-collect/finalizer/collect cycles, without a sleep or elapsed-time condition.
-These observations do not identify the retaining roots or predict a newer STJ
-version. A separate BCL-only console build of the same two source files reproduced
-all six probe dispositions. No private-cache reflection was used to force a
-successful outcome.
+The strengthened closed-generic controls pass the normal harness at 163/163,
+including the new bounded pair/array/list/nest case. In schema-2 pair probes,
+all seven modes pass their functional assertions. `none`/`bounded` observe retired
+and foreign graphs collected (exit 0). `owned`/`held`/`equivalent`/`default`/`failure`
+report incomplete collection (exit 3), with both retired roles and the envelope
+still alive. In `owned` and `failure`, options/resolver/cached-info weak targets
+are already dead; `held` shows all three alive while cached info is held and dead
+after its release. `equivalent` proves metadata identity sharing with Default,
+whose resolver/info remain alive even after the temporary options copy dies.
+The failure helper records only its synthetic getter-error text.
+
+The full seven-mode by four-envelope matrix ran in 28 separate processes on
+that same stock runtime. All functional assertions passed: the eight
+no-serialization/bounded observations collected, while the twenty reflection
+observations explicitly returned exit 3. Each equivalent-options case proved
+sharing and each held/Default case asserted every role target alive.
+
+The earlier simple-record probe logs remain distinct from this closed-generic
+graph. A bounded observation does not identify the actual retaining roots or
+predict a newer STJ version. No private-cache reflection is used to force a
+successful outcome, and no accessor is requested during GC to drive a TTL.
 
 ### Separate .NET 12 fork evidence
 
@@ -151,7 +197,10 @@ alone does not establish the actual target framework or available APIs.
 
 That six-case suite reports 3 passing / 3 failing on the official unpatched STJ,
 and 6/6 passing with the patched fork library and with the same patch on the
-fixed official source baseline `a33eebbe`. In the unpatched collection failures,
+fixed official source baseline `a33eebbe8e6cc76c22f30ac9b9f166ac6469d088`.
+A corrected unpatched rebuild from that same source pin also reproduces the
+same 3 passing / 3 failing result; an earlier invalid auxiliary baseline is
+excluded from that comparison. In the unpatched collection failures,
 options/resolver/type-info weak references are already dead while collectible
 contexts, types and assemblies remain alive. Focused controls cover two-round
 dual contexts, four-thread first metadata use, held metadata followed by release,
@@ -164,6 +213,9 @@ Default-options test is a **retention control**: live Default metadata still own
 collectible types. It does not prove that held Default or equivalent options can
 be left alive while their DTO contexts collect. Bounded field/JSON-node codecs
 and post-finalizer observation timing remain separate host integration concerns.
+The fork's inherited-`ReflectedType` factory control is a direct accessor test;
+ordinary serialization does not necessarily exercise that exact member shape.
+No internal accessor reflection probe is copied into these SDK regressions.
 
 ## Evidence needed before an STJ upstream change
 
