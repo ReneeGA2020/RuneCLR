@@ -1,5 +1,17 @@
 # Development handoff
 
+## Collectible serialization ownership (2026-11-28)
+
+The [serialization ownership guide](serialization-ownership.md) separates
+host-owned options/resolver/type-info leases from version-dependent reflection
+serializer caching. Six synthetic Runtime test cases cover two ordinary
+collectible contexts, A-B-A scalar-field snapshots, an active foreign pair,
+explicit metadata/DTO retention and release, and a throwing property outside the
+bounded codec's contract. Optional fresh-process probes report STJ reflection
+outcomes for owned, equivalent and Default options and a getter-failure path;
+incomplete collection is reported explicitly, not counted as a passing regression.
+No production GC/cache policy or public runtime fix is implied.
+
 ## Public admission follow-up (2026-11-27)
 
 The managed-IL capability gate distinguishes ordinary methods named `Finalize`

@@ -99,6 +99,13 @@ tracks the load context without keeping it alive. Production hosts should observ
 collection at suitable lifecycle points. Forced GC in the demo and tests is
 diagnostic, may pause execution, and cannot make retained references disappear.
 
+Host serialization has its own reference graph: options, resolvers, type info,
+converters and reflection metadata can retain either collectible role. See the
+[serialization ownership guide](serialization-ownership.md) for explicit lease
+controls, a bounded field-codec regression and separate version-dependent STJ
+reflection probes. Retiring one session must preserve another active session;
+diagnostic collection is not a production cache-release mechanism.
+
 Contexts share the CLR heap, process permissions, and framework libraries.
 Unloadability does not establish memory isolation, execution isolation, or
 complete reversal of map side effects. The lifecycle API does not yet own

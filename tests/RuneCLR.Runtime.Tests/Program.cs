@@ -31,11 +31,18 @@ var tests = new List<(string Name, Action Run)>
 RuntimeTestSettings.ExecutionPolicy = args.Contains("--require-interpreter", StringComparer.Ordinal)
     ? MapExecutionPolicy.RequireInterpreter : MapExecutionPolicy.Default;
 args = args.Where(argument => argument != "--require-interpreter").ToArray();
+if (args.Length == 2 && args[0] == "--serialization-probe")
+{
+    if (RuntimeTestSettings.ExecutionPolicy != MapExecutionPolicy.Default)
+        throw new ArgumentException("Serialization probes use ordinary collectible contexts; do not pass --require-interpreter.");
+    return SerializationOwnershipTests.Probe(args[1]);
+}
 tests.AddRange(SessionTests.Cases());
 tests.AddRange(HostContractSessionTests.Cases());
 tests.AddRange(HostContractPolicyTests.Cases());
 tests.AddRange(CallbackDeadlineTests.Cases());
 tests.AddRange(ReflectionPolicyTests.Cases());
+tests.AddRange(SerializationOwnershipTests.Cases());
 
 if (args.Length == 2 && args[0] == "--late-map")
 {
@@ -44,7 +51,7 @@ if (args.Length == 2 && args[0] == "--late-map")
 }
 else if (args.Length != 0)
 {
-    Console.Error.WriteLine("Usage: RuneCLR.Runtime.Tests [--late-map <manifest>] [--require-interpreter]");
+    Console.Error.WriteLine("Usage: RuneCLR.Runtime.Tests [--late-map <manifest>] [--require-interpreter] | --serialization-probe <mode>");
     return 2;
 }
 
